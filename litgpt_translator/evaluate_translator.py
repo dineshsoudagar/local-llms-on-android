@@ -30,17 +30,17 @@ def generate_model_scores(data_dict, model, response_field="response", target_fi
 
 
 # Load the model to be tested
-# llm = LLM.load(r"C:\Others\Projects\LLM-ENGLISH-GERMAN-Small-Translator\out\finetune\lora\QWEN_2p5_0p5B_en_to_de_translator")
-#
-# # Record the response
-# for i in trange(len(test_data)):
-#     response = llm.generate(test_data[i]["instruction"], temperature=0)
-#     test_data[i]["response"] = response
-#
-# with open("test_data_response.json", "w", encoding="utf-8") as f:
-#     f.write(json.dumps(test_data))
+llm = LLM.load(r"C:\Others\Projects\LLM-ENGLISH-GERMAN-Small-Translator\out\finetune\lora\QWEN_Translator_plus_A1_explanation_2\final")
 
-with open("test_data_response.json", "r") as response_file:
+# Record the response
+for i in trange(len(test_data)):
+    response = llm.generate(test_data[i]["instruction"], temperature=0)
+    test_data[i]["response"] = response
+
+with open("../test_data_response_2.json", "w", encoding="utf-8") as f:
+    f.write(json.dumps(test_data))
+
+with open("../test_data_response_2.json", "r") as response_file:
     test_data_response = json.load(response_file)
 
 ## Loader a scorer

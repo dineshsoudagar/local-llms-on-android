@@ -23,5 +23,5 @@ print(len(final_dataset))
 print(len(modified_explanation_dataset))
 random.shuffle(final_dataset)
 
-with open("de_en_dataset_with_A1_explanations_for25k_llama_3_8B.json", "w", encoding="utf-8") as f:
+with open("../datasets/Version1_de_en_dataset_with_A1_explanations_for25k_llama_3_8B.json", "w", encoding="utf-8") as f:
     f.write(json.dumps(final_dataset))
