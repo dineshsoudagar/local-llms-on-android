@@ -37,10 +37,10 @@ for i in trange(len(test_data)):
     response = llm.generate(test_data[i]["instruction"], temperature=0)
     test_data[i]["response"] = response
 
-with open("../test_data_response_2.json", "w", encoding="utf-8") as f:
+with open("../extra_files/test_data_response_2.json", "w", encoding="utf-8") as f:
     f.write(json.dumps(test_data))
 
-with open("../test_data_response_2.json", "r") as response_file:
+with open("../extra_files/test_data_response_2.json", "r") as response_file:
     test_data_response = json.load(response_file)
 
 ## Loader a scorer
