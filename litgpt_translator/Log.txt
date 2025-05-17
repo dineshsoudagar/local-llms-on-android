@@ -1,0 +1,232 @@
+4-May-2025
+- Download the en-de sentences pair Tatoeba dataset from https://object.pouta.csc.fi/OPUS-Tatoeba/v2023-04-12/moses/de-en.txt.zip
+- Convert to litgpt format with Covert_data_to_litgpt_format.py
+- Downlaod Qwen/Qwen2.5-0.5B-Instruct: Run in cmd "litgpt download Qwen/Qwen2.5-0.5B-Instruct"
+- Finetune with command "litgpt finetune_lora Qwen/Qwen2.5-0.5B-Instruct --data JSON --data.val_split_fraction 0.1 --data.json_path C:\Others\Projects\de-en-txt-data\litgpt_translation_dataset.json --train.epochs 3 --train.log_interval 100 --precision bf16-true --train.micro_batch_size 2"
+- Config of the training :
+        """
+         'access_token': None,
+         y'checkpoint_dir': WindowsPath('checkpoints/Qwen/Qwen2.5-0.5B-Instruct'),
+         '
+          data': JSON(json_path=WindowsPath('C:/Others/Projects/de-en-txt-data/litgpt_translation_dataset.json'),
+                      mask_prompt=False,
+                      val_split_fraction=0.1,
+                      prompt_style=<litgpt.prompts.Alpaca object at 0x000002CCE8E58F50>,
+                      ignore_index=-100,
+                      seed=42,
+                      num_workers=4),
+         'devices': 1,
+         'eval': EvalArgs(interval=100,
+                          max_new_tokens=100,
+                          max_iters=100,
+                          initial_validation=False,
+                          final_validation=True,
+                          evaluate_example='first'),
+         'logger_name': 'csv',
+         'lora_alpha': 16,
+         'lora_dropout': 0.05,
+         'lora_head': False,
+         'lora_key': False,
+         'lora_mlp': False,
+         'lora_projection': False,
+         'lora_query': True,
+         'lora_r': 8,
+         'lora_value': True,
+         'num_nodes': 1,
+         'optimizer': 'AdamW',
+         'out_dir': WindowsPath('out/finetune/lora'),
+         'precision': 'bf16-true',
+         'quantize': None,
+         'seed': 1337,
+         'train': TrainArgs(save_interval=1000,
+                            log_interval=100,
+                            global_batch_size=16,
+                            micro_batch_size=2,
+                            lr_warmup_steps=100,
+                            lr_warmup_fraction=None,
+                            epochs=3,
+                            max_tokens=None,
+                            max_steps=None,
+                            max_seq_length=None,
+                            tie_embeddings=None,
+                            max_norm=None,
+                            min_lr=6e-05)}
+        Seed set to 1337
+        Number of trainable parameters: 540,672
+        Number of non-trainable parameters: 630,167,424
+        The longest sequence length in the train data is 653, the model's maximum sequence length is 653 and context length is 32768
+        Verifying settings ...
+        """
+- Evaluation result of this above first model. Number of scores: 974 of 1000,  Average score: 64.40. 100 is best response.
+- Also Testing with litgpt chat C:\Others\Projects\LLM-ENGLISH-GERMAN-Small-Translator\out\finetune\lora\QWEN_2p5_0p5B_en_to_de_translator --temperature 0.1
+- Example Prompt and Output : >> Prompt: "Translate to German: What is this? and why is it here?"
+                                >> Reply: Was ist das denn? Und warum ist es hier?
+                                Time for inference: 0.29 sec total, 41.07 tokens/sec, 12 tokens
+
+
+6-May-2025
+- added A1 level Explanations to 25K translation examples.
+- now I am finetuning the above translator model with this new dataset, for the task of A1 explanation along with translation. basically the new dataset has additional 25k samples.
+- Example of A1 explanation dataset. {"instruction": "Explain the German sentence for A1 level: Jetzt \u00f6ffnet sich die T\u00fcr.", "output": "word meanings: \nJetzt: now, currently, \n\u00f6ffnet: opens, \nsich: reflexive pronoun, \ndie: the, \nT\u00fcr: [door],"}
+- command line arg for linux: litgpt finetune_lora /mnt/c/Others/Projects/LLM-ENGLISH-GERMAN-Small-Translator/out/finetune/lora/QWEN_2p5_0p5B_en_to_de_translator --data JSON --data.val_split_fraction 0.1 --data.json_path /mnt/c/Others/Projects/LLM-ENGLISH-GERMAN-Small-Translator/de_en_dataset_with_A1_explanations_for25k_llama_3_8B.json --train.epochs 3 --train.log_interval 500 --precision bf16-true --train.micro_batch_size 2 --out_dir out/finetune/lora/QWEN_Translator_plus_A1_explanation
+- command line arg for windows : litgpt finetune_lora out\finetune\lora\QWEN_2p5_0p5B_en_to_de_translator --data JSON --data.val_split_fraction 0.1 --data.json_path de_en_dataset_with_A1_explanations_for25k_llama_3_8B.json --train.epochs 3 --train.log_interval 100 --precision bf16-true --train.micro_batch_size 8 --out_dir out\finetune\lora\QWEN_Translator_plus_A1_explanation_2
+- config : check folder out/finetune/lora/QWEN_Translator_plus_A1_explanation
+- Tested translator capacity : Number of scores: 982 of 1000,  Average score: 63.67
+- litgpt chat C:\Others\Projects\LLM-ENGLISH-GERMAN-Small-Translator\out\finetune\lora\QWEN_Translator_plus_A1_explanation_2\final --temperature 0.1 (FOR BETTER RESULTS)
+- Example prompt and output : >> Prompt:  "Translate to German: Hello darling. Come here please. I love you very very much"
+                              >> Reply: Hallo, du Freundin! Komm bitte her! Ich liebe dich sehr sehr!
+                              Time for inference: 0.40 sec total, 40.32 tokens/sec, 16 tokens
+- Then Tested the A1 level Explanation capacity with prompts:  FOR SOME REASON IF YOU USE QUOTES "" then the output is not right.
+        >> Prompt: "Explain the German sentence for A1 level: Ich hoffe, dass du bereit bist zu"
+        >> Reply: Ich hoffe, dass du bereit bist zu dem, was du machst.
+        Time for inference: 0.38 sec total, 47.87 tokens/sec, 18 tokens
+
+        >> Prompt: Explain the German sentence for A1 level: Ich hoffe, dass du bereit bist zu
+        >> Reply: word meanings:
+        ich: I
+        hoffe: hope
+        dass: that
+        du: you
+        bereit: ready
+        ist: is
+        zu: to
+
+- Converted to hugging face transformer type:
+- below instruction works perfectly: REMEMBER NO QUOETATION MARKLS
+            prompt = """ Below is an instruction that describes a task. Write a response that appropriately completes the request.
+                        ### Instruction:
+                        Explain the German sentence: Was ist das?
+                        """
+
+            >> Prompt:  Below is an instruction that describes a task. Write a response that appropriately completes the request.
+            ### Instruction:
+            Explain the German sentence: Was ist das?
+
+            >> Reply: ### Response:
+            word meanings:
+            Was: what
+            ist: is
+            das: the
+
+
+8-May-2025.
+
+- Training along with grammertips
+- command line :  litgpt finetune_lora Qwen/Qwen2.5-0.5B-Instruct --data JSON --data.val_split_fraction 0.1 --data.json_path .\HF_QWEN_Translator\en_de_dataset_A1_level_for30k_llama_3_8B_litgpt_format.json --train.epochs 3 --train.log_interval 100 --precision bf16-true --train.micro_batch_size 2 --out_dir out\finetune\lora\QWEN_Translator_plus_A1_grammertips
+- config :{'access_token': None,
+         'checkpoint_dir': WindowsPath('checkpoints/Qwen/Qwen2.5-0.5B-Instruct'),
+         'data': JSON(json_path=WindowsPath('HF_QWEN_Translator/en_de_dataset_A1_level_for30k_llama_3_8B_litgpt_format.json'),
+                      mask_prompt=False,
+                      val_split_fraction=0.1,
+                      prompt_style=<litgpt.prompts.Alpaca object at 0x000001E0D33B9C50>,
+                      ignore_index=-100,
+                      seed=42,
+                      num_workers=4),
+         'devices': 1,
+         'eval': EvalArgs(interval=100,
+                          max_new_tokens=100,
+                          max_iters=100,
+                          initial_validation=False,
+                          final_validation=True,
+                          evaluate_example='first'),
+         'logger_name': 'csv',
+         'lora_alpha': 16,
+         'lora_dropout': 0.05,
+         'lora_head': False,
+         'lora_key': False,
+         'lora_mlp': False,
+         'lora_projection': False,
+         'lora_query': True,
+         'lora_r': 8,
+         'lora_value': True,
+         'num_nodes': 1,
+         'optimizer': 'AdamW',
+         'out_dir': WindowsPath('out/finetune/lora/QWEN_Translator_plus_A1_grammertips'),
+         'precision': 'bf16-true',
+         'quantize': None,
+         'seed': 1337,
+         'train': TrainArgs(save_interval=1000,
+                            log_interval=100,
+                            global_batch_size=16,
+                            micro_batch_size=2,
+                            lr_warmup_steps=100,
+                            lr_warmup_fraction=None,
+                            epochs=3,
+                            max_tokens=None,
+                            max_steps=None,
+                            max_seq_length=None,
+                            tie_embeddings=None,
+                            max_norm=None,
+                            min_lr=6e-05)}
+        Seed set to 1337
+        Number of trainable parameters: 540,672
+        Number of non-trainable parameters: 630,167,424
+
+#############################
+15-May-2025
+- Training along with grammertips
+- Command line : litgpt finetune_lora meta-llama/Llama-3.2-1B-Instruct --data JSON --data.val_split_fraction 0.1 --data.json_path datasets/Version3_en_de_dataset_A1_level_for30k_llama_3_8B_litgpt_format.json --train.epochs 1 --train.log_interval 100 --precision bf16-true --train.micro_batch_size 2 --out_dir out\finetune\lora\llama32_1B_Translator_plus_A1_grammertips
+- Config : {'access_token': None,
+         'checkpoint_dir': WindowsPath('checkpoints/meta-llama/Llama-3.2-1B-Instruct'),
+         'data': JSON(json_path=WindowsPath('datasets/Version3_en_de_dataset_A1_level_for30k_llama_3_8B_litgpt_format.json'),
+                      mask_prompt=False,
+                      val_split_fraction=0.1,
+                      prompt_style=<litgpt.prompts.Alpaca object at 0x0000017F4613A210>,
+                      ignore_index=-100,
+                      seed=42,
+                      num_workers=4),
+         'devices': 1,
+         'eval': EvalArgs(interval=100,
+                          max_new_tokens=100,
+                          max_iters=100,
+                          initial_validation=False,
+                          final_validation=True,
+                          evaluate_example='first'),
+         'logger_name': 'csv',
+         'lora_alpha': 16,
+         'lora_dropout': 0.05,
+         'lora_head': False,
+         'lora_key': False,
+         'lora_mlp': False,
+         'lora_projection': False,
+         'lora_query': True,
+         'lora_r': 8,
+         'lora_value': True,
+         'num_nodes': 1,
+         'optimizer': 'AdamW',
+         'out_dir': WindowsPath('out/finetune/lora/llama32_1B_Translator_plus_A1_grammertips'),
+         'precision': 'bf16-true',
+         'quantize': None,
+         'seed': 1337,
+         'train': TrainArgs(save_interval=1000,
+                            log_interval=100,
+                            global_batch_size=16,
+                            micro_batch_size=2,
+                            lr_warmup_steps=100,
+                            lr_warmup_fraction=None,
+                            epochs=1,
+                            max_tokens=None,
+                            max_steps=None,
+                            max_seq_length=None,
+                            tie_embeddings=None,
+                            max_norm=None,
+                            min_lr=6e-05)}
+        Seed set to 1337
+        Number of trainable parameters: 851,968
+        Number of non-trainable parameters: 1,498,482,688
+- Example Output:
+            >> Prompt: instruction": "Explain the German sentence: Ich muss schlafen gehen., Level:A1
+            >> Reply: words:
+            muss: <must>
+            schlafen: <to go to sleep>
+            gehen: <to go>
+
+            grammar tip:
+            The verb "muss" is in the present tense and is used to express obligation or requirement.
+            Time for inference: 1.28 sec total, 38.25 tokens/sec, 49 tokens
+
+            >> Prompt: instruction": "Translate to English: Lass uns etwas versuchen!
+            >> Reply:  "Let's try something."
+            Time for inference: 0.59 sec total, 10.16 tokens/sec, 6 tokens
+
+
