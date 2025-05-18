@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/userInput"
+        android:layout_width="match_parent"
+        android:layout_height="301dp"
+        android:hint="Type your question"
+        android:textSize="16sp" />
+
+    <Button
+        android:id="@+id/sendButton"
+        android:layout_width="383dp"
+        android:layout_height="wrap_content"
+        android:text="Send" />
+
+    <TextView
+        android:id="@+id/outputView"
+        android:layout_width="match_parent"
+        android:layout_height="230dp"
+        android:paddingTop="16dp"
+        android:text="Output will appear here"
+        android:textSize="16sp" />
+</LinearLayout>
