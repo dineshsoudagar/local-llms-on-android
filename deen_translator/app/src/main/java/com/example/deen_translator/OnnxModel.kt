@@ -85,28 +85,29 @@ class OnnxModel(private val context: Context) {
     fun runInferenceStreaming(
         inputIds: IntArray,
         maxTokens: Int = 1024,
-        endTokenId: Int = 151645,
+        endTokenIds: Set<Int> = setOf(151645),
+        shouldStop: () -> Boolean = { false },
         onTokenGenerated: (Int) -> Unit
     ) {
         val generated = inputIds.toMutableList()
 
         for (i in 0 until maxTokens) {
+            if (shouldStop()) break
+
             val seqLen = generated.size.toLong()
 
-            val inputIdsArray = generated.map { it.toLong() }.toLongArray()
-            val inputIdsBuffer = LongBuffer.wrap(inputIdsArray)
-            val inputTensor = OnnxTensor.createTensor(env, inputIdsBuffer, longArrayOf(1, seqLen))
+            val inputIdsTensor = OnnxTensor.createTensor(
+                env, LongBuffer.wrap(generated.map { it.toLong() }.toLongArray()), longArrayOf(1, seqLen)
+            )
+            val attnTensor = OnnxTensor.createTensor(
+                env, LongBuffer.wrap(LongArray(seqLen.toInt()) { 1L }), longArrayOf(1, seqLen)
+            )
+            val posTensor = OnnxTensor.createTensor(
+                env, LongBuffer.wrap(LongArray(seqLen.toInt()) { it.toLong() }), longArrayOf(1, seqLen)
+            )
 
-            val attnMaskArray = LongArray(seqLen.toInt()) { 1L }
-            val attnMaskBuffer = LongBuffer.wrap(attnMaskArray)
-            val attnTensor = OnnxTensor.createTensor(env, attnMaskBuffer, longArrayOf(1, seqLen))
-
-            val posIdsArray = LongArray(seqLen.toInt()) { it.toLong() }
-            val posIdsBuffer = LongBuffer.wrap(posIdsArray)
-            val posTensor = OnnxTensor.createTensor(env, posIdsBuffer, longArrayOf(1, seqLen))
-
-            val inputs: Map<String, OnnxTensor> = mapOf(
-                "input_ids" to inputTensor,
+            val inputs = mapOf(
+                "input_ids" to inputIdsTensor,
                 "attention_mask" to attnTensor,
                 "position_ids" to posTensor
             )
@@ -117,16 +118,13 @@ class OnnxModel(private val context: Context) {
             val nextTokenId = logits.indices.maxByOrNull { logits[it] } ?: 0
             generated.add(nextTokenId)
 
-            // Free resources
-            inputTensor.close()
+            inputIdsTensor.close()
             attnTensor.close()
             posTensor.close()
             results.close()
 
-            // Return the token to the UI
             onTokenGenerated(nextTokenId)
-
-            if (nextTokenId == endTokenId) break
+            if (nextTokenId in endTokenIds) break
         }
     }
 }

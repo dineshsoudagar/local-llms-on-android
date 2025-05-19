@@ -8,38 +8,35 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.*
-import com.example.deen_translator.BpeTokenizer as SimpleTokenizer
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var tokenizer: SimpleTokenizer
+    private lateinit var tokenizer: BpeTokenizer
     private lateinit var onnxModel: OnnxModel
     private val inferenceScope = CoroutineScope(Dispatchers.IO)
+    private var inferenceJob: Job? = null
+
+    private val END_TOKEN_IDS = setOf(151643, 151645) // <|endoftext|> and <|im_end|>
 
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        tokenizer = SimpleTokenizer(this)
+        tokenizer = BpeTokenizer(this)
 
-        // Load the model in the background
         inferenceScope.launch {
             onnxModel = OnnxModel(this@MainActivity)
         }
+
         val systemPrompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
         val inputEditText: EditText = findViewById(R.id.userInput)
         val sendButton: Button = findViewById(R.id.sendButton)
+        val stopButton: Button = findViewById(R.id.stopButton)
         val outputText: TextView = findViewById(R.id.outputView)
 
         sendButton.setOnClickListener {
             val inputText = inputEditText.text.toString()
-            Log.d(inputText, "Input Text ")
-            runOnUiThread {
-                sendButton.isEnabled = false
-                outputText.text = "⏳ Thinking..."
-            }
-            // Build the formatted prompt
             val chatPrompt = buildString {
                 append("<|im_start|>system\n")
                 append(systemPrompt)
@@ -50,70 +47,56 @@ class MainActivity : AppCompatActivity() {
                 append("<|im_start|>assistant\n")
             }
 
-            /*
-            inferenceScope.launch {
-                try {
-                    val tokenIds = tokenizer.tokenize(chatPrompt,  addSpecialTokens = false)
-                    val promptLength = tokenIds.size
-                    Log.d("MainActivity", "Token IDs: ${tokenIds.joinToString(",")}")  // Print token IDs nicely
+            sendButton.isEnabled = false
+            stopButton.isEnabled = true
+            outputText.text = "⏳ Thinking..."
 
-                    val outputIds = onnxModel.runInference(tokenIds)
-                    // Keep only generated tokens
-                    val generatedIds = outputIds.drop(promptLength).toIntArray()
-                    Log.d("MainActivity", "Output IDs: ${outputIds.joinToString(",")}")
-
-                    val outputTokens = tokenizer.decode(generatedIds)
-                    Log.d("MainActivity", "Output Text: $outputTokens")
-
-                    withContext(Dispatchers.Main) {
-                        outputText.text = outputTokens
-                        sendButton.isEnabled = true
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        outputText.text = "Error: ${e.message}"
-                    }
-                }
-            }
-            */
-            inferenceScope.launch {
+            inferenceJob = inferenceScope.launch {
                 try {
                     val tokenIds = tokenizer.tokenize(chatPrompt, addSpecialTokens = false)
-                    val promptLength = tokenIds.size
                     val builder = StringBuilder()
 
                     withContext(Dispatchers.Main) {
                         outputText.text = ""
                     }
 
-                    onnxModel.runInferenceStreaming(tokenIds) { tokenId ->
-                        val tokenStr = tokenizer.decode(intArrayOf(tokenId))
+                    onnxModel.runInferenceStreaming(
+                        inputIds = tokenIds,
+                        endTokenIds = END_TOKEN_IDS,
+                        shouldStop = { inferenceJob?.isActive != true },
+                        onTokenGenerated = { tokenId ->
+                            val tokenStr = tokenizer.decode(intArrayOf(tokenId))
+                            builder.append(tokenStr)
 
-                        builder.append(tokenStr)
-                        Log.d("Streaming", "Token: $tokenStr")
-
-                        runOnUiThread {
-                            outputText.text = builder.toString()
+                            runOnUiThread {
+                                outputText.text = builder.toString()
+                            }
                         }
-                    }
-
-                    runOnUiThread {
-                        sendButton.isEnabled = true
-                    }
+                    )
 
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         outputText.text = "Error: ${e.message}"
+                    }
+                } finally {
+                    withContext(Dispatchers.Main) {
                         sendButton.isEnabled = true
+                        stopButton.isEnabled = false
                     }
                 }
             }
         }
 
+        stopButton.setOnClickListener {
+            inferenceJob?.cancel()
+            outputText.append("\n⛔ Generation stopped.")
+            sendButton.isEnabled = true
+            stopButton.isEnabled = false
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        inferenceScope.cancel() // Clean up coroutine scope
+        inferenceScope.cancel()
     }
 }
