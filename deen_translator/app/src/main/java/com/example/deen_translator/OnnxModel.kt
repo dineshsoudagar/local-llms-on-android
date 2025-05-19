@@ -35,7 +35,7 @@ class OnnxModel(private val context: Context) {
         return file
     }
 
-    fun runInference(inputIds: IntArray, maxTokens: Int = 100, endTokenId: Int = 151645): IntArray {
+    fun runInference(inputIds: IntArray, maxTokens: Int = 1024, endTokenId: Int = 151645): IntArray {
         val generated = inputIds.toMutableList()
 
         for (i in 0 until maxTokens) {
@@ -67,6 +67,7 @@ class OnnxModel(private val context: Context) {
             val output = results[0].value as Array<Array<FloatArray>>
             val logits = output[0].last()  // last token's logits
             val nextTokenId = logits.indices.maxByOrNull { logits[it] } ?: 0
+            generated.add(nextTokenId)
 
             // Close tensors
             inputTensor.close()
@@ -76,10 +77,56 @@ class OnnxModel(private val context: Context) {
 
             // Break if end token
             if (nextTokenId == endTokenId) break
-
-            generated.add(nextTokenId)
         }
 
         return generated.toIntArray()
+    }
+    // streaming the output
+    fun runInferenceStreaming(
+        inputIds: IntArray,
+        maxTokens: Int = 1024,
+        endTokenId: Int = 151645,
+        onTokenGenerated: (Int) -> Unit
+    ) {
+        val generated = inputIds.toMutableList()
+
+        for (i in 0 until maxTokens) {
+            val seqLen = generated.size.toLong()
+
+            val inputIdsArray = generated.map { it.toLong() }.toLongArray()
+            val inputIdsBuffer = LongBuffer.wrap(inputIdsArray)
+            val inputTensor = OnnxTensor.createTensor(env, inputIdsBuffer, longArrayOf(1, seqLen))
+
+            val attnMaskArray = LongArray(seqLen.toInt()) { 1L }
+            val attnMaskBuffer = LongBuffer.wrap(attnMaskArray)
+            val attnTensor = OnnxTensor.createTensor(env, attnMaskBuffer, longArrayOf(1, seqLen))
+
+            val posIdsArray = LongArray(seqLen.toInt()) { it.toLong() }
+            val posIdsBuffer = LongBuffer.wrap(posIdsArray)
+            val posTensor = OnnxTensor.createTensor(env, posIdsBuffer, longArrayOf(1, seqLen))
+
+            val inputs: Map<String, OnnxTensor> = mapOf(
+                "input_ids" to inputTensor,
+                "attention_mask" to attnTensor,
+                "position_ids" to posTensor
+            )
+
+            val results = session.run(inputs)
+            val output = results[0].value as Array<Array<FloatArray>>
+            val logits = output[0].last()
+            val nextTokenId = logits.indices.maxByOrNull { logits[it] } ?: 0
+            generated.add(nextTokenId)
+
+            // Free resources
+            inputTensor.close()
+            attnTensor.close()
+            posTensor.close()
+            results.close()
+
+            // Return the token to the UI
+            onTokenGenerated(nextTokenId)
+
+            if (nextTokenId == endTokenId) break
+        }
     }
 }
