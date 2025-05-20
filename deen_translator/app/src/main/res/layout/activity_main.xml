@@ -18,6 +18,15 @@
         android:layout_height="wrap_content"
         android:text="Send" />
 
+    <Button
+        android:id="@+id/stopButton"
+        android:layout_width="383dp"
+        android:layout_height="wrap_content"
+        android:text="Stop"
+        android:enabled="false"
+        android:layout_marginTop="8dp"
+        android:layout_gravity="center_horizontal"/>
+
     <TextView
         android:id="@+id/outputView"
         android:layout_width="match_parent"

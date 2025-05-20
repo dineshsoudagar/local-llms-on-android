@@ -9,6 +9,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.*
 
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var tokenizer: BpeTokenizer
@@ -29,6 +30,8 @@ class MainActivity : AppCompatActivity() {
             onnxModel = OnnxModel(this@MainActivity)
         }
 
+        // Tokens to suppress in output (decoded form)
+        val tokensToFilter = setOf("<|im_end|>", "</im_end/>", "</endoftext/>")
         val systemPrompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
         val inputEditText: EditText = findViewById(R.id.userInput)
         val sendButton: Button = findViewById(R.id.sendButton)
@@ -65,11 +68,14 @@ class MainActivity : AppCompatActivity() {
                         endTokenIds = END_TOKEN_IDS,
                         shouldStop = { inferenceJob?.isActive != true },
                         onTokenGenerated = { tokenId ->
-                            val tokenStr = tokenizer.decode(intArrayOf(tokenId))
-                            builder.append(tokenStr)
+                            // Only decode and append if not end token
+                            if (tokenId !in END_TOKEN_IDS) {
+                                val tokenStr = tokenizer.decode(intArrayOf(tokenId))
+                                builder.append(tokenStr)
 
-                            runOnUiThread {
-                                outputText.text = builder.toString()
+                                runOnUiThread {
+                                    outputText.text = builder.toString()
+                                }
                             }
                         }
                     )
