@@ -5,23 +5,20 @@ import ai.onnxruntime.*
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.FloatBuffer
 import java.nio.LongBuffer
 
 class OnnxModel(private val context: Context) {
 
-    private lateinit var env: OrtEnvironment
-    private lateinit var session: OrtSession
+    private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
+    private val session: OrtSession = initializeModel()
 
-    init {
-        initializeModel()
-    }
-
-    private fun initializeModel() {
-        env = OrtEnvironment.getEnvironment()
-        val modelFile = loadModelFile("qwen_25_05B_merged.onnx")
-        Log.d("ONNX", "Starting model load")
-        session = env.createSession(modelFile.absolutePath, OrtSession.SessionOptions())
+    private fun initializeModel(): OrtSession {
+        val modelFile = loadModelFile("model.onnx")
+        Log.d("ONNX", "Loading model from: ${modelFile.absolutePath}")
+        val opts = OrtSession.SessionOptions()
         Log.d("ONNX", "Model loaded")
+        return env.createSession(modelFile.absolutePath, opts)
     }
 
     private fun loadModelFile(filename: String): File {
@@ -35,6 +32,7 @@ class OnnxModel(private val context: Context) {
         return file
     }
 
+    // Normal inference all iterations at once
     fun runInference(inputIds: IntArray, maxTokens: Int = 1024, endTokenId: Int = 151645): IntArray {
         val generated = inputIds.toMutableList()
 
@@ -81,7 +79,8 @@ class OnnxModel(private val context: Context) {
 
         return generated.toIntArray()
     }
-    // streaming the output
+
+    // Run Inference streaming the output
     fun runInferenceStreaming(
         inputIds: IntArray,
         maxTokens: Int = 1024,
@@ -126,5 +125,78 @@ class OnnxModel(private val context: Context) {
             onTokenGenerated(nextTokenId)
             if (nextTokenId in endTokenIds) break
         }
+    }
+
+    // Run Inference with streaming and past key values
+    fun runInferenceStreamingWithPastKV(
+        inputIds: IntArray,
+        maxTokens: Int = 1024,
+        endTokenIds: Set<Int> = setOf(151645),
+        shouldStop: () -> Boolean = { false },
+        onTokenGenerated: (Int) -> Unit
+    ) {
+        val generated = inputIds.toMutableList()
+        val numLayers = 24
+        val numKvHeads = 2
+        val headDim = 64
+        val batchSize = 1
+
+        val pastKeyValues = mutableMapOf<String, OnnxTensor>()
+        repeat(numLayers) { layer ->
+            listOf("key", "value").forEach { kv ->
+                val name = "past_key_values.$layer.$kv"
+                val shape = longArrayOf(batchSize.toLong(), numKvHeads.toLong(), 0, headDim.toLong())
+                pastKeyValues[name] = OnnxTensor.createTensor(env, FloatBuffer.wrap(FloatArray(0)), shape)
+            }
+        }
+
+        var totalPosition: Long = inputIds.size.toLong()
+
+        for (i in 0 until maxTokens) {
+            if (shouldStop()) break
+
+            val currentInput = if (i == 0) inputIds else intArrayOf(generated.last())
+            val seqLen = currentInput.size.toLong()
+
+            val inputIdsTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(currentInput.map { it.toLong() }.toLongArray()), longArrayOf(1, seqLen))
+            val attentionTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(LongArray(seqLen.toInt()) { 1L }), longArrayOf(1, seqLen))
+            val startPos = totalPosition - seqLen
+            val posArray = LongArray(seqLen.toInt()) { i -> startPos + i }
+            val positionTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(posArray), longArrayOf(1, seqLen))
+
+            val inputs = mutableMapOf<String, OnnxTensor>(
+                "input_ids" to inputIdsTensor,
+                "attention_mask" to attentionTensor,
+                "position_ids" to positionTensor
+            ).apply { putAll(pastKeyValues) }
+
+            val results = session.run(inputs)
+
+            @Suppress("UNCHECKED_CAST")
+            val logits = (results[0].value as? Array<Array<FloatArray>>)?.get(0)?.last() ?: break
+            val nextTokenId = logits.indices.maxByOrNull { logits[it] } ?: break
+            if (nextTokenId in endTokenIds) break
+
+            onTokenGenerated(nextTokenId)
+            generated.add(nextTokenId)
+            totalPosition += 1
+
+            results.toList().drop(1).forEachIndexed { index, result ->
+                val layer = index / 2
+                val kv = if (index % 2 == 0) "key" else "value"
+                val name = "past_key_values.$layer.$kv"
+                val ortValue = result.value
+                if (ortValue is OnnxTensor) {
+                    pastKeyValues[name]?.close()
+                    pastKeyValues[name] = ortValue
+                }
+            }
+
+            inputIdsTensor.close()
+            attentionTensor.close()
+            positionTensor.close()
+        }
+
+        pastKeyValues.values.forEach { it.close() }
     }
 }

@@ -9,7 +9,6 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.*
 
-
 class MainActivity : AppCompatActivity() {
 
     private lateinit var tokenizer: BpeTokenizer
@@ -30,7 +29,6 @@ class MainActivity : AppCompatActivity() {
             onnxModel = OnnxModel(this@MainActivity)
         }
 
-        // Tokens to suppress in output (decoded form)
         val tokensToFilter = setOf("<|im_end|>", "</im_end/>", "</endoftext/>")
         val systemPrompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
         val inputEditText: EditText = findViewById(R.id.userInput)
@@ -52,7 +50,7 @@ class MainActivity : AppCompatActivity() {
 
             sendButton.isEnabled = false
             stopButton.isEnabled = true
-            outputText.text = "⏳ Thinking..."
+            outputText.text = "\u23F3 Thinking..."
 
             inferenceJob = inferenceScope.launch {
                 try {
@@ -63,12 +61,11 @@ class MainActivity : AppCompatActivity() {
                         outputText.text = ""
                     }
 
-                    onnxModel.runInferenceStreaming(
+                    onnxModel.runInferenceStreamingWithPastKV(
                         inputIds = tokenIds,
                         endTokenIds = END_TOKEN_IDS,
                         shouldStop = { inferenceJob?.isActive != true },
                         onTokenGenerated = { tokenId ->
-                            // Only decode and append if not end token
                             if (tokenId !in END_TOKEN_IDS) {
                                 val tokenStr = tokenizer.decode(intArrayOf(tokenId))
                                 builder.append(tokenStr)
@@ -82,7 +79,7 @@ class MainActivity : AppCompatActivity() {
 
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
-                        outputText.text = "Error: ${e.message}"
+                        outputText.text = "Error: ${'$'}{e.message}"
                     }
                 } finally {
                     withContext(Dispatchers.Main) {
@@ -95,7 +92,7 @@ class MainActivity : AppCompatActivity() {
 
         stopButton.setOnClickListener {
             inferenceJob?.cancel()
-            outputText.append("\n⛔ Generation stopped.")
+            outputText.append("\n\u26D4 Generation stopped.")
             sendButton.isEnabled = true
             stopButton.isEnabled = false
         }
