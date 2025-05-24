@@ -1,4 +1,4 @@
-# Qwen QA - Local LLM Android App
+# Local LLM Android App - Qwen QA
 
 This Android application integrates a local ONNX-converted LLM for interactive, on-device question answering. It uses a Hugging Face-compatible tokenizer and supports streaming inference for efficient generation.
 
