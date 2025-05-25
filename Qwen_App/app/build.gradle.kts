@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.deen_translator"
+    namespace = "com.example.local_llm"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.deen_translator"
+        applicationId = "com.example.local_llm"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

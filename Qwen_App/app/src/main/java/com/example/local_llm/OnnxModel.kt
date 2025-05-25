@@ -1,4 +1,4 @@
-package com.example.deen_translator
+package com.example.local_llm
 
 import android.content.Context
 import ai.onnxruntime.*
@@ -17,9 +17,9 @@ class OnnxModel(private val context: Context) {
 
     companion object {
         const val MAX_TOKENS = 1024
-        const val TEMPERATURE = 1.0f
+        const val TEMPERATURE = 0.8f
         const val REPETITION_PENALTY = 1.5f
-        val END_TOKEN_IDS = setOf(151643, 151645) // <|endoftext|>, <|im_end|>
+        val END_TOKEN_IDS = setOf(151643, 151645, 2687, 11255) // <|endoftext|>, <|im_end|>, /s, /p
     }
 
     private fun initializeModel(): OrtSession {
@@ -162,6 +162,7 @@ class OnnxModel(private val context: Context) {
         var totalPosition: Long = inputIds.size.toLong()
 
         for (i in 0 until maxTokens) {
+
             if (shouldStop()) break
 
             val currentInput = if (i == 0) inputIds else intArrayOf(generated.last())
@@ -183,9 +184,9 @@ class OnnxModel(private val context: Context) {
             val logits = (results[0].value as Array<Array<FloatArray>>)[0].last()
 
             // Apply repetition penalty
-            for (id in generated.toSet()) {
-                logits[id] /= REPETITION_PENALTY
-            }
+            //for (id in generated.toSet()) {
+            //    logits[id] /= REPETITION_PENALTY
+            //}
 
             // Apply temperature scaling
             // val scaledLogits = logits.map { it / TEMPERATURE }.toFloatArray()
@@ -211,7 +212,7 @@ class OnnxModel(private val context: Context) {
 
             inputIdsTensor.close()
             attentionTensor.close()
-            positionTensor.close()
+            if (nextTokenId in endTokenIds) break
         }
 
         pastKeyValues.values.forEach { it.close() }

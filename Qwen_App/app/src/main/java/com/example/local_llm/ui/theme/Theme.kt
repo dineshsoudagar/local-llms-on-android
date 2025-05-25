@@ -1,4 +1,4 @@
-package com.example.deen_translator.ui.theme
+package com.example.local_llm.ui.theme
 
 import android.app.Activity
 import android.os.Build
@@ -34,7 +34,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun Deen_translatorTheme(
+fun Local_llmTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,

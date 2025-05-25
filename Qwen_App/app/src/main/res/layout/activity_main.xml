@@ -18,7 +18,7 @@
         android:layout_marginTop="92dp"
         android:background="@android:drawable/edit_text"
         android:gravity="top|start"
-        android:hint="@string/enter_your_prompt"
+        android:hint="enter_your_prompt"
         android:inputType="textMultiLine"
         android:maxLines="6"
         android:minHeight="80dp"
@@ -45,14 +45,14 @@
             android:layout_width="25dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/send" />
+            android:text="send" />
 
         <Button
             android:id="@+id/stopButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/stop" />
+            android:text="stop" />
 
         <Button
             android:id="@+id/clearButton"

@@ -1,4 +1,4 @@
-package com.example.deen_translator.ui.theme
+package com.example.local_llm.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

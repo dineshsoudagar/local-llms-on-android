@@ -19,5 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "deen_translator"
+rootProject.name = "local_llm"
 include(":app")
+ 

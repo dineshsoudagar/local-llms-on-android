@@ -1,4 +1,4 @@
-package com.example.deen_translator
+package com.example.local_llm
 
 import android.annotation.SuppressLint
 import android.os.Bundle
@@ -41,10 +41,10 @@ class MainActivity : AppCompatActivity() {
 
         inferenceScope.launch {
             onnxModel = OnnxModel(this@MainActivity)
-                    withContext(Dispatchers.Main) {
-                        outputText.text = "✅ Model is ready."
-                        sendButton.isEnabled = true
-                    }
+            withContext(Dispatchers.Main) {
+                outputText.text = "✅ Model is ready."
+                sendButton.isEnabled = true
+            }
         }
 
         val systemPrompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."

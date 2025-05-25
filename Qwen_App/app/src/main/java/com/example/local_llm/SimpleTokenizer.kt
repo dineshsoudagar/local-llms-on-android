@@ -1,4 +1,4 @@
-package com.example.deen_translator
+package com.example.local_llm
 
 import android.content.Context
 import org.json.JSONObject
