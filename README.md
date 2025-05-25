@@ -1,71 +1,100 @@
-# Local LLM Android App - Qwen QA
 
-This Android application integrates a local ONNX-converted LLM for interactive, on-device question answering. It uses a Hugging Face-compatible tokenizer and supports streaming inference for efficient generation.
+# 🤖 Local LLM Android App — Qwen 2.5 QA
 
-## Features
+An Android application that brings a local Qwen-based language model (LLM) to your phone for fast, private, and offline question-answering. Powered by ONNX Runtime and a Hugging Face-style BPE tokenizer, this app streams answers in real time — no internet needed.
 
-- On-device question answering using ONNX Runtime.
-- Hugging Face-style BPE tokenizer (`tokenizer.json` compatible).
-- Qwen-compatible prompt formatting with streaming generation.
-- Coroutine-based inference pipeline.
-- Runs offline, preserving privacy.
+---
 
-## Example Prompts
+## ✨ Features
 
-Use these prompts to test the app or create screenshots:
+- 📱 On-device, offline question answering with ONNX Runtime
+- 🔤 Hugging Face-compatible BPE tokenizer (`tokenizer.json`)
+- 🧠 Qwen-compatible prompt formatting with streaming token generation
+- 🚀 Coroutine-based inference for responsive performance
+- 🔐 Runs fully offline — your data stays on your device
 
-- **General Knowledge:**  
-  *"Who was the first president of the United States?"*
+---
 
-- **Science:**  
-  *"Explain the theory of relativity in simple terms."*
+## 📸 Inference Preview
 
-- **Math:**  
-  *"What is the integral of x^2?"*
+<p align="center">
+  <img src="data/local%20llm%20screenshot1.jpg" alt="Input Prompt" width="20%" style="margin: 1%"/>
+  <img src="data/local%20llm%20screenshot3.jpg" alt="Model Output 1" width="20%" style="margin: 1%"/>
+  <img src="data/local%20llm%20screenshot4.jpg" alt="Model Output 2" width="20%" style="margin: 1%"/>
+  <img src="data/local%20llm%20screenshot4.jpg" alt="Model Output 3" width="20%" style="margin: 1%"/>
+</p>
 
-- **Programming Help:**  
-  *"What is the difference between a list and a tuple in Python?"*
+<p align="center">
+  <em>Figure: App interface showing prompt input and generated answers using the local LLM.</em>
+</p>
 
-- **Language:**  
-  *"Translate 'Hello, how are you?' into French."*
+---
 
-## Model
+## 🧠 Model Info
 
-This app uses the **Qwen2.5-0.5B-Instruct** model for local QA tasks.
+This app uses the **Qwen2.5-0.5B-Instruct** model optimized for instruction-following and QA tasks.
 
-### Preconverted ONNX Model
+### 🔁 Option 1: Use Preconverted ONNX Model
 
-- Download [Qwen2.5-0.5B-onnx](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/blob/main/onnx) and [tokenizer.json](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/tree/main) and place it in `app\src\main\assets`.
+- Download [ONNX model](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/blob/main/onnx) and [tokenizer.json](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/tree/main) from Hugging Face.
 
-### OR: Convert the Model Yourself
+### ⚙️ Option 2: Convert Model Yourself
 
-```
+Install Optimum with ONNX export support:
+
+```bash
 pip install optimum[onnxruntime]
-```
-or
-```
+# or
 python -m pip install git+https://github.com/huggingface/optimum.git
 ```
-then export with, 
-```
+
+Export the model:
+
+```bash
 optimum-cli export onnx --model Qwen/Qwen2.5-0.5B-Instruct qwen2.5-0.5B-onnx/
 ```
-- More about Optimum [here.](https://huggingface.co/docs/optimum/main/en/index)
 
+- You can also convert any fine-tuned variant by specifying the model path.
+- Learn more about [Optimum here](https://huggingface.co/docs/optimum/main/en/index).
 
-### Prerequisites
+---
 
-- Android Studio. [Link](https://developer.android.com/studio)
-- ONNX Runtime for Android. [Link](https://github.com/microsoft/onnxruntime-genai/releases). Already in the repository.
-- Physical Android device (for performance)
+## ⚙️ Requirements
 
-### Steps to create Apk.
-- Open Android studio.
-- Create new project with "Empty Activity". Name your app "local_llm".
-- Place [MainActivity.kt](Qwen_App/app/src/main/java/com/example/deen_translator/MainActivity.kt), [OnnxModel.kt](Qwen_App/app/src/main/java/com/example/deen_translator/OnnxModel.kt) and [SimpleTokenizer.kt](Qwen_App/app/src/main/java/com/example/deen_translator/SimpleTokenizer.kt) inside `main\java\com\example\yourappaname`.
-- Copy [build.gradle.kts](Qwen_App/app/build.gradle.kts) contents.
-- Copy [libs.versions.toml](../deen_translator/gradle/libs.versions.toml) contents.
-- Add [activity_main.xml](Qwen_App/app/src/main/res/layout/activity_main.xml) inside `app/src/main/res/layout`.
-- copy [themes.xml](Qwen_App/app/src/main/res/values/themes.xml) contents.
-- Change the heap size to "8192m" in gradle.properties.
-- Connect your phone via wireless debugging mode and install apk or create apk with build -> Generate App bundles or APKs.
+- [Android Studio](https://developer.android.com/studio)
+- [ONNX Runtime for Android](https://github.com/microsoft/onnxruntime-genai/releases) (already included in this repo)
+- A physical Android device for deployment and testing
+
+---
+
+## 📲 How to Build & Run
+
+1. Open Android Studio and create a new project (Empty Activity).
+2. Name your app `local_llm`.
+3. Copy all the project files from this repo into the appropriate folders.
+4. Place your `model.onnx` and `tokenizer.json` in:
+   ```
+   app/src/main/assets/
+   ```
+5. Connect your Android phone using wireless debugging or USB.
+6. To install:
+   - Press Run ▶️ in Android Studio, **or**
+   - Go to **Build → Generate Signed Bundle / APK** to export the `.apk` file.
+
+---
+
+## 📦 Download Prebuilt APK
+
+➡️ [Download APK for Qwen 2.5 0.5B model](#) *(coming soon or replace with actual link)*
+
+---
+
+## 🔐 Privacy First
+
+This app performs all inference locally on your device. No data is sent to any server, ensuring full privacy and low latency.
+
+---
+
+## 📄 License
+
+MIT License — use freely, modify locally, and deploy offline. Contributions welcome!
