@@ -1,0 +1,17 @@
+# Core inference and model I/O
+onnx
+onnxruntime
+onnxruntime-gpu
+onnx_graphsurgeon
+onnxconverter-common
+regex
+
+# Tokenization and Transformers
+tokenizers
+transformers
+optimum @ git+https://github.com/huggingface/optimum.git
+
+# Numerical and scientific computing
+numpy
+sympy
+mpmath
