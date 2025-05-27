@@ -1,7 +1,7 @@
 
-# 🤖 Local LLM Android App
+# 🤖 Local LLMs on Android (Offline, Private & Fast)
 
-An Android application that brings a large language model (LLM) to your phone for fast, private, and offline question-answering. Powered by ONNX Runtime and a Hugging Face-style BPE tokenizer, this app streams answers in real time — no internet needed.
+An Android application that brings a large language model (LLM) to your phone — fully offline, no internet needed. Powered by ONNX Runtime and a Hugging Face-compatible tokenizer, it provides fast, private, on-device question answering with streaming responses.
 
 ---
 
@@ -95,10 +95,11 @@ This app performs all inference locally on your device. No data is sent to any s
 
 ---
 
-## Upcoming models
-- Andriod App with chat support. The model will remember your previous conversations.
-- Qwen3-0.6B.
-- llama3 1B model.
+## 🔮 Roadmap
+
+- 🔁 **Chat Memory** — Add multi-turn conversation with context retention.
+- 🧠 **Qwen3-0.6B** — Update to newer, more capable Qwen model.
+- 🦙 **LLaMA 3 1B** — Support Meta’s new compact LLM.
 
 ## 📄 License
 
