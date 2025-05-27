@@ -85,9 +85,12 @@ optimum-cli export onnx --model Qwen/Qwen2.5-0.5B-Instruct qwen2.5-0.5B-onnx/
 
 ## 📦 Download Prebuilt APK
 
-- ➡️ [pocket_llm_qwen2.5_0.5B_v1.0.0.apk -best for high-end phones.](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_v1.0.0.apk)
-- ➡️ [pocket_llm_qwen2.5_0.5B_fp16_v1.0.0.apk - best for high to mig range phones.](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_fp16_v1.0.0.apk)
-- ➡️ [pocket_llm_qwen2.5_0.5B_q4fp16_v1.0.0.apk - best oveall.](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_q4fp16_v1.0.0.apk)
+- ➡️ [pocket_llm_qwen2.5_0.5B_v1.0.0.apk](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_v1.0.0.apk)
+  - Best for high-end devices. Full precision (FP32).
+- ➡️ [pocket_llm_qwen2.5_0.5B_fp16_v1.0.0.apk](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_fp16_v1.0.0.apk)
+  - Optimized for mid to high-end phones. Uses half-precision (FP16).
+- ➡️ [pocket_llm_qwen2.5_0.5B_q4fp16_v1.0.0.apk](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_q4fp16_v1.0.0.apk)
+  - Best overall balance of speed and size. Quantized (Q4 + FP16).
 ---
 
 ## 🔐 Privacy First
