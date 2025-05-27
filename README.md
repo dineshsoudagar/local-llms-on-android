@@ -96,8 +96,8 @@ This app performs all inference locally on your device. No data is sent to any s
 ---
 
 ## Upcoming models
-- Andriod App with chat support. The model will remember your previous conversations
-- Qwen3-0.6B
+- Andriod App with chat support. The model will remember your previous conversations.
+- Qwen3-0.6B.
 - llama3 1B model.
 
 ## 📄 License
