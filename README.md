@@ -1,7 +1,7 @@
 
-# 🤖 Local LLM Android App — Qwen 2.5 QA
+# 🤖 Local LLM Android App
 
-An Android application that brings a local Qwen-based language model (LLM) to your phone for fast, private, and offline question-answering. Powered by ONNX Runtime and a Hugging Face-style BPE tokenizer, this app streams answers in real time — no internet needed.
+An Android application that brings a large language model (LLM) to your phone for fast, private, and offline question-answering. Powered by ONNX Runtime and a Hugging Face-style BPE tokenizer, this app streams answers in real time — no internet needed.
 
 ---
 
@@ -94,6 +94,11 @@ optimum-cli export onnx --model Qwen/Qwen2.5-0.5B-Instruct qwen2.5-0.5B-onnx/
 This app performs all inference locally on your device. No data is sent to any server, ensuring full privacy and low latency.
 
 ---
+
+## Upcoming models
+- Andriod App with chat support. The model will remember your previous conversations
+- Qwen3-0.6B
+- llama3 1B model.
 
 ## 📄 License
 
