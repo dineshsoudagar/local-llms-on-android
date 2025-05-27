@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity() {
                 append("<|im_start|>user\n")
                 append(inputText)
                 append("<|im_end|>\n")
-                append("<|im_start|>assistant\n")
+                append("<|im_start|>assistant\n\n") // ← extra newline encourages clean start
             }
 
             sendButton.isEnabled = false
@@ -83,7 +83,7 @@ class MainActivity : AppCompatActivity() {
                         endTokenIds = END_TOKEN_IDS,
                         shouldStop = { inferenceJob?.isActive != true },
                         onTokenGenerated = { tokenId ->
-                            val tokenStr = tokenizer.decode(intArrayOf(tokenId))
+                            val tokenStr = tokenizer.decodeSingleToken(tokenId.toInt())
                             builder.append(tokenStr)
 
                             // Check after appending
