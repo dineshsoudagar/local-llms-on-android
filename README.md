@@ -36,7 +36,7 @@ This app uses the **Qwen2.5-0.5B-Instruct** model optimized for instruction-foll
 
 ### 🔁 Option 1: Use Preconverted ONNX Model
 
-- Download [ONNX model](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/blob/main/onnx) and [tokenizer.json](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/tree/main) from Hugging Face.
+- Download [ONNX model](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/tree/main/onnx) and [tokenizer.json](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/tree/main) from Hugging Face.
 
 ### ⚙️ Option 2: Convert Model Yourself
 
