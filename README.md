@@ -85,8 +85,9 @@ optimum-cli export onnx --model Qwen/Qwen2.5-0.5B-Instruct qwen2.5-0.5B-onnx/
 
 ## 📦 Download Prebuilt APK
 
-➡️ [Download Pocket LLM APK](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_v1.0.0.apk)
-
+- ➡️ [pocket_llm_qwen2.5_0.5B_v1.0.0.apk -best for high-end phones.](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_v1.0.0.apk)
+- ➡️ [pocket_llm_qwen2.5_0.5B_fp16_v1.0.0.apk - best for high to mig range phones.](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_fp16_v1.0.0.apk)
+- ➡️ [pocket_llm_qwen2.5_0.5B_q4fp16_v1.0.0.apk - best oveall.](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_q4fp16_v1.0.0.apk)
 ---
 
 ## 🔐 Privacy First
