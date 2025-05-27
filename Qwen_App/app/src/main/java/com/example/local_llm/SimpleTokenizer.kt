@@ -87,7 +87,7 @@ class BpeTokenizer(context: Context) {
         if (addSpecialTokens) {
             specialTokens["<|im_end|>"]?.let { tokens.add(it) }
         }
-        Log.d("tokenized", "ID=${tokens}")
+        //("tokenized", "ID=${tokens}")
 
         return tokens.toIntArray()
     }
@@ -126,7 +126,7 @@ class BpeTokenizer(context: Context) {
 
     fun decodeSingleToken(tokenId: Int): String {
         val token = idToToken[tokenId]
-        Log.d("TokenStream", "ID=$tokenId, Token='$tokenId', Decoded='$token'")
+        //Log.d("TokenStream", "ID=$tokenId, Token='$tokenId', Decoded='$token'")
         return when {
             token == null -> specialTokens.entries.find { it.value == tokenId }?.key ?: "<unk>"
             token == "Ċ" -> "\n"
