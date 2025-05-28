@@ -61,4 +61,5 @@ dependencies {
     implementation (libs.json.json)
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation(files("libs/onnxruntime-genai-android-0.7.1.aar"))
+    implementation("io.noties.markwon:core:4.6.2")
 }

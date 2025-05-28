@@ -69,10 +69,10 @@ class BpeTokenizer(context: Context) {
                 }
             }
         }
-        */
 
         // Instead of pre-tokenizing, treat entire input
-        val segments = splitSpecialTokens(processed)
+        //val segments = splitSpecialTokens(processed)
+        //segments.forEach { Log.d("PreToken", "'$it'") }
         for (segment in segments) {
             if (specialTokens.containsKey(segment)) {
                 tokens.add(specialTokens[segment]!!)
@@ -83,11 +83,15 @@ class BpeTokenizer(context: Context) {
                 }
             }
         }
-
+        */
+        val bpeTokens = bpe(processed)
+        bpeTokens.forEach { bpeToken ->
+            vocab[bpeToken]?.let { tokens.add(it) }
+        }
         if (addSpecialTokens) {
             specialTokens["<|im_end|>"]?.let { tokens.add(it) }
         }
-        //("tokenized", "ID=${tokens}")
+        Log.d("tokenized", "ID=${tokens}")
 
         return tokens.toIntArray()
     }
@@ -123,16 +127,40 @@ class BpeTokenizer(context: Context) {
             .replace("▁", " ")
         return if (nfcNormalize) Normalizer.normalize(cleaned, Normalizer.Form.NFC) else cleaned
     }
-
+        /*
     fun decodeSingleToken(tokenId: Int): String {
         val token = idToToken[tokenId]
-        //Log.d("TokenStream", "ID=$tokenId, Token='$tokenId', Decoded='$token'")
+        Log.d("TokenStream", "ID=$tokenId, Token='$token', Decoded='${token ?: "<unk>"}'")
         return when {
             token == null -> specialTokens.entries.find { it.value == tokenId }?.key ?: "<unk>"
-            token == "Ċ" -> "\n"
-            token.startsWith("Ġ") -> " " + token.removePrefix("Ġ")
+            token == "Ċ" -> "\n"                         // Newline
+            token == "▁" -> " "                          // SentencePiece space marker
+            token.startsWith("Ġ") -> " " + token.removePrefix("Ġ") // GPT-style space
+            token.contains("Ċ") -> token.replace("Ċ", "\n")        // Extra safety
             else -> token
         }
+    }
+        */
+    private val decodedTokenCache: Map<Int, String> = buildMap {
+        idToToken.forEach { (id, token) ->
+            val decoded = when {
+                token == "Ċ" -> "\n"
+                token == "▁" -> " "
+                token.startsWith("Ġ") -> " " + token.removePrefix("Ġ")
+                token.contains("Ċ") -> token.replace("Ċ", "\n")
+                token.contains("▁") -> token.replace("▁", " ")
+                else -> token
+            }
+            put(id, decoded)
+        }
+
+        specialTokens.forEach { (key, id) ->
+            putIfAbsent(id, key)
+        }
+    }
+
+    fun decodeSingleToken(tokenId: Int): String {
+        return decodedTokenCache[tokenId] ?: "<unk>"
     }
 
     /* Regex as per tokenizer
