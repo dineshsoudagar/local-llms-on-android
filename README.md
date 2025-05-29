@@ -18,9 +18,9 @@ An Android application that brings a large language model (LLM) to your phone â€
 ## ðŸ“¸ Inference Preview
 
 <p align="center">
+  <img src="data/demo.gif" alt="Model Output 2" width="20%" style="margin: 1%"/>
   <img src="data/local%20llm%20screenshot1.jpg" alt="Input Prompt" width="20%" style="margin: 1%"/>
   <img src="data/local%20llm%20screenshot3.jpg" alt="Model Output 1" width="20%" style="margin: 1%"/>
-  <img src="data/local%20llm%20screenshot2.jpg" alt="Model Output 2" width="20%" style="margin: 1%"/>
   <img src="data/local%20llm%20screenshot4.jpg" alt="Model Output 3" width="20%" style="margin: 1%"/>
 </p>
 
