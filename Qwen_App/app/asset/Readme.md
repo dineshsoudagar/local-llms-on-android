@@ -1,1 +1,0 @@
-### Place your model.onnx and tokenizer.json in this folder.
