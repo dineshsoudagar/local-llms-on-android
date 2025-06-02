@@ -3,8 +3,8 @@ package com.example.local_llm
 import android.content.Context
 import android.util.Log
 import org.json.JSONObject
-import java.text.Normalizer
 import java.io.InputStream
+import java.text.Normalizer
 
 class BpeTokenizer(context: Context) {
 
@@ -53,37 +53,7 @@ class BpeTokenizer(context: Context) {
         }
 
         val processed = if (nfcNormalize) Normalizer.normalize(text, Normalizer.Form.NFC) else text
-        /*
-        val preTokens = preTokenize(processed)
-        for (token in preTokens) {
-            Log.d("PreToken", "'$token'")
-        }
-        for (token in preTokens) {
-            if (specialTokens.containsKey(token)) {
-                tokens.add(specialTokens[token]!!)
-            } else {
-                val bpeTokens = bpe(token)
-                bpeTokens.forEach { bpeToken ->
-                    // Only add token if it's in the vocab
-                    vocab[bpeToken]?.let { tokens.add(it) }
-                }
-            }
-        }
 
-        // Instead of pre-tokenizing, treat entire input
-        //val segments = splitSpecialTokens(processed)
-        //segments.forEach { Log.d("PreToken", "'$it'") }
-        for (segment in segments) {
-            if (specialTokens.containsKey(segment)) {
-                tokens.add(specialTokens[segment]!!)
-            } else {
-                val bpeTokens = bpe(segment)
-                bpeTokens.forEach { bpeToken ->
-                    vocab[bpeToken]?.let { tokens.add(it) }
-                }
-            }
-        }
-        */
         val bpeTokens = bpe(processed)
         bpeTokens.forEach { bpeToken ->
             vocab[bpeToken]?.let { tokens.add(it) }
@@ -96,14 +66,6 @@ class BpeTokenizer(context: Context) {
         return tokens.toIntArray()
     }
 
-    private fun splitSpecialTokens(text: String): List<String> {
-        // Matches <|...|> exactly, isolates them
-        val regex = Regex("(<\\|[^|]+\\|>)")
-        return regex.split(text).flatMap { part ->
-            if (regex.matches(part)) listOf(part)
-            else listOf(part)
-        }
-    }
 
     fun decode(tokenIds: IntArray): String {
         val builder = StringBuilder()
@@ -127,20 +89,7 @@ class BpeTokenizer(context: Context) {
             .replace("▁", " ")
         return if (nfcNormalize) Normalizer.normalize(cleaned, Normalizer.Form.NFC) else cleaned
     }
-        /*
-    fun decodeSingleToken(tokenId: Int): String {
-        val token = idToToken[tokenId]
-        Log.d("TokenStream", "ID=$tokenId, Token='$token', Decoded='${token ?: "<unk>"}'")
-        return when {
-            token == null -> specialTokens.entries.find { it.value == tokenId }?.key ?: "<unk>"
-            token == "Ċ" -> "\n"                         // Newline
-            token == "▁" -> " "                          // SentencePiece space marker
-            token.startsWith("Ġ") -> " " + token.removePrefix("Ġ") // GPT-style space
-            token.contains("Ċ") -> token.replace("Ċ", "\n")        // Extra safety
-            else -> token
-        }
-    }
-        */
+
     private val decodedTokenCache: Map<Int, String> = buildMap {
         idToToken.forEach { (id, token) ->
             val decoded = when {
@@ -162,6 +111,13 @@ class BpeTokenizer(context: Context) {
     fun decodeSingleToken(tokenId: Int): String {
         return decodedTokenCache[tokenId] ?: "<unk>"
     }
+
+    fun getTokenId(token: String): Int {
+        return specialTokens[token]
+            ?: vocab[token]
+            ?: throw IllegalArgumentException("Token '$token' not found in vocab or special tokens.")
+    }
+
 
     /* Regex as per tokenizer
     private fun preTokenize(text: String): List<String> {

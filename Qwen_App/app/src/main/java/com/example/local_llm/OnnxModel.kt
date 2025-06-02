@@ -1,16 +1,16 @@
 package com.example.local_llm
 
+import ai.onnxruntime.OnnxTensor
+import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtSession
 import android.content.Context
-import ai.onnxruntime.*
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
-import kotlin.math.exp
-import kotlin.random.Random
 
-class OnnxModel(private val context: Context) {
+class OnnxModel(private val context: Context, private val config: ModelConfig) {
 
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
     private val session: OrtSession = initializeModel()
@@ -19,7 +19,7 @@ class OnnxModel(private val context: Context) {
         const val MAX_TOKENS = 1024
         const val TEMPERATURE = 0.8f
         const val REPETITION_PENALTY = 1.5f
-        val END_TOKEN_IDS = setOf(151643, 151645, 2687, 11255) // <|endoftext|>, <|im_end|>, /s, /p
+        // val END_TOKEN_IDS = setOf(151643, 151645, 2687, 11255) // <|endoftext|>, <|im_end|>, /s, /p
     }
 
     private fun initializeModel(): OrtSession {
@@ -42,7 +42,11 @@ class OnnxModel(private val context: Context) {
     }
 
     // Normal inference all iterations at once
-    fun runInference(inputIds: IntArray, maxTokens: Int = 1024, endTokenId: Int = 151645): IntArray {
+    fun runInference(
+        inputIds: IntArray,
+        maxTokens: Int = 1024,
+        endTokenId: Int = 151645
+    ): IntArray {
         val generated = inputIds.toMutableList()
 
         for (i in 0 until maxTokens) {
@@ -105,13 +109,17 @@ class OnnxModel(private val context: Context) {
             val seqLen = generated.size.toLong()
 
             val inputIdsTensor = OnnxTensor.createTensor(
-                env, LongBuffer.wrap(generated.map { it.toLong() }.toLongArray()), longArrayOf(1, seqLen)
+                env,
+                LongBuffer.wrap(generated.map { it.toLong() }.toLongArray()),
+                longArrayOf(1, seqLen)
             )
             val attnTensor = OnnxTensor.createTensor(
                 env, LongBuffer.wrap(LongArray(seqLen.toInt()) { 1L }), longArrayOf(1, seqLen)
             )
             val posTensor = OnnxTensor.createTensor(
-                env, LongBuffer.wrap(LongArray(seqLen.toInt()) { it.toLong() }), longArrayOf(1, seqLen)
+                env,
+                LongBuffer.wrap(LongArray(seqLen.toInt()) { it.toLong() }),
+                longArrayOf(1, seqLen)
             )
 
             val inputs = mapOf(
@@ -140,22 +148,24 @@ class OnnxModel(private val context: Context) {
     fun runInferenceStreamingWithPastKV(
         inputIds: IntArray,
         maxTokens: Int = MAX_TOKENS,
-        endTokenIds: Set<Int> = END_TOKEN_IDS,
+        endTokenIds: Set<Int> = config.eosTokenIds,
         shouldStop: () -> Boolean = { false },
         onTokenGenerated: (Int) -> Unit
     ) {
         val generated = inputIds.toMutableList()
-        val numLayers = 24
-        val numKvHeads = 2
-        val headDim = 64
-        val batchSize = 1
+        val numLayers = config.numLayers
+        val numKvHeads = config.numKvHeads
+        val headDim = config.headDim
+        val batchSize = config.batchSize
 
         val pastKeyValues = mutableMapOf<String, OnnxTensor>()
         repeat(numLayers) { layer ->
             listOf("key", "value").forEach { kv ->
                 val name = "past_key_values.$layer.$kv"
-                val shape = longArrayOf(batchSize.toLong(), numKvHeads.toLong(), 0, headDim.toLong())
-                pastKeyValues[name] = OnnxTensor.createTensor(env, FloatBuffer.wrap(FloatArray(0)), shape)
+                val shape =
+                    longArrayOf(batchSize.toLong(), numKvHeads.toLong(), 0, headDim.toLong())
+                pastKeyValues[name] =
+                    OnnxTensor.createTensor(env, FloatBuffer.wrap(FloatArray(0)), shape)
             }
         }
 
@@ -168,11 +178,20 @@ class OnnxModel(private val context: Context) {
             val currentInput = if (i == 0) inputIds else intArrayOf(generated.last())
             val seqLen = currentInput.size.toLong()
 
-            val inputIdsTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(currentInput.map { it.toLong() }.toLongArray()), longArrayOf(1, seqLen))
-            val attentionTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(LongArray(seqLen.toInt()) { 1L }), longArrayOf(1, seqLen))
+            val inputIdsTensor = OnnxTensor.createTensor(
+                env,
+                LongBuffer.wrap(currentInput.map { it.toLong() }.toLongArray()),
+                longArrayOf(1, seqLen)
+            )
+            val attentionTensor = OnnxTensor.createTensor(
+                env,
+                LongBuffer.wrap(LongArray(seqLen.toInt()) { 1L }),
+                longArrayOf(1, seqLen)
+            )
             val startPos = totalPosition - seqLen
             val posArray = LongArray(seqLen.toInt()) { j -> startPos + j }
-            val positionTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(posArray), longArrayOf(1, seqLen))
+            val positionTensor =
+                OnnxTensor.createTensor(env, LongBuffer.wrap(posArray), longArrayOf(1, seqLen))
 
             val inputs = mutableMapOf<String, OnnxTensor>(
                 "input_ids" to inputIdsTensor,

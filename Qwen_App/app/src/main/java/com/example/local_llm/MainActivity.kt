@@ -38,41 +38,47 @@ class MainActivity : AppCompatActivity() {
         val clearButton: Button = findViewById(R.id.clearButton)
         val outputText: TextView = findViewById(R.id.outputView)
         val scrollView: ScrollView = findViewById(R.id.outputScroll)
+        // Extract role token IDs using tokenizer
+        val roleTokens = RoleTokenIds(
+            systemStart = listOf(tokenizer.getTokenId("<|im_start|>"), tokenizer.getTokenId("system"), tokenizer.getTokenId("Ċ")),
+            userStart = listOf(tokenizer.getTokenId("<|im_start|>"), tokenizer.getTokenId("user"), tokenizer.getTokenId("Ċ")),
+            assistantStart = listOf(tokenizer.getTokenId("<|im_start|>"), tokenizer.getTokenId("assistant"), tokenizer.getTokenId("Ċ")),
+            endToken = tokenizer.getTokenId("<|im_end|>")
+        )
+        val modelConfig = ModelConfig(
+            modelName = "Qwen",
+            promptStyle = PromptStyle.QWEN,
+            eosTokenIds = setOf(151643, 151645),
+            numLayers = 24,
+            numKvHeads = 2,
+            headDim = 64,
+            batchSize = 1,
+            defaultSystemPrompt =  "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.",
+            roleTokenIds = roleTokens
+        )
 
+
+        val promptBuilder = PromptBuilder(tokenizer, modelConfig)
+        val intent = PromptIntent.QA(systemPrompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.")
+        // Build the prompt tokens from user input + intent
+        // val inputIds: IntArray = promptBuilder.buildPromptTokens(inputEditText.text.toString(), intent)
+        val mapper = TokenDisplayMapper(this@MainActivity, modelConfig.modelName)
         markwon.setMarkdown(outputText, "⏳ Please wait, the model is still loading.")
         sendButton.isEnabled = false
 
         inferenceScope.launch {
-            onnxModel = OnnxModel(this@MainActivity)
+            onnxModel = OnnxModel(this@MainActivity, modelConfig)
             withContext(Dispatchers.Main) {
                 markwon.setMarkdown(outputText, "✅ Model is ready.")
                 sendButton.isEnabled = true
             }
         }
 
-        val systemPrompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
 
         sendButton.setOnClickListener {
             if (!::onnxModel.isInitialized) {
                 markwon.setMarkdown(outputText, "⏳ Please wait, the model is still loading.")
                 return@setOnClickListener
-            }
-            val inputText = inputEditText.text.toString()
-
-            val systemPromptTokens = tokenizer.tokenize(systemPrompt, addSpecialTokens = false)
-            val userInputTokens = tokenizer.tokenize(inputText, addSpecialTokens = false)
-
-            val tokens = buildList {
-                addAll(listOf(151644, 739, 198))         // <|im_start|>system\n
-                addAll(systemPromptTokens.toList())
-                add(151645)
-
-                addAll(listOf(151644, 872, 198))         // <|im_start|>user\n
-                addAll(userInputTokens.toList())
-                add(151645)
-
-                addAll(listOf(151644, 17847, 198))       // <|im_start|>assistant\n
-                // Model starts generating from here...
             }
 
             sendButton.isEnabled = false
@@ -81,7 +87,9 @@ class MainActivity : AppCompatActivity() {
 
             inferenceJob = inferenceScope.launch {
                 try {
-                    val tokenIds = tokens.toIntArray()
+                    val inputIds: IntArray = promptBuilder.buildPromptTokens(inputEditText.text.toString(), intent)
+                    val tokenIds = inputIds
+                    Log.d("tokenized", "ID=${tokenIds}")
                     val builder = StringBuilder()
                     var tokenCounter = 0
 
@@ -94,7 +102,8 @@ class MainActivity : AppCompatActivity() {
                         endTokenIds = END_TOKEN_IDS,
                         shouldStop = { inferenceJob?.isActive != true },
                         onTokenGenerated = { tokenId ->
-                            val tokenStr = tokenizer.decodeSingleToken(tokenId)
+                            //val tokenStr = tokenizer.decodeSingleToken(tokenId)
+                            val tokenStr = mapper.map(tokenId)
                             builder.append(tokenStr)
                             tokenCounter++
 
