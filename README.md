@@ -20,7 +20,7 @@ An Android application that brings a large language model (LLM) to your phone â€
 <p align="center">
   <img src="data/Demo.gif" alt="Model Output 2" width="25%" style="margin: 1%"/>
   <img src="data/Demo2.gif" alt="Input Prompt" width="25%" style="margin: 1%"/>
-  <img src="data/qwen3demo.gif" alt="Input Prompt" width="25%" style="margin: 1%"/>
+  <img src="data/Qwen3demo.gif" alt="Input Prompt" width="25%" style="margin: 1%"/>
   </p>
 
 <p align="center">
