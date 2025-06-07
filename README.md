@@ -33,9 +33,9 @@ An Android application that brings a large language model (LLM) to your phone �
 This app uses the **Qwen2.5-0.5B-Instruct** model optimized for instruction-following and QA tasks.
 
 ### 🔁 Option 1: Use Preconverted ONNX Model
-
-- Download [ONNX model](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/tree/main/onnx) and [tokenizer.json](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/tree/main) from Hugging Face.
-
+Download the 'onnx model' and 'tokenizer.json' from huggingface.
+- Qwen2.5 [here](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct)
+- Qwen3 [here](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX)
 ### ⚙️ Option 2: Convert Model Yourself
 
 Install Optimum with ONNX export support:
