@@ -157,22 +157,25 @@ class OnnxModel(private val context: Context, private val config: ModelConfig) {
         val numKvHeads = config.numKvHeads
         val headDim = config.headDim
         val batchSize = config.batchSize
+        val isQwen3 = config.modelName.contains("qwen3", ignoreCase = true)
 
         val pastKeyValues = mutableMapOf<String, OnnxTensor>()
         repeat(numLayers) { layer ->
             listOf("key", "value").forEach { kv ->
                 val name = "past_key_values.$layer.$kv"
-                val shape =
-                    longArrayOf(batchSize.toLong(), numKvHeads.toLong(), 0, headDim.toLong())
-                pastKeyValues[name] =
-                    OnnxTensor.createTensor(env, FloatBuffer.wrap(FloatArray(0)), shape)
+                val shape = longArrayOf(batchSize.toLong(), numKvHeads.toLong(), 0, headDim.toLong())
+                val emptyKV = FloatArray(0)
+                pastKeyValues[name] = if (config.dtype == "float16") {
+                    createFloat16Tensor(env, emptyKV, shape)
+                } else {
+                    OnnxTensor.createTensor(env, FloatBuffer.wrap(emptyKV), shape)
+                }
             }
         }
 
         var totalPosition: Long = inputIds.size.toLong()
 
         for (i in 0 until maxTokens) {
-
             if (shouldStop()) break
 
             val currentInput = if (i == 0) inputIds else intArrayOf(generated.last())
@@ -183,15 +186,17 @@ class OnnxModel(private val context: Context, private val config: ModelConfig) {
                 LongBuffer.wrap(currentInput.map { it.toLong() }.toLongArray()),
                 longArrayOf(1, seqLen)
             )
-            val attentionTensor = OnnxTensor.createTensor(
-                env,
-                LongBuffer.wrap(LongArray(seqLen.toInt()) { 1L }),
-                longArrayOf(1, seqLen)
-            )
+
+            val attentionTensor = if (isQwen3) {
+                val attn = LongArray(totalPosition.toInt()) { 1L }
+                OnnxTensor.createTensor(env, LongBuffer.wrap(attn), longArrayOf(1, totalPosition))
+            } else {
+                val attn = LongArray(seqLen.toInt()) { 1L }
+                OnnxTensor.createTensor(env, LongBuffer.wrap(attn), longArrayOf(1, seqLen))
+            }
             val startPos = totalPosition - seqLen
             val posArray = LongArray(seqLen.toInt()) { j -> startPos + j }
-            val positionTensor =
-                OnnxTensor.createTensor(env, LongBuffer.wrap(posArray), longArrayOf(1, seqLen))
+            val positionTensor = OnnxTensor.createTensor(env, LongBuffer.wrap(posArray), longArrayOf(1, seqLen))
 
             val inputs = mutableMapOf<String, OnnxTensor>(
                 "input_ids" to inputIdsTensor,
@@ -201,16 +206,6 @@ class OnnxModel(private val context: Context, private val config: ModelConfig) {
 
             val results = session.run(inputs)
             val logits = (results[0].value as Array<Array<FloatArray>>)[0].last()
-
-            // Apply repetition penalty
-            //for (id in generated.toSet()) {
-            //    logits[id] /= REPETITION_PENALTY
-            //}
-
-            // Apply temperature scaling
-            // val scaledLogits = logits.map { it / TEMPERATURE }.toFloatArray()
-
-            // Greedy decoding (argmax)
             val nextTokenId = logits.indices.maxByOrNull { logits[it] } ?: break
             if (nextTokenId in endTokenIds) break
 
@@ -231,7 +226,7 @@ class OnnxModel(private val context: Context, private val config: ModelConfig) {
 
             inputIdsTensor.close()
             attentionTensor.close()
-            if (nextTokenId in endTokenIds) break
+            positionTensor.close()
         }
 
         pastKeyValues.values.forEach { it.close() }

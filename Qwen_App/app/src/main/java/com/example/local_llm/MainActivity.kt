@@ -5,13 +5,18 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
-import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import io.noties.markwon.Markwon
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -27,7 +32,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-
+        val thinkingToggle: CheckBox = findViewById(R.id.thinkingToggle)
         tokenizer = BpeTokenizer(this)
         markwon = Markwon.create(this)
 
@@ -40,34 +45,62 @@ class MainActivity : AppCompatActivity() {
         val scrollView: ScrollView = findViewById(R.id.outputScroll)
         // Extract role token IDs using tokenizer
         val roleTokens = RoleTokenIds(
-            systemStart = listOf(tokenizer.getTokenId("<|im_start|>"), tokenizer.getTokenId("system"), tokenizer.getTokenId("Ċ")),
-            userStart = listOf(tokenizer.getTokenId("<|im_start|>"), tokenizer.getTokenId("user"), tokenizer.getTokenId("Ċ")),
-            assistantStart = listOf(tokenizer.getTokenId("<|im_start|>"), tokenizer.getTokenId("assistant"), tokenizer.getTokenId("Ċ")),
+            systemStart = listOf(
+                tokenizer.getTokenId("<|im_start|>"),
+                tokenizer.getTokenId("system"),
+                tokenizer.getTokenId("Ċ")
+            ),
+            userStart = listOf(
+                tokenizer.getTokenId("<|im_start|>"),
+                tokenizer.getTokenId("user"),
+                tokenizer.getTokenId("Ċ")
+            ),
+            assistantStart = listOf(
+                tokenizer.getTokenId("<|im_start|>"),
+                tokenizer.getTokenId("assistant"),
+                tokenizer.getTokenId("Ċ")
+            ),
             endToken = tokenizer.getTokenId("<|im_end|>")
         )
-        val modelConfig = ModelConfig(
-            modelName = "Qwen",
-            promptStyle = PromptStyle.QWEN,
+        val modelconfigqwen25 = ModelConfig(
+            modelName = "Qwen2_5",
+            promptStyle = PromptStyle.QWEN2_5,
             eosTokenIds = setOf(151643, 151645),
             numLayers = 24,
             numKvHeads = 2,
             headDim = 64,
             batchSize = 1,
-            defaultSystemPrompt =  "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.",
-            roleTokenIds = roleTokens
+            defaultSystemPrompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.",
+            roleTokenIds = roleTokens,
+            scalarPosId = false
         )
 
-
-        val promptBuilder = PromptBuilder(tokenizer, modelConfig)
-        val intent = PromptIntent.QA(systemPrompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.")
-        // Build the prompt tokens from user input + intent
-        // val inputIds: IntArray = promptBuilder.buildPromptTokens(inputEditText.text.toString(), intent)
-        val mapper = TokenDisplayMapper(this@MainActivity, modelConfig.modelName)
+        val modelconfigqwen3 = ModelConfig(
+            modelName = "Qwen3",
+            promptStyle = PromptStyle.QWEN3,
+            eosTokenIds = setOf(151643, 151645),
+            numLayers = 28,
+            numKvHeads = 8,
+            headDim = 128,
+            batchSize = 1,
+            defaultSystemPrompt = "You are Qwen. You are a helpful assistant",
+            roleTokenIds = roleTokens,
+            scalarPosId = true,
+            dtype = "float16",
+            IsThinkingModeAvailable = true
+        )
+        val config = modelconfigqwen3
+        if (config.IsThinkingModeAvailable) {
+            thinkingToggle.visibility = View.VISIBLE
+        }
+        title = "Pocket LLM — ${config.modelName}"
+        val promptBuilder = PromptBuilder(tokenizer, config)
+        val mapper = TokenDisplayMapper(this@MainActivity, config.modelName)
         markwon.setMarkdown(outputText, "⏳ Please wait, the model is still loading.")
         sendButton.isEnabled = false
 
         inferenceScope.launch {
-            onnxModel = OnnxModel(this@MainActivity, modelConfig)
+            onnxModel = OnnxModel(this@MainActivity, config)
             withContext(Dispatchers.Main) {
                 markwon.setMarkdown(outputText, "✅ Model is ready.")
                 sendButton.isEnabled = true
@@ -81,15 +114,20 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            val systemPrompt = if (thinkingToggle.isChecked)
+                config.defaultSystemPrompt
+            else
+                "${config.defaultSystemPrompt} /no_think"
+            val intent = PromptIntent.QA(systemPrompt)
+            val inputIds = promptBuilder.buildPromptTokens(inputEditText.text.toString(), intent)
+
             sendButton.isEnabled = false
             stopButton.isEnabled = true
             markwon.setMarkdown(outputText, "⏳ Thinking...")
 
             inferenceJob = inferenceScope.launch {
                 try {
-                    val inputIds: IntArray = promptBuilder.buildPromptTokens(inputEditText.text.toString(), intent)
                     val tokenIds = inputIds
-                    Log.d("tokenized", "ID=${tokenIds}")
                     val builder = StringBuilder()
                     var tokenCounter = 0
 
@@ -102,8 +140,13 @@ class MainActivity : AppCompatActivity() {
                         endTokenIds = END_TOKEN_IDS,
                         shouldStop = { inferenceJob?.isActive != true },
                         onTokenGenerated = { tokenId ->
-                            //val tokenStr = tokenizer.decodeSingleToken(tokenId)
-                            val tokenStr = mapper.map(tokenId)
+                            val tokenStr = if (config.modelName.startsWith("Qwen", ignoreCase = true)) {
+                                Log.d("tokenized", "ID=${tokenId}")
+                                mapper.map(tokenId)
+                            } else {
+                                tokenizer.decodeSingleToken(tokenId)
+                            }
+
                             builder.append(tokenStr)
                             tokenCounter++
 

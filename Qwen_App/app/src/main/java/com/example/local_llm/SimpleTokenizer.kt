@@ -25,9 +25,19 @@ class BpeTokenizer(context: Context) {
 
         // Read merges
         val mergeList = tokenizerJson.getJSONObject("model").getJSONArray("merges")
-        merges = (0 until mergeList.length()).map {
-            val pairArray = mergeList.getJSONArray(it)
-            Pair(pairArray.getString(0), pairArray.getString(1))
+        merges = (0 until mergeList.length()).map { i ->
+            when (val entry = mergeList.get(i)) {
+                is String -> {
+                    val parts = entry.split(" ")
+                    require(parts.size == 2) { "Invalid merge string: $entry" }
+                    parts[0] to parts[1]
+                }
+                is org.json.JSONArray -> {
+                    require(entry.length() == 2) { "Invalid merge array: $entry" }
+                    entry.getString(0) to entry.getString(1)
+                }
+                else -> throw IllegalArgumentException("Unsupported merge entry type: ${entry::class.java}")
+            }
         }
         bpeRanks = merges.withIndex().associate { it.value to it.index }
 

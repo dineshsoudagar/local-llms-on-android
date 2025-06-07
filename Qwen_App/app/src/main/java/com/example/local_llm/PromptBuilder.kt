@@ -10,7 +10,7 @@ class PromptBuilder(
 
     fun buildPromptTokens(userInput: String, intent: PromptIntent): IntArray {
         return when (config.promptStyle) {
-            PromptStyle.QWEN -> when (intent) {
+            PromptStyle.QWEN2_5, PromptStyle.QWEN3-> when (intent) {
                 is PromptIntent.QA -> buildQwenQA(userInput, intent.systemPrompt)
             }
         }

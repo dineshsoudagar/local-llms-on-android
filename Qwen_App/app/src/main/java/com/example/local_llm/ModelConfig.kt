@@ -1,7 +1,8 @@
 package com.example.local_llm
 
 enum class PromptStyle {
-    QWEN
+    QWEN2_5,
+    QWEN3
 }
 
 data class RoleTokenIds(
@@ -13,6 +14,7 @@ data class RoleTokenIds(
 
 data class ModelConfig(
     val modelName: String,
+    val modelPath: String = "Qwen2_5_0_5B.onnx",
     val promptStyle: PromptStyle,
     val eosTokenIds: Set<Int>,
     val numLayers: Int,
@@ -20,5 +22,8 @@ data class ModelConfig(
     val headDim: Int,
     val batchSize: Int,
     val defaultSystemPrompt: String,
-    val roleTokenIds: RoleTokenIds
+    val roleTokenIds: RoleTokenIds,
+    val scalarPosId: Boolean = false,
+    val dtype: String = "float32",
+    val IsThinkingModeAvailable: Boolean = true
 )
