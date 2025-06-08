@@ -84,15 +84,22 @@ optimum-cli export onnx --model Qwen/Qwen2.5-0.5B-Instruct qwen2.5-0.5B-onnx/
 
 ---
 
-## 📦 Download Prebuilt APK
+## 📦 Download Prebuilt APKs
 
-- ➡️ [pocket_llm_qwen2.5_0.5B_v1.0.0.apk](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_v1.0.0.apk)
-  - Best for high-end devices. Full precision (FP32).
-- ➡️ [pocket_llm_qwen2.5_0.5B_fp16_v1.0.0.apk](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_fp16_v1.0.0.apk)
-  - Optimized for mid to high-end phones. Uses half-precision (FP16).
-- ➡️ [pocket_llm_qwen2.5_0.5B_q4fp16_v1.0.0.apk](https://github.com/dineshsoudagar/Local-LLM-On-Andriod-Qwen-QA/releases/download/v1.0.0/pocket_llm_qwen2.5_0.5B_q4fp16_v1.0.0.apk)
-  - Best overall balance of speed and size. Quantized (Q4 + FP16).
----
+- ➡️ [pocket_llm_qwen2.5_0.5B_v1.1.0.apk](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.1.0/pocket_llm_qwen2.5_0.5B_v1.1.0.apk)  
+  - Full precision (FP32). Best for high-end devices. Improved inference performance.
+
+- ➡️ [pocket_llm_qwen2.5_0.5B_fp16_v1.1.0.apk](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.1.0/pocket_llm_qwen2.5_0.5B_fp16_v1.1.0.apk)  
+  - Half-precision (FP16). Great balance of speed and accuracy for most devices.
+
+- ➡️ [pocket_llm_qwen2.5_0.5B_q4fp16_v1.1.0.apk](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.1.0/pocket_llm_qwen2.5_0.5B_q4fp16_v1.1.0.apk)  
+  - Quantized Q4 + FP16. Fastest and lightest version of Qwen2.5.
+
+- ➡️ [pocket_llm_qwen3_0.6B_fp16_v1.1.0.apk](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.1.0/pocket_llm_qwen3_0.6B_fp16_v1.1.0.apk)  
+  - 🔥 New! Qwen3-0.6B with improved reasoning and **Thinking Mode** support.
+
+- ➡️ [pocket_llm_qwen3_0.6B_q4fp16_v1.1.0.apk](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.1.0/pocket_llm_qwen3_0.6B_q4fp16_v1.1.0.apk)  
+  - 🔥 New! Qwen3 quantized version (Q4 + FP16). Compact and fast with Thinking Mode.
 
 ## 🔐 Privacy First
 
