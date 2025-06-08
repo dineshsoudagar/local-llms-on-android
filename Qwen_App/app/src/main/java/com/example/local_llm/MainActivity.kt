@@ -90,6 +90,7 @@ class MainActivity : AppCompatActivity() {
             IsThinkingModeAvailable = true
         )
         val config = modelconfigqwen3
+        val skipTokenIdsQwen3 = setOf(151667, 151668)  // e.g., <think>, </think>
         if (config.IsThinkingModeAvailable) {
             thinkingToggle.visibility = View.VISIBLE
         }
@@ -141,22 +142,22 @@ class MainActivity : AppCompatActivity() {
                         shouldStop = { inferenceJob?.isActive != true },
                         onTokenGenerated = { tokenId ->
                             val tokenStr = if (config.modelName.startsWith("Qwen", ignoreCase = true)) {
-                                Log.d("tokenized", "ID=${tokenId}")
                                 mapper.map(tokenId)
                             } else {
                                 tokenizer.decodeSingleToken(tokenId)
                             }
 
-                            builder.append(tokenStr)
-                            tokenCounter++
-
-                            runOnUiThread {
-                                outputText.text = builder.toString()
-                                scrollView.post {
-                                    scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                            // Only append if NOT one of the first 4 tokens (for Qwen3)
+                            if (!(config.modelName.equals("qwen3", ignoreCase = true) && tokenCounter < 4)) {
+                                builder.append(tokenStr)
+                                runOnUiThread {
+                                    outputText.text = builder.toString()
+                                    scrollView.post {
+                                        scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+                                    }
                                 }
                             }
-
+                            tokenCounter++
                         }
                     )
 
