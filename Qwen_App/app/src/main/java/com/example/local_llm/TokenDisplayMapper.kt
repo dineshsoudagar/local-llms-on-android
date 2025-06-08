@@ -8,7 +8,7 @@ class TokenDisplayMapper(context: Context, modelName: String) {
     private val tokenToDisplay: Map<Int, String>
 
     init {
-        tokenToDisplay = if (modelName.equals("Qwen", ignoreCase = true)) {
+        tokenToDisplay = if (modelName.startsWith("Qwen", ignoreCase = true)) {
             try {
                 val inputStream = context.assets.open("qwen_token_display_mapping.json")
                 val jsonStr = inputStream.bufferedReader().use { it.readText() }
