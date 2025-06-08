@@ -1,4 +1,3 @@
-
 # 🤖 Local LLMs on Android (Offline, Private & Fast)
 
 An Android application that brings a large language model (LLM) to your phone — fully offline, no internet needed. Powered by ONNX Runtime and a Hugging Face-compatible tokenizer, it provides fast, private, on-device question answering with streaming responses.
@@ -7,11 +6,11 @@ An Android application that brings a large language model (LLM) to your phone �
 
 ## ✨ Features
 
-- 📱 On-device, offline question answering with ONNX Runtime
-- 🔤 Hugging Face-compatible BPE tokenizer (`tokenizer.json`)
-- 🧠 Qwen-compatible prompt formatting with streaming token generation
-- 🚀 Coroutine-based inference for responsive performance
-- 🔐 Runs fully offline — your data stays on your device
+- 📱 On-device, offline question answering with ONNX Runtime  
+- 🔤 Hugging Face-compatible BPE tokenizer (`tokenizer.json`)  
+- 🧠 Qwen2.5 & Qwen3-compatible prompt formatting with streaming token generation  
+- 🚀 Coroutine-based inference for responsive performance  
+- 🔐 Runs fully offline — your data stays on your device  
 
 ---
 
@@ -21,7 +20,7 @@ An Android application that brings a large language model (LLM) to your phone �
   <img src="data/Demo.gif" alt="Model Output 2" width="25%" style="margin: 1%"/>
   <img src="data/Demo2.gif" alt="Input Prompt" width="25%" style="margin: 1%"/>
   <img src="data/Qwen3demo.gif" alt="Input Prompt" width="25%" style="margin: 1%"/>
-  </p>
+</p>
 
 <p align="center">
   <em>Figure: App interface showing prompt input and generated answers using the local LLM.</em>
@@ -31,15 +30,16 @@ An Android application that brings a large language model (LLM) to your phone �
 
 ## 🧠 Model Info
 
-This app uses the **Qwen2.5-0.5B-Instruct** model optimized for instruction-following and QA tasks.
+This app supports both **Qwen2.5-0.5B-Instruct** and **Qwen3-0.6B** — optimized for instruction-following, QA, and reasoning tasks.
 
 ### 🔁 Option 1: Use Preconverted ONNX Model
-Download the 'onnx model' and 'tokenizer.json' from huggingface.
-- Qwen2.5 [here](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct)
-- Qwen3 [here](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX)
-### ⚙️ Option 2: Convert Model Yourself
 
-Install Optimum with ONNX export support:
+Download the `model.onnx` and `tokenizer.json` from Hugging Face:
+
+- 🔹 [Qwen2.5](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct)  
+- 🔹 [Qwen3](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX)  
+
+### ⚙️ Option 2: Convert Model Yourself
 
 ```bash
 pip install optimum[onnxruntime]
@@ -100,8 +100,8 @@ This app performs all inference locally on your device. No data is sent to any s
 
 ## 🔮 Roadmap
 
+- 🧠 **Qwen3-0.6B** — Added Qwen3 model support.
 - 🔁 **Chat Memory** — Add multi-turn conversation with context retention.
-- 🧠 **Qwen3-0.6B** — Update to newer, more capable Qwen model.
 - 🦙 **LLaMA 3 1B** — Support Meta’s new compact LLM.
 
 ## 📄 License
