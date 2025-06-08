@@ -6,11 +6,13 @@ An Android application that brings a large language model (LLM) to your phone �
 
 ## ✨ Features
 
-- 📱 On-device, offline question answering with ONNX Runtime  
+- 📱 Fully on-device LLM inference with ONNX Runtime  
 - 🔤 Hugging Face-compatible BPE tokenizer (`tokenizer.json`)  
-- 🧠 Qwen2.5 & Qwen3-compatible prompt formatting with streaming token generation  
-- 🚀 Coroutine-based inference for responsive performance  
-- 🔐 Runs fully offline — your data stays on your device  
+- 🧠 Qwen2.5 & Qwen3 prompt formatting with streaming generation  
+- 🧩 Custom `ModelConfig` for precision, prompt style, and KV cache  
+- 🧘‍♂️ **Thinking Mode** toggle (enabled in Qwen3) for step-by-step reasoning  
+- 🚀 Coroutine-based UI for smooth user experience  
+- 🔐 Runs 100% offline — no network, no telemetry  
 
 ---
 
