@@ -5,7 +5,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/background_dark"
+    android:background="@color/app_background"
     android:fitsSystemWindows="true"
     android:padding="8dp"
     tools:context=".MainActivity">
@@ -25,6 +25,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
+            android:layout_marginStart="10dp"
             android:padding="8dp" />
 
 
@@ -69,13 +70,17 @@
             android:minLines="2"
             android:padding="12dp"
             android:textColor="#FFFFFF"
+            android:layout_marginStart="10dp"
             android:textSize="16sp" />
+
+
 
         <FrameLayout
             android:id="@+id/sendStopSwitcher"
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
-            android:layout_marginStart="8dp">
+            android:layout_marginStart="10dp"
+            android:padding="5dp">
 
             <Button
                 android:id="@+id/sendButton"

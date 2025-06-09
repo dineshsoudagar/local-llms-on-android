@@ -76,8 +76,13 @@ class MainActivity : AppCompatActivity() {
                 }, 300)
             }
         }
-        val sendButton: Button = findViewById(R.id.sendButton)
-        val stopButton: Button = findViewById(R.id.stopButton)
+        val sendButton = findViewById<Button>(R.id.sendButton)
+        sendButton.setBackgroundResource(R.drawable.btn_send)
+        sendButton.backgroundTintList = null
+
+        val stopButton = findViewById<Button>(R.id.stopButton)
+        stopButton.setBackgroundResource(R.drawable.btn_stop)
+        stopButton.backgroundTintList = null
         //val clearButton: Button = findViewById(R.id.clearButton)
         chatRecyclerView = findViewById(R.id.chatRecyclerView)
         chatAdapter = ChatAdapter(messages)
