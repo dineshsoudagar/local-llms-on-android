@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # export_gemma2_with_past_onnx.py
 #
 # This script exports the Gemma 2B IT model to ONNX with full support for past key/value caching
@@ -187,9 +188,6 @@ class Gemma2DummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         head_dim = self.hidden_size // self.num_attention_heads
         shape = (self.batch_size, self.num_key_value_heads, 1, 256)
 
-        # Print shape so we can verify during export
-        print(f"[DUMMY PKV] layer-shape = {shape}, dtype={float_dtype}, framework={framework}")
-
         # Generate `num_layers` pairs of random tensors
         return [
             (
@@ -277,8 +275,8 @@ def main():
     }
 
     # 6.6) Define a function that maps submodel name to the actual nn.Module (patched Gemma2ForCausalLM)
-    def get_submodels(model_object):
-        return {"decoder_with_past_model": model_object}
+    def get_submodels(_):
+        return {"decoder_with_past_model": model}
 
     # 6.7) Call Optimum’s main_export to produce ONNX files
     #      - task="text-generation-with-past" instructs Optimum to export the CausalLM with past-key-values logic
@@ -286,7 +284,7 @@ def main():
     #      - device="cuda": export on GPU; change to "cpu" if CUDA is unavailable
     main_export(
         model_name_or_path=model_id,
-        output="gemma2_with_past_KV_onnx_latest/",
+        output="gemma2_with_past_KV_onnx_final_15jun_2/",
         custom_onnx_configs=custom_onnx_config,
         task="text-generation-with-past",
         device="cuda",
@@ -294,7 +292,7 @@ def main():
         opset=19,
     )
 
-    print("✅ ONNX export complete. Files saved under 'gemma2_with_past_KV_onnx/'.")
+    print("✅ ONNX export complete. Files saved under 'gemma2_with_past_KV_onnx_final_15jun_2/'.")
 
 
 if __name__ == "__main__":

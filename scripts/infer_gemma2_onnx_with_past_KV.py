@@ -1,85 +1,79 @@
-import onnxruntime as ort
 import numpy as np
-from transformers import AutoTokenizer
+import onnxruntime as ort
+from tokenizers import Tokenizer
 
-# === Config ===
-MODEL_PATH = "gemma2_decoder_with_past_latest_2/gemma2_decoder_with_past_latest_2.onnx"
-BOS_TOKEN_ID = 2
-EOS_TOKEN_IDS = [1, 107]
+# -------- CONFIG --------
+MODEL_PATH = "gemma2_with_past_KV_onnx_final_15jun_2/decoder_with_past_model.onnx"
+TOKENIZER_PATH = "gemma2_with_past_KV_onnx_final_15jun_2/tokenizer.json"
 MAX_NEW_TOKENS = 50
 NUM_LAYERS = 26
 NUM_KV_HEADS = 4
 HEAD_DIM = 256
+EOS_TOKEN_IDS = [1, 107]
 
-# === Load model ===
-providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if 'CUDAExecutionProvider' in ort.get_available_providers() else ['CPUExecutionProvider']
+# -------- LOAD MODEL & TOKENIZER --------
+providers = ['CUDAExecutionProvider',
+             'CPUExecutionProvider'] if 'CUDAExecutionProvider' in ort.get_available_providers() else [
+    'CPUExecutionProvider']
 session = ort.InferenceSession(MODEL_PATH, providers=providers)
+tokenizer = Tokenizer.from_file(TOKENIZER_PATH)
 
-# === Load tokenizer ===
-tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b-it")
-
-# === Encode prompt ===
-prompt = "User: Translate this sentence into german language: I want to go to office early today.  \nAssistant:"
+prompt = "Translate to German: I want to go to the office early."
 encoded = tokenizer.encode(prompt)
-input_ids = np.array([encoded], dtype=np.int64)
+input_ids = np.array([encoded.ids], dtype=np.int64)
 attention_mask = np.ones_like(input_ids, dtype=np.int64)
 position_ids = np.arange(input_ids.shape[1], dtype=np.int64)[None, :]
-cur_pos = input_ids.shape[1]
+batch_size = input_ids.shape[0]
+past_key_values = {}
 
-print("Prompt tokens:", input_ids.tolist())
-print("Decoded:", tokenizer.decode(input_ids[0]))
+for layer in range(NUM_LAYERS):
+    for kv in ["key", "value"]:
+        name = f"past_key_values.{layer}.{kv}"
+        past_key_values[name] = np.zeros((batch_size, NUM_KV_HEADS, 0, HEAD_DIM), dtype=np.float32)
 
-# === Initialize empty past_key_values before loop
-past_key_values = {
-    f"past_key_values.{layer}.{kind}": np.zeros((1, NUM_KV_HEADS, 0, HEAD_DIM), dtype=np.float32)
-    for layer in range(NUM_LAYERS)
-    for kind in ["key", "value"]
-}
-
-# === Inference loop
+# 5. Generation loop
 generated = []
-cur_pos = input_ids.shape[1]
-
-for step in range(MAX_NEW_TOKENS):
-    position_ids = np.array([[cur_pos]], dtype=np.int64)
-
-    inputs_ = {
+max_new_tokens = 50
+for i in range(max_new_tokens):
+    print(f"Generating new token {i}")
+    # Dynamically create the inputs dictionary (including past_key_values)
+    inputs = {
         "input_ids": input_ids,
         "attention_mask": attention_mask,
         "position_ids": position_ids,
-        **past_key_values,  # ✅ always include
     }
+    inputs.update(past_key_values)  # Add past_key_values to inputs
 
     try:
-        outputs = session.run(None, inputs_)
+        # Run inference
+        outputs = session.run(None, inputs)
         logits, *present_values = outputs
-        print(f"[DEBUG] Step {step}, logits shape: {logits.shape}")
 
-        if logits.ndim == 3:
-            next_token_id = np.argmax(logits[:, -1], axis=-1, keepdims=True)
-        elif logits.ndim == 2:
-            next_token_id = np.argmax(logits, axis=-1, keepdims=True).reshape(1, 1)
-        else:
-            raise ValueError("Unexpected logits shape")
+        # Get next token
+        next_token_id = np.argmax(logits[:, -1], axis=-1, keepdims=True)
+        token_id = int(next_token_id[0, 0])
+        generated.append(token_id)
 
-        token = int(next_token_id[0, 0])
-        generated.append(token)
-
-        if token in EOS_TOKEN_IDS:
-            break
-
-        # Prepare next step
+        # Update inputs for the next token
         input_ids = next_token_id
-        attention_mask = np.concatenate([attention_mask, np.ones((1, 1), dtype=np.int64)], axis=1)
-        cur_pos += 1
+        #attention_mask = np.ones_like(input_ids, dtype=np.int64)
+        #position_ids = position_ids[:, -1:] + 1
 
-        for i, key in enumerate(past_key_values):
+        attention_mask = np.concatenate([attention_mask, np.ones((1, 1), dtype=np.int64)], axis=1)
+        position_ids = np.array([[attention_mask.shape[1] - 1]], dtype=np.int64)
+        # Update past_key_values for the next step
+        for i, key in enumerate(past_key_values.keys()):
+            #print(key)
+            #print(present_values[i].shape)
             past_key_values[key] = present_values[i]
 
+        if token_id in EOS_TOKEN_IDS:  # End token <|im_end|>
+            break
+
     except Exception as e:
-        print("Error during inference:", e)
+        print(f"Error during inference: {e}")
         break
 
-# === Decode
+# 6. Decode and print the result
 output_text = tokenizer.decode(generated)
 print("Generated text:", output_text)
