@@ -14,8 +14,6 @@
 #   - packaging
 #   - A CUDA-enabled device (or change device="cpu" below)
 #
-from typing import Tuple
-
 import torch
 import torch.nn as nn
 
@@ -32,18 +30,6 @@ from optimum.utils.input_generators import DummyTextInputGenerator, DummyPastKey
 from transformers.cache_utils import HybridCache
 
 
-def hybrid_to_legacy_cache(self):
-    return tuple((self.key_cache[i], self.value_cache[i]) for i in range(len(self.key_cache)))
-
-
-HybridCache.to_legacy_cache = hybrid_to_legacy_cache
-
-
-def to_legacy_cache(self) -> Tuple[Tuple[torch.Tensor, torch.Tensor]]:
-    """Convert HybridCache into legacy list-of-tuples format"""
-    return tuple((self.key_cache[i], self.value_cache[i]) for i in range(len(self.key_cache)))
-
-
 # --------------------------------------------------------------------------------------------------
 # 1) A helper function to “patch” the model’s forward method so that `cache_position` is always set.
 #    During ONNX tracing, the Python-side generation of cache_position might be skipped, so we ensure
@@ -51,66 +37,59 @@ def to_legacy_cache(self) -> Tuple[Tuple[torch.Tensor, torch.Tensor]]:
 # --------------------------------------------------------------------------------------------------
 def safe_patch_gemma(model: nn.Module) -> nn.Module:
     """
-    Replaces model.forward to ensure:
-      - cache_position is always generated
-      - HybridCache is unwrapped into tuples
-      - ONNX exporter sees the correct input signature
-    """
-    original_forward = model.forward  # scoped correctly here
+    Wraps `model.forward` so that if cache_position is missing, we compute it from:
+      - past_key_values.get_seq_length() if present
+      - length of inputs_embeds if present
+      - otherwise defaults to 0+seq_len via input_ids
 
-    def patched_forward(input_ids=None, attention_mask=None, position_ids=None,
-                        past_key_values=None, inputs_embeds=None, **kwargs):
-        # === Ensure cache_position is set ===
+    This ensures ONNX tracing sees a `cache_position` tensor.
+    """
+
+    def patched_forward(self, *args, **kwargs):
+        # Retrieve past_key_values and inputs_embeds if passed
+        past_key_values = kwargs.get("past_key_values", None)
+        inputs_embeds = kwargs.get("inputs_embeds", None)
+
+        # If no explicit cache_position was given, build one now
         if "cache_position" not in kwargs or kwargs["cache_position"] is None:
             try:
+                # If HybridCache, use its method to get how many tokens we’ve seen so far
                 past_seen_tokens = (
                     past_key_values.get_seq_length()
-                    if past_key_values is not None and hasattr(past_key_values, "get_seq_length")
+                    if (past_key_values is not None and hasattr(past_key_values, "get_seq_length"))
                     else 0
                 )
             except Exception:
+                # Fallback when past_key_values is exported as a dict-of-tensors in ONNX
                 try:
                     key0 = next(iter(past_key_values))
+                    # shape: [batch_size, num_kv_heads, seq_len_cached, head_dim]
                     past_seen_tokens = past_key_values[key0].shape[2]
                 except Exception:
                     past_seen_tokens = 0
 
+            # Determine seq_len: if inputs_embeds is present, use its second dim; else assume single-token step
             if inputs_embeds is not None:
                 seq_len = inputs_embeds.shape[1]
                 device = inputs_embeds.device
             else:
+                # If using input_ids (no inputs_embeds), get device from input_ids
+                input_ids = kwargs.get("input_ids", None)
                 seq_len = input_ids.shape[1] if input_ids is not None else 1
                 device = input_ids.device if input_ids is not None else torch.device("cpu")
 
+            # Build a range [past_seen_tokens, past_seen_tokens+seq_len)
             kwargs["cache_position"] = torch.arange(
                 past_seen_tokens, past_seen_tokens + seq_len, device=device, dtype=torch.long
             )
 
-        # === Run the original forward ===
-        output = original_forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            **kwargs,
-        )
-        print(f"Output type: {type(output)}")
-        # === Unwrap HybridCache if present ===
-        from transformers.cache_utils import HybridCache
-        if isinstance(output, dict) and "past_key_values" in output:
-            pkv = output["past_key_values"]
-            if isinstance(pkv, HybridCache):
-                output["past_key_values"] = tuple(
-                    (pkv.key_cache[i], pkv.value_cache[i]) for i in range(len(pkv.key_cache))
-                )
-        elif isinstance(output, HybridCache):
-            output = tuple((output.key_cache[i], output.value_cache[i]) for i in range(len(output.key_cache)))
+        # Delegate to original forward
+        return self._original_forward(*args, **kwargs)
 
-        return output
-
-    # Apply patch
-    model.forward = patched_forward
+    # Only patch once
+    if not hasattr(model, "_original_forward"):
+        model._original_forward = model.forward
+        model.forward = patched_forward.__get__(model, model.__class__)
     return model
 
 
@@ -286,44 +265,28 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float32)
 
     # 6.4) Patch the underlying .model.forward to guarantee cache_position is always provided
-    model = safe_patch_gemma(model)
+    model.model = safe_patch_gemma(model.model)
 
     # 6.5) Create our custom ONNXConfig: “decoder_with_past_model” is the submodel name
     custom_onnx_config = {
         "decoder_with_past_model": Gemma2OnnxConfig(
             config,
             use_past=True,  # we want present_key_values in outputs
-            use_past_in_inputs=False  # we want past_key_values in inputs
+            use_past_in_inputs=True  # we want past_key_values in inputs
         )
     }
 
     # 6.6) Define a function that maps submodel name to the actual nn.Module (patched Gemma2ForCausalLM)
-    def get_submodels(_):
-        return {"decoder_with_past_model": model}
+    def get_submodels(model_object):
+        return {"decoder_with_past_model": model_object}
 
     # 6.7) Call Optimum’s main_export to produce ONNX files
     #      - task="text-generation-with-past" instructs Optimum to export the CausalLM with past-key-values logic
     #      - opset=19 to support dynamic shapes and newer operators
     #      - device="cuda": export on GPU; change to "cpu" if CUDA is unavailable
-
-    from transformers import AutoTokenizer
-
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    inputs = tokenizer("Hello world", return_tensors="pt").to(model.device)
-
-    with torch.no_grad():
-        outputs = model(**inputs)
-
-    # Check that past_key_values is a tuple of tuples
-    print(type(outputs))
-    if isinstance(outputs, dict):
-        print("past_key_values type:", type(outputs["past_key_values"]))
-    elif isinstance(outputs, tuple) and hasattr(outputs, "past_key_values"):
-        print("past_key_values type:", type(outputs.past_key_values))
-
     main_export(
         model_name_or_path=model_id,
-        output="gemma2_with_past_KV_onnx_latest_fixing/",
+        output="gemma2_with_past_KV_onnx_latest/",
         custom_onnx_configs=custom_onnx_config,
         task="text-generation-with-past",
         device="cuda",
@@ -331,7 +294,7 @@ def main():
         opset=19,
     )
 
-    print("✅ ONNX export complete")
+    print("✅ ONNX export complete. Files saved under 'gemma2_with_past_KV_onnx/'.")
 
 
 if __name__ == "__main__":
