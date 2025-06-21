@@ -123,6 +123,9 @@ class Gemma2DummyNormalizedConfig:
     @property
     def num_key_value_heads(self): return self._config.num_key_value_heads
 
+    @property
+    def head_dim(self): return self._config.head_dim
+
 
 # --------------------------------------------------------------------------------------------------
 # 3) A dummy “cache entry” class that simulates how HybridCache works.
@@ -173,6 +176,7 @@ class Gemma2DummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
         self.num_key_value_heads = normalized_config.num_key_value_heads
         self.hidden_size = normalized_config.hidden_size
         self.batch_size = batch_size
+        self.head_dim = normalized_config.head_dim
         self.sequence_length = sequence_length
 
     def supports_input(self, input_name: str) -> bool:
@@ -185,7 +189,6 @@ class Gemma2DummyPastKeyValuesGenerator(DummyPastKeyValuesGenerator):
           - Each key/value: [batch_size, num_key_value_heads, 1, head_dim]
           - head_dim = hidden_size // num_attention_heads
         """
-        head_dim = self.hidden_size // self.num_attention_heads
         shape = (self.batch_size, self.num_key_value_heads, 1, 256)
 
         # Generate `num_layers` pairs of random tensors
@@ -227,7 +230,8 @@ class Gemma2OnnxConfig(OnnxConfigWithPast):
         }
 
         if self.use_past_in_inputs:
-            # This will add past_key_values_0, past_key_values_1, ... each with shape [B, num_kv_heads, past_seq_len, head_dim]
+            # This will add past_key_values_0, past_key_values_1, ... each with shape [B, num_kv_heads, past_seq_len,
+            # head_dim]
             self.add_past_key_values(common_inputs, direction="inputs")
         return common_inputs
 
