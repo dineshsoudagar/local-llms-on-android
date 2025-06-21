@@ -121,11 +121,13 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // Use different system prompt based on Thinking Mode toggle
-            val systemPrompt = if (thinkingToggle.isChecked)
+        // Use different system prompt based on Thinking Mode toggle (only for Qwen3)
+            val systemPrompt = if (config.modelName.equals("qwen3", ignoreCase = true) && config.IsThinkingModeAvailable) {
+                if (thinkingToggle.isChecked) config.defaultSystemPrompt
+                else "${config.defaultSystemPrompt} /no_think"
+            } else {
                 config.defaultSystemPrompt
-            else
-                "${config.defaultSystemPrompt} /no_think"
+            }
 
             val intent = PromptIntent.QA(systemPrompt)
             val inputIds = promptBuilder.buildPromptTokens(inputEditText.text.toString(), intent)

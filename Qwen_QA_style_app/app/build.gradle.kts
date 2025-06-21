@@ -59,7 +59,7 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     implementation (libs.json.json)
-    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation("androidx.constraintlayout:constraintlayout:2.2.1")
     implementation(files("libs/onnxruntime-genai-android-0.7.1.aar"))
     implementation("io.noties.markwon:core:4.6.2")
 }

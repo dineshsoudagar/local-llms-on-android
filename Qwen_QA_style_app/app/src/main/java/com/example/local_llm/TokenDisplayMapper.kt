@@ -2,6 +2,7 @@ package com.example.local_llm
 
 import android.content.Context
 import org.json.JSONObject
+import android.util.Log
 
 // Maps token IDs to human-readable strings using a Qwen-specific display mapping
 class TokenDisplayMapper(context: Context, modelName: String) {
@@ -21,6 +22,7 @@ class TokenDisplayMapper(context: Context, modelName: String) {
             }
         } catch (e: Exception) {
             // Fallback to empty map if file missing or malformed
+            Log.e("TokenDisplayMapper", "Failed to load token display mapping", e)
             emptyMap()
         }
     } else {

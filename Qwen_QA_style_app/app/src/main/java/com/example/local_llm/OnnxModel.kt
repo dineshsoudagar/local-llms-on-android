@@ -155,6 +155,7 @@ class OnnxModel(private val context: Context, private val config: ModelConfig) {
         inputIds: IntArray,
         maxTokens: Int = MAX_TOKENS,
         maxInputTokens: Int = MAX_INPUT_TOKENS,
+
         endTokenIds: Set<Int> = config.eosTokenIds,
         shouldStop: () -> Boolean = { false },
         onTokenGenerated: (Int) -> Unit
