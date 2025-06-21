@@ -3,4 +3,7 @@
     <string name="enter_your_prompt">Enter your prompt</string>
     <string name="send">SEND</string>
     <string name="stop">STOP</string>
+    <string name="enable_thinking_mode">Enable Thinking Mode</string>
+    <string name="clear_chat">Clear Chat</string>
+    <string name="enable_thinking">Enable Thinking</string>
 </resources>

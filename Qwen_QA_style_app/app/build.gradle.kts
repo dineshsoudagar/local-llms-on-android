@@ -62,4 +62,7 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.2.1")
     implementation(files("libs/onnxruntime-genai-android-0.7.1.aar"))
     implementation("io.noties.markwon:core:4.6.2")
+    implementation("androidx.recyclerview:recyclerview:1.4.0")
+    implementation ("com.google.android.material:material:1.12.0")
+    implementation ("com.google.code.gson:gson:2.10.1")
 }

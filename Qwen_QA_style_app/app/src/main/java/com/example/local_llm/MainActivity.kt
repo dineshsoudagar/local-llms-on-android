@@ -3,20 +3,20 @@ package com.example.local_llm
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
+import android.view.ContextThemeWrapper
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
-import android.widget.ScrollView
-import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import io.noties.markwon.Markwon
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -26,25 +26,90 @@ class MainActivity : AppCompatActivity() {
     private val inferenceScope = CoroutineScope(Dispatchers.IO)
     private var inferenceJob: Job? = null
 
-    private val END_TOKEN_IDS = setOf(151643, 151645) // <|endoftext|> and <|im_end|>
+    private val END_TOKEN_IDS = setOf(151643, 151645)
+    private val skipTokenIdsQwen3 = setOf(151667, 151668)
+
+    private lateinit var chatRecyclerView: RecyclerView
+    private lateinit var chatAdapter: ChatAdapter
+    private val messages = mutableListOf<Message>()
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.chat_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.menu_clear -> {
+                AlertDialog.Builder(ContextThemeWrapper(this, R.style.DarkAlertDialog))
+                    .setTitle("Clear Chat?")
+                    .setMessage("This will remove all messages.")
+                    .setPositiveButton("Yes") { _, _ ->
+                        messages.clear()
+                        chatAdapter.clearAll()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
 
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         setContentView(R.layout.activity_main)
 
-        // === Initialize UI ===
+        markwon = Markwon.create(this)
+        tokenizer = BpeTokenizer(this)
+
         val thinkingToggle: CheckBox = findViewById(R.id.thinkingToggle)
         val inputEditText: EditText = findViewById(R.id.userInput)
-        val sendButton: Button = findViewById(R.id.sendButton)
-        val stopButton: Button = findViewById(R.id.stopButton)
-        val clearButton: Button = findViewById(R.id.clearButton)
-        val outputText: TextView = findViewById(R.id.outputView)
-        val scrollView: ScrollView = findViewById(R.id.outputScroll)
+        inputEditText.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                chatRecyclerView.postDelayed({
+                    chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
+                }, 300)
+            }
+        }
+        val sendButton = findViewById<Button>(R.id.sendButton)
+        sendButton.setBackgroundResource(R.drawable.btn_send)
+        sendButton.backgroundTintList = null
 
-        tokenizer = BpeTokenizer(this)
-        markwon = Markwon.create(this)
-        inputEditText.movementMethod = android.text.method.ScrollingMovementMethod.getInstance()
+        val stopButton = findViewById<Button>(R.id.stopButton)
+        stopButton.setBackgroundResource(R.drawable.btn_stop)
+        stopButton.backgroundTintList = null
+        //val clearButton: Button = findViewById(R.id.clearButton)
+        chatRecyclerView = findViewById(R.id.chatRecyclerView)
+        chatAdapter = ChatAdapter(messages)
+        chatRecyclerView.layoutManager = LinearLayoutManager(this)
+        chatRecyclerView.adapter = chatAdapter
+
+        chatRecyclerView.addOnLayoutChangeListener { _, _, _, _, bottom, _, _, _, oldBottom ->
+            if (bottom < oldBottom) {
+                chatRecyclerView.post {
+                    chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
+                }
+            }
+        }
+
+        fun toggleGenerating(isGenerating: Boolean) {
+            if (isGenerating) {
+                sendButton.visibility = View.GONE
+                stopButton.visibility = View.VISIBLE
+                stopButton.bringToFront()
+                stopButton.requestLayout()
+            } else {
+                stopButton.visibility = View.GONE
+                sendButton.visibility = View.VISIBLE
+                sendButton.bringToFront()
+                sendButton.requestLayout()
+            }
+        }
 
         // === Define token IDs for prompt formatting ===
         val roleTokens = RoleTokenIds(
@@ -90,62 +155,57 @@ class MainActivity : AppCompatActivity() {
         // ---------------------------------------------------------------------
         val config = modelconfigqwen25  // ← Switch to modelconfigqwen3 to run Qwen 3
 
-        // === Conditional thinking mode toggle ===
         if (config.IsThinkingModeAvailable) {
             thinkingToggle.visibility = View.VISIBLE
         }
 
         title = "Pocket LLM — ${config.modelName}"
-
         val promptBuilder = PromptBuilder(tokenizer, config)
         val mapper = TokenDisplayMapper(this, config.modelName)
 
-        // Inform the user that the model is loading
-        markwon.setMarkdown(outputText, "⏳ Please wait, the model is still loading.")
-        sendButton.isEnabled = false
+        toggleGenerating(false)
+        messages.add(Message("⏳ Please wait, the model is loading.", isUser = false))
+        chatAdapter.notifyItemInserted(messages.size - 1)
 
-        // === Async model load ===
         inferenceScope.launch {
-            Log.d("MainActivity", "Loading ONNX model...")
             onnxModel = OnnxModel(this@MainActivity, config)
             withContext(Dispatchers.Main) {
-                markwon.setMarkdown(outputText, "✅ Model is ready.")
-                sendButton.isEnabled = true
+                messages.add(Message("✅ Model is ready.", isUser = false))
+                chatAdapter.notifyItemInserted(messages.size - 1)
+                chatRecyclerView.scrollToPosition(messages.size - 1)
+                toggleGenerating(false)
             }
         }
 
-        // === Send Button Listener ===
         sendButton.setOnClickListener {
-            if (!::onnxModel.isInitialized) {
-                markwon.setMarkdown(outputText, "⏳ Please wait, the model is still loading.")
-                return@setOnClickListener
-            }
+            val userPrompt = inputEditText.text.toString().trim()
+            if (userPrompt.isEmpty() || !::onnxModel.isInitialized) return@setOnClickListener
 
-        // Use different system prompt based on Thinking Mode toggle (only for Qwen3)
-            val systemPrompt = if (config.modelName.equals("qwen3", ignoreCase = true) && config.IsThinkingModeAvailable) {
-                if (thinkingToggle.isChecked) config.defaultSystemPrompt
-                else "${config.defaultSystemPrompt} /no_think"
-            } else {
+            messages.add(Message(userPrompt, isUser = true))
+            chatAdapter.notifyItemInserted(messages.size - 1)
+            chatRecyclerView.scrollToPosition(messages.size - 1)
+            inputEditText.text.clear()
+
+            val systemPrompt = if (thinkingToggle.isChecked)
                 config.defaultSystemPrompt
-            }
+            else
+                "${config.defaultSystemPrompt} /no_think"
 
             val intent = PromptIntent.QA(systemPrompt)
-            val inputIds = promptBuilder.buildPromptTokens(inputEditText.text.toString(), intent)
+            val inputIds = promptBuilder.buildPromptTokens(messages, intent, maxTokens = 500)
 
-            sendButton.isEnabled = false
-            stopButton.isEnabled = true
-            markwon.setMarkdown(outputText, "⏳ Thinking...")
+            toggleGenerating(true)
+
+            val botResponseBuilder = StringBuilder()
+            val botMessage = Message("", isUser = false)
+            messages.add(botMessage)
+            val botIndex = messages.lastIndex
+            chatAdapter.notifyItemInserted(botIndex)
+            chatRecyclerView.scrollToPosition(botIndex)
+            var tokenCounter = 0
 
             inferenceJob = inferenceScope.launch {
                 try {
-                    val builder = StringBuilder()
-                    var tokenCounter = 0
-
-                    withContext(Dispatchers.Main) {
-                        markwon.setMarkdown(outputText, "")
-                    }
-
-                    // Stream tokens one-by-one using past KV cache
                     onnxModel.runInferenceStreamingWithPastKV(
                         inputIds = inputIds,
                         endTokenIds = END_TOKEN_IDS,
@@ -157,57 +217,59 @@ class MainActivity : AppCompatActivity() {
                                 tokenizer.decodeSingleToken(tokenId)
                             }
 
-                            // Skip first few tokens (typically structural in Qwen3)
-                            if (!(config.modelName.equals("qwen3", ignoreCase = true) && tokenCounter < 4)) {
-                                builder.append(tokenStr)
+                            // Skip first 4 tokens if Qwen3
+                            if (!(config.modelName.equals("Qwen3", ignoreCase = true) && tokenCounter < 4)) {
+                                botResponseBuilder.append(tokenStr)
+
                                 runOnUiThread {
-                                    outputText.text = builder.toString()
-                                    scrollView.post { scrollView.fullScroll(ScrollView.FOCUS_DOWN) }
+                                    messages[botIndex] = botMessage.copy(text = botResponseBuilder.toString())
+                                    chatAdapter.notifyItemChanged(botIndex)
+                                    chatRecyclerView.scrollToPosition(botIndex)
                                 }
                             }
-                            tokenCounter++
+
+                            tokenCounter++  // Increment after each token
                         }
                     )
-
-                    // Finalize output after generation ends
-                    withContext(Dispatchers.Main) {
-                        markwon.setMarkdown(outputText, builder.toString())
-                        scrollView.post { scrollView.fullScroll(ScrollView.FOCUS_DOWN) }
-                    }
-
                 } catch (e: Exception) {
-                    Log.e("MainActivity", "Generation error", e)
                     withContext(Dispatchers.Main) {
-                        markwon.setMarkdown(outputText, "❌ Error: ${e.message ?: "Unknown error."}")
+                        messages.add(Message("❌ Error: ${e.message ?: "Unknown error."}", isUser = false))
+                        chatAdapter.notifyItemInserted(messages.size - 1)
                     }
                 } finally {
                     withContext(Dispatchers.Main) {
-                        sendButton.isEnabled = true
-                        stopButton.isEnabled = false
+                        sendButton.visibility = View.VISIBLE
+                        stopButton.visibility = View.GONE
                     }
                 }
             }
         }
 
-        // === Stop Button Listener ===
         stopButton.setOnClickListener {
             inferenceJob?.cancel()
-            val current = outputText.text.toString()
-            markwon.setMarkdown(outputText, "$current\n⛔ Generation stopped.")
-            scrollView.post { scrollView.fullScroll(ScrollView.FOCUS_DOWN) }
-            sendButton.isEnabled = true
-            stopButton.isEnabled = false
+            messages.add(Message("⛔ Generation stopped.", isUser = false))
+            chatAdapter.notifyItemInserted(messages.size - 1)
+            chatRecyclerView.scrollToPosition(messages.size - 1)
+            toggleGenerating(false)
+        }
+        /*
+        clearButton.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Clear Chat?")
+                .setMessage("This will remove all messages. Proceed?")
+                .setPositiveButton("Yes") { _, _ ->
+                    messages.clear()
+                    chatAdapter.clearAll()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
         }
 
-        // === Clear Button Listener ===
-        clearButton.setOnClickListener {
-            inputEditText.text.clear()
-            markwon.setMarkdown(outputText, "")
-        }
+         */
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        inferenceScope.cancel()  // Cancel background inference when activity is destroyed
+        inferenceScope.cancel()
     }
 }

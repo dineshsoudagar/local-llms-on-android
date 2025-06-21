@@ -5,103 +5,107 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:padding="12dp">
+    android:background="@color/app_background"
+    android:fitsSystemWindows="true"
+    android:padding="8dp"
+    tools:context=".MainActivity">
 
-    <!-- Multiline input box -->
-
-    <!-- Toggle thinking mode -->
-
-    <EditText
-        android:id="@+id/userInput"
+    <!-- Chat view with floating clear button -->
+    <FrameLayout
+        android:id="@+id/chatFrame"
         android:layout_width="0dp"
-        android:layout_height="130dp"
-        android:layout_marginTop="92dp"
-        android:background="@android:drawable/edit_text"
-        android:cursorVisible="true"
-        android:focusable="true"
-        android:gravity="top|start"
-        android:hint="Enter your prompt"
-        android:inputType="textMultiLine"
-        android:maxLines="6"
-        android:minHeight="80dp"
-        android:overScrollMode="always"
-        android:padding="8dp"
-        android:scrollbars="vertical"
-        android:textIsSelectable="true"
-        android:textSize="16sp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="1.0"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/thinkingToggle"
+        android:background="@color/frame_layout_background"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent">
 
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/chatRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:layout_marginStart="10dp"
+            android:padding="8dp" />
+
+
+    </FrameLayout>
+
+    <!-- Optional thinking toggle -->
     <CheckBox
         android:id="@+id/thinkingToggle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Enable Thinking"
+        android:text="@string/enable_thinking"
         android:textSize="12sp"
-        android:checked="false"
+        android:padding="1dp"
+        android:textColor="#FFFFFF"
         android:visibility="gone"
-        android:layout_marginTop="8dp"
-        android:layout_marginStart="4dp"
-        app:layout_constraintTop_toBottomOf="@id/userInput"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/chatFrame"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.03" />
 
-    <!-- Button row -->
+    <!-- Input + Send/Stop button combo -->
     <LinearLayout
-        android:id="@+id/buttonLayout"
+        android:id="@+id/inputRow"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="2dp"
+        android:layout_marginBottom="4dp"
         app:layout_constraintTop_toBottomOf="@id/thinkingToggle"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <Button
-            android:id="@+id/sendButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="SEND" />
-
-        <Button
-            android:id="@+id/stopButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="STOP" />
-
-        <Button
-            android:id="@+id/clearButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="CLEAR ALL" />
-    </LinearLayout>
-
-    <!-- Scrollable output view -->
-    <ScrollView
-        android:id="@+id/outputScroll"
-        android:layout_width="383dp"
-        android:layout_height="342dp"
-        android:layout_marginTop="12dp"
-        android:background="#EFEFEF"
-        android:padding="12dp"
-        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/buttonLayout"
-        app:layout_constraintVertical_bias="0.0">
+        app:layout_constraintBottom_toBottomOf="parent">
 
-        <TextView
-            android:id="@+id/outputView"
-            android:layout_width="match_parent"
+        <EditText
+            android:id="@+id/userInput"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:lineSpacingExtra="4dp"
-            android:textColor="#000000"
-            android:textIsSelectable="true"
-            android:textSize="16sp" />
-    </ScrollView>
+            android:layout_weight="1"
+            android:background="@drawable/rounded_edittext"
+            android:gravity="top|start"
 
+            android:hint="Enter your prompt"
+            android:textColorHint="#AAAAAA"
+            android:imeOptions="actionSend"
+            android:inputType="textMultiLine"
+            android:maxLines="10"
+            android:minLines="5"
+            android:padding="10dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="10dp"
+            android:textColor="#FFFFFF"
+            android:layout_marginStart="10dp"
+            android:textSize="16sp" />
+
+
+
+        <FrameLayout
+            android:id="@+id/sendStopSwitcher"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_marginStart="10dp"
+            android:padding="2dp">
+
+            <Button
+                android:id="@+id/sendButton"
+                style="@style/SendButton"
+                android:layout_width="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_height="50dp"
+                android:text="Send" />
+
+            <Button
+                android:id="@+id/stopButton"
+                style="@style/StopButton"
+                android:layout_width="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_height="50dp"
+                android:text="Stop"
+                android:visibility="gone" />
+        </FrameLayout>
+    </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

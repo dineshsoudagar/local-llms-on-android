@@ -1,35 +1,24 @@
 package com.example.local_llm
 
-// Constructs token sequences (prompts) for different tasks based on model configuration
 class PromptBuilder(
-    private val tokenizer: BpeTokenizer,   // Tokenizer used to convert strings into token IDs
-    private val config: ModelConfig        // Model-specific configuration (prompt style, role tokens, etc.)
+    private val tokenizer: BpeTokenizer,
+    private val config: ModelConfig
 ) {
-    // Public method for simple QA prompts using default system prompt
-    fun buildPromptTokens(userInput: String): IntArray {
-        return buildPromptTokens(userInput, PromptIntent.QA())
-    }
-
-    // Builds prompt tokens based on intent (e.g., QA) and user input
-    fun buildPromptTokens(userInput: String, intent: PromptIntent): IntArray {
+    fun buildPromptTokens(messages: List<Message>, intent: PromptIntent, maxTokens: Int = 500): IntArray {
         return when (config.promptStyle) {
-            // Currently supports Qwen2.5 and Qwen3 formatting
             PromptStyle.QWEN2_5, PromptStyle.QWEN3 -> when (intent) {
-                is PromptIntent.QA -> buildQwenQA(userInput, intent.systemPrompt)
+                is PromptIntent.QA -> buildQwenChatPrompt(messages, intent.systemPrompt, maxTokens)
             }
         }
     }
 
-    // Builds Qwen-style prompt for QA interaction
     private fun buildQwenQA(userInput: String, systemPromptOverride: String?): IntArray {
         val systemPrompt = systemPromptOverride ?: config.defaultSystemPrompt
         val userPrompt = "Q: $userInput\nA:"
 
-        // Tokenize system and user inputs
         val systemTokens = tokenizer.tokenize(systemPrompt)
         val userTokens = tokenizer.tokenize(userPrompt)
 
-        // Build the final prompt as:
         return buildList {
             addAll(config.roleTokenIds.systemStart)
             addAll(systemTokens.toList())
@@ -41,5 +30,36 @@ class PromptBuilder(
 
             addAll(config.roleTokenIds.assistantStart)
         }.toIntArray()
+    }
+
+    fun buildQwenChatPrompt(messages: List<Message>, systemPrompt: String? = null, maxTokens: Int = 500): IntArray {
+        val systemTokens = tokenizer.tokenize(systemPrompt ?: config.defaultSystemPrompt)
+        val assistantStart = config.roleTokenIds.assistantStart
+        val end = config.roleTokenIds.endToken
+
+        val conversationTokens = mutableListOf<Int>()
+        conversationTokens.addAll(config.roleTokenIds.systemStart)
+        conversationTokens.addAll(systemTokens.toList())
+        conversationTokens.add(end)
+
+        val turns = mutableListOf<Int>()
+        for (msg in messages) {
+            val roleTokens = if (msg.isUser) config.roleTokenIds.userStart else assistantStart
+            val msgTokens = tokenizer.tokenize(msg.text)
+            turns.addAll(roleTokens)
+            turns.addAll(msgTokens.toList())
+            turns.add(end)
+        }
+
+        val finalTurns = if (turns.size > maxTokens) {
+            turns.takeLast(maxTokens)
+        } else turns
+
+        val result = mutableListOf<Int>()
+        result.addAll(conversationTokens)
+        result.addAll(finalTurns)
+        result.addAll(assistantStart)
+
+        return result.toIntArray()
     }
 }
