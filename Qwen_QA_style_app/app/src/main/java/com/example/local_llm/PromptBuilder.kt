@@ -35,31 +35,52 @@ class PromptBuilder(
     fun buildQwenChatPrompt(messages: List<Message>, systemPrompt: String? = null, maxTokens: Int = 500): IntArray {
         val systemTokens = tokenizer.tokenize(systemPrompt ?: config.defaultSystemPrompt)
         val assistantStart = config.roleTokenIds.assistantStart
+        val userStart = config.roleTokenIds.userStart
         val end = config.roleTokenIds.endToken
 
-        val conversationTokens = mutableListOf<Int>()
-        conversationTokens.addAll(config.roleTokenIds.systemStart)
-        conversationTokens.addAll(systemTokens.toList())
-        conversationTokens.add(end)
+        val result = mutableListOf<Int>()
 
-        val turns = mutableListOf<Int>()
-        for (msg in messages) {
-            val roleTokens = if (msg.isUser) config.roleTokenIds.userStart else assistantStart
-            val msgTokens = tokenizer.tokenize(msg.text)
-            turns.addAll(roleTokens)
-            turns.addAll(msgTokens.toList())
-            turns.add(end)
+        // Add system prompt
+        result.addAll(config.roleTokenIds.systemStart)
+        result.addAll(systemTokens.toList())
+        result.add(end)
+
+        // Build context block: all full user-bot pairs except the last user prompt
+        val contextPairs = StringBuilder()
+        val numMessages = messages.size
+        for (i in 0 until numMessages - 1 step 2) {
+            val user = messages.getOrNull(i)
+            val bot = messages.getOrNull(i + 1)
+            if (user?.isUser == true && bot?.isUser == false) {
+                contextPairs.append("Q: ${user.text.trim()}\nA: ${bot.text.trim()}\n")
+            }
         }
 
-        val finalTurns = if (turns.size > maxTokens) {
-            turns.takeLast(maxTokens)
-        } else turns
+        if (contextPairs.isNotEmpty()) {
+            val contextTokens = tokenizer.tokenize(contextPairs.toString()).toList()
+            val trimmedContext = if (contextTokens.size > maxTokens) contextTokens.takeLast(maxTokens) else contextTokens
 
-        val result = mutableListOf<Int>()
-        result.addAll(conversationTokens)
-        result.addAll(finalTurns)
+            // Wrap context block
+            val contextStart = listOf(
+                tokenizer.getTokenId("<|im_start|>"),
+                tokenizer.getTokenId("context"),
+                tokenizer.getTokenId("Ċ")
+            )
+            result.addAll(contextStart)
+            result.addAll(trimmedContext)
+            result.add(end)
+        }
+
+        // Add last user prompt
+        val lastUser = messages.lastOrNull { it.isUser } ?: return result.toIntArray()
+        result.addAll(userStart)
+        result.addAll(tokenizer.tokenize(lastUser.text).toList())
+        result.add(end)
+
+        // Assistant start (generation begins here)
         result.addAll(assistantStart)
 
         return result.toIntArray()
     }
+
 }
