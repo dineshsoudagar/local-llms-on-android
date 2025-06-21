@@ -17,19 +17,23 @@ class OnnxModel(private val context: Context, private val config: ModelConfig) {
 
     companion object {
         const val MAX_TOKENS = 1024
+        const val MAX_INPUT_TOKENS = 512
         const val TEMPERATURE = 0.8f
         const val REPETITION_PENALTY = 1.5f
-        // val END_TOKEN_IDS = setOf(151643, 151645, 2687, 11255) // <|endoftext|>, <|im_end|>, /s, /p
+        private const val TAG = "OnnxModel"
     }
 
+    // Initialize ONNX session from asset model path
     private fun initializeModel(): OrtSession {
-        val modelFile = loadModelFile("model.onnx")
-        Log.d("ONNX", "Loading model from: ${modelFile.absolutePath}")
+        val modelFile = loadModelFile(config.modelPath)
+        Log.d(TAG, "Loading model from: ${modelFile.absolutePath}")
         val opts = OrtSession.SessionOptions()
-        Log.d("ONNX", "Model loaded")
-        return env.createSession(modelFile.absolutePath, opts)
+        val session = env.createSession(modelFile.absolutePath, opts)
+        Log.d(TAG, "Model loaded and session initialized")
+        return session
     }
 
+    // Copy model file from assets to internal storage (required by ONNX runtime)
     private fun loadModelFile(filename: String): File {
         val assetManager = context.assets
         val inputStream = assetManager.open(filename)
@@ -39,6 +43,30 @@ class OnnxModel(private val context: Context, private val config: ModelConfig) {
         inputStream.close()
         outputStream.close()
         return file
+    }
+
+    // Temperature scaling for logits
+    private fun applyTemperature(logits: FloatArray, temperature: Float): FloatArray {
+        if (temperature == 1.0f) return logits
+        Log.d(TAG, "Applying temperature: $temperature")
+        return FloatArray(logits.size) { i -> logits[i] / temperature }
+    }
+
+    // Penalize previously generated tokens to reduce repetition
+    private fun applyRepetitionPenalty(logits: FloatArray, generated: List<Int>, penalty: Float): FloatArray {
+        if (penalty == 1.0f) return logits
+        Log.d(TAG, "Applying repetition penalty: $penalty")
+        val adjusted = logits.copyOf()
+        for (tokenId in generated) {
+            if (tokenId in adjusted.indices) {
+                if (adjusted[tokenId] < 0) {
+                    adjusted[tokenId] *= penalty
+                } else {
+                    adjusted[tokenId] /= penalty
+                }
+            }
+        }
+        return adjusted
     }
 
     // Normal inference all iterations at once
@@ -206,6 +234,12 @@ class OnnxModel(private val context: Context, private val config: ModelConfig) {
 
             val results = session.run(inputs)
             val logits = (results[0].value as Array<Array<FloatArray>>)[0].last()
+
+            // Apply temperature or repetition penalty if desired:
+            // val logitsWithTemp = applyTemperature(rawLogits, TEMPERATURE)
+            // val logitsWithPenalty = applyRepetitionPenalty(rawLogits, generated, REPETITION_PENALTY)
+            // val logitsAdjusted = applyRepetitionPenalty(applyTemperature(rawLogits, TEMPERATURE), generated, REPETITION_PENALTY)
+
             val nextTokenId = logits.indices.maxByOrNull { logits[it] } ?: break
             if (nextTokenId in endTokenIds) break
 

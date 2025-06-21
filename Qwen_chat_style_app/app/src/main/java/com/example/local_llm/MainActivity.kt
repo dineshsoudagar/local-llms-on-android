@@ -111,6 +111,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // === Define token IDs for prompt formatting ===
         val roleTokens = RoleTokenIds(
             systemStart = listOf(tokenizer.getTokenId("<|im_start|>"), tokenizer.getTokenId("system"), tokenizer.getTokenId("Ċ")),
             userStart = listOf(tokenizer.getTokenId("<|im_start|>"), tokenizer.getTokenId("user"), tokenizer.getTokenId("Ċ")),
@@ -118,10 +119,12 @@ class MainActivity : AppCompatActivity() {
             endToken = tokenizer.getTokenId("<|im_end|>")
         )
 
+        // === Model configurations ===
         val modelconfigqwen25 = ModelConfig(
             modelName = "Qwen2_5",
             promptStyle = PromptStyle.QWEN2_5,
-            eosTokenIds = setOf(151643, 151645),
+            modelPath = "model.onnx",
+            eosTokenIds = END_TOKEN_IDS,
             numLayers = 24,
             numKvHeads = 2,
             headDim = 64,
@@ -134,7 +137,8 @@ class MainActivity : AppCompatActivity() {
         val modelconfigqwen3 = ModelConfig(
             modelName = "Qwen3",
             promptStyle = PromptStyle.QWEN3,
-            eosTokenIds = setOf(151643, 151645),
+            modelPath = "model.onnx",
+            eosTokenIds = END_TOKEN_IDS,
             numLayers = 28,
             numKvHeads = 8,
             headDim = 128,
@@ -146,7 +150,10 @@ class MainActivity : AppCompatActivity() {
             IsThinkingModeAvailable = true
         )
 
-        val config = modelconfigqwen25
+        // ---------------------------------------------------------------------
+        // SELECT WHICH MODEL TO RUN
+        // ---------------------------------------------------------------------
+        val config = modelconfigqwen25  // ← Switch to modelconfigqwen3 to run Qwen 3
 
         if (config.IsThinkingModeAvailable) {
             thinkingToggle.visibility = View.VISIBLE
@@ -185,7 +192,7 @@ class MainActivity : AppCompatActivity() {
                 "${config.defaultSystemPrompt} /no_think"
 
             val intent = PromptIntent.QA(systemPrompt)
-            val inputIds = promptBuilder.buildPromptTokens(userPrompt, intent)
+            val inputIds = promptBuilder.buildPromptTokens(messages, intent, maxTokens = 500)
 
             toggleGenerating(true)
 

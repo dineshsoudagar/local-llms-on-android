@@ -17,6 +17,7 @@
         android:layout_height="0dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toTopOf="@id/thinkingToggle"
+        android:background="@color/frame_layout_background"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
@@ -36,11 +37,15 @@
         android:id="@+id/thinkingToggle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Enable Thinking"
+        android:text="@string/enable_thinking"
         android:textSize="12sp"
+        android:padding="1dp"
+        android:textColor="#FFFFFF"
         android:visibility="gone"
         app:layout_constraintTop_toBottomOf="@id/chatFrame"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.03" />
 
     <!-- Input + Send/Stop button combo -->
     <LinearLayout
@@ -48,7 +53,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="2dp"
         android:layout_marginBottom="4dp"
         app:layout_constraintTop_toBottomOf="@id/thinkingToggle"
         app:layout_constraintStart_toStartOf="parent"
@@ -62,15 +67,18 @@
             android:layout_weight="1"
             android:background="@drawable/rounded_edittext"
             android:gravity="top|start"
+
             android:hint="Enter your prompt"
             android:textColorHint="#AAAAAA"
             android:imeOptions="actionSend"
             android:inputType="textMultiLine"
-            android:maxLines="5"
-            android:minLines="2"
-            android:padding="12dp"
+            android:maxLines="10"
+            android:minLines="5"
+            android:padding="5dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="10dp"
             android:textColor="#FFFFFF"
-            android:layout_marginStart="10dp"
+            android:layout_marginStart="5dp"
             android:textSize="16sp" />
 
 
@@ -80,20 +88,22 @@
             android:layout_width="wrap_content"
             android:layout_height="match_parent"
             android:layout_marginStart="10dp"
-            android:padding="5dp">
+            android:padding="2dp">
 
             <Button
                 android:id="@+id/sendButton"
                 style="@style/SendButton"
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_gravity="center_vertical"
+                android:layout_height="50dp"
                 android:text="Send" />
 
             <Button
                 android:id="@+id/stopButton"
                 style="@style/StopButton"
                 android:layout_width="wrap_content"
-                android:layout_height="match_parent"
+                android:layout_gravity="center_vertical"
+                android:layout_height="50dp"
                 android:text="Stop"
                 android:visibility="gone" />
         </FrameLayout>

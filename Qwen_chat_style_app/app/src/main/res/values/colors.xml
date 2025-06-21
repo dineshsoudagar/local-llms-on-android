@@ -9,5 +9,6 @@
     <color name="app_background">#141313</color>
     <color name="user_bubble">#203113</color>
     <color name="bot_bubble">#1D1B1B</color>
+    <color name="frame_layout_background">#181616</color>"
     <color name="white">#FFFFFFFF</color>
 </resources>
