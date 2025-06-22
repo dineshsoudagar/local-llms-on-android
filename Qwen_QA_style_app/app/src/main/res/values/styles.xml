@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="SendButton">
+        <item name="android:background">@drawable/btn_send</item>
+        <item name="android:backgroundTint">@null</item> <!-- This is key -->
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:padding">8dp</item>
+    </style>
+
+    <style name="StopButton">
+        <item name="android:background">@drawable/btn_stop</item>
+        <item name="android:backgroundTint">@null</item> <!-- This is key -->
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:padding">8dp</item>
+    </style>
+
+    <style name="ClearButton">
+        <item name="android:background">@drawable/btn_clear</item>
+        <item name="android:textColor">#FFFF00</item>
+        <item name="android:padding">6dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="DarkAlertDialog" parent="Theme.MaterialComponents.Dialog.Alert">
+        <item name="android:textColorPrimary">#FFFFFF</item> <!-- Text (title, message) -->
+        <item name="android:background">#1E1E1E</item> <!-- Dialog background -->
+        <item name="buttonBarPositiveButtonStyle">@style/DialogButtonWhite</item>
+        <item name="buttonBarNegativeButtonStyle">@style/DialogButtonWhite</item>
+    </style>
+
+    <style name="DialogButtonWhite" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
+        <item name="android:textColor">#FFFFFF</item>
+    </style>
+
+</resources>
