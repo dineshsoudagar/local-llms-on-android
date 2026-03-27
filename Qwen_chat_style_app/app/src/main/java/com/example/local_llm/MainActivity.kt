@@ -3,20 +3,21 @@ package com.example.local_llm
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
-import android.view.ContextThemeWrapper
-import android.view.Menu
-import android.view.MenuItem
+import android.view.MotionEvent
 import android.view.View
-import android.view.WindowManager
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
-import androidx.appcompat.app.AlertDialog
+import android.widget.ScrollView
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import io.noties.markwon.Markwon
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -25,90 +26,40 @@ class MainActivity : AppCompatActivity() {
     private lateinit var markwon: Markwon
     private val inferenceScope = CoroutineScope(Dispatchers.IO)
     private var inferenceJob: Job? = null
+    private var followOutput = true
 
-    private val END_TOKEN_IDS = setOf(151643, 151645)
-    private val skipTokenIdsQwen3 = setOf(151667, 151668)
-
-    private lateinit var chatRecyclerView: RecyclerView
-    private lateinit var chatAdapter: ChatAdapter
-    private val messages = mutableListOf<Message>()
-
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.chat_menu, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.menu_clear -> {
-                AlertDialog.Builder(ContextThemeWrapper(this, R.style.DarkAlertDialog))
-                    .setTitle("Clear Chat?")
-                    .setMessage("This will remove all messages.")
-                    .setPositiveButton("Yes") { _, _ ->
-                        messages.clear()
-                        chatAdapter.clearAll()
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
-
+    private val END_TOKEN_IDS = setOf(151643, 151645) // <|endoftext|> and <|im_end|>
 
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         setContentView(R.layout.activity_main)
 
-        markwon = Markwon.create(this)
-        tokenizer = BpeTokenizer(this)
-
+        // === Initialize UI ===
         val thinkingToggle: CheckBox = findViewById(R.id.thinkingToggle)
         val inputEditText: EditText = findViewById(R.id.userInput)
-        inputEditText.setOnFocusChangeListener { _, hasFocus ->
-            if (hasFocus) {
-                chatRecyclerView.postDelayed({
-                    chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
-                }, 300)
+        val sendButton: Button = findViewById(R.id.sendButton)
+        val stopButton: Button = findViewById(R.id.stopButton)
+        val clearButton: Button = findViewById(R.id.clearButton)
+        val outputText: TextView = findViewById(R.id.outputView)
+        val scrollView: ScrollView = findViewById(R.id.outputScroll)
+
+        tokenizer = BpeTokenizer(this)
+        markwon = Markwon.create(this)
+        inputEditText.movementMethod = android.text.method.ScrollingMovementMethod.getInstance()
+        outputText.movementMethod = android.text.method.ScrollingMovementMethod.getInstance()
+
+        scrollView.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN,
+                MotionEvent.ACTION_MOVE -> followOutput = isScrolledToBottom(scrollView)
+                MotionEvent.ACTION_UP,
+                MotionEvent.ACTION_CANCEL -> followOutput = isScrolledToBottom(scrollView)
             }
+            false
         }
-        val sendButton = findViewById<Button>(R.id.sendButton)
-        sendButton.setBackgroundResource(R.drawable.btn_send)
-        sendButton.backgroundTintList = null
-
-        val stopButton = findViewById<Button>(R.id.stopButton)
-        stopButton.setBackgroundResource(R.drawable.btn_stop)
-        stopButton.backgroundTintList = null
-        //val clearButton: Button = findViewById(R.id.clearButton)
-        chatRecyclerView = findViewById(R.id.chatRecyclerView)
-        chatAdapter = ChatAdapter(messages)
-        chatRecyclerView.layoutManager = LinearLayoutManager(this)
-        chatRecyclerView.adapter = chatAdapter
-
-        chatRecyclerView.addOnLayoutChangeListener { _, _, _, _, bottom, _, _, _, oldBottom ->
-            if (bottom < oldBottom) {
-                chatRecyclerView.post {
-                    chatRecyclerView.scrollToPosition(chatAdapter.itemCount - 1)
-                }
-            }
-        }
-
-        fun toggleGenerating(isGenerating: Boolean) {
-            if (isGenerating) {
-                sendButton.visibility = View.GONE
-                stopButton.visibility = View.VISIBLE
-                stopButton.bringToFront()
-                stopButton.requestLayout()
-            } else {
-                stopButton.visibility = View.GONE
-                sendButton.visibility = View.VISIBLE
-                sendButton.bringToFront()
-                sendButton.requestLayout()
-            }
+        scrollView.setOnScrollChangeListener { _, _, _, _, _ ->
+            followOutput = isScrolledToBottom(scrollView)
         }
 
         // === Define token IDs for prompt formatting ===
@@ -155,60 +106,62 @@ class MainActivity : AppCompatActivity() {
         // ---------------------------------------------------------------------
         val config = modelconfigqwen25  // ← Switch to modelconfigqwen3 to run Qwen 3
 
+        // === Conditional thinking mode toggle ===
         if (config.IsThinkingModeAvailable) {
             thinkingToggle.visibility = View.VISIBLE
+            thinkingToggle.isChecked = false
         }
 
         title = "Pocket LLM — ${config.modelName}"
+
         val promptBuilder = PromptBuilder(tokenizer, config)
         val mapper = TokenDisplayMapper(this, config.modelName)
 
-        toggleGenerating(false)
-        messages.add(Message("⏳ Please wait, the model is loading.", isUser = false))
-        chatAdapter.notifyItemInserted(messages.size - 1)
+        // Inform the user that the model is loading
+        markwon.setMarkdown(outputText, "⏳ Please wait, the model is still loading.")
+        sendButton.isEnabled = false
 
+        // === Async model load ===
         inferenceScope.launch {
+            Log.d("MainActivity", "Loading ONNX model...")
             onnxModel = OnnxModel(this@MainActivity, config)
             withContext(Dispatchers.Main) {
-                messages.add(Message("✅ Model is ready.", isUser = false))
-                chatAdapter.notifyItemInserted(messages.size - 1)
-                chatRecyclerView.scrollToPosition(messages.size - 1)
-                toggleGenerating(false)
+                markwon.setMarkdown(outputText, "✅ Model is ready.")
+                sendButton.isEnabled = true
             }
         }
 
+        // === Send Button Listener ===
         sendButton.setOnClickListener {
-            val userPrompt = inputEditText.text.toString().trim()
-            if (userPrompt.isEmpty() || !::onnxModel.isInitialized) return@setOnClickListener
-
-            messages.add(Message(userPrompt, isUser = true))
-            chatAdapter.notifyItemInserted(messages.size - 1)
-            chatRecyclerView.scrollToPosition(messages.size - 1)
-            inputEditText.text.clear()
-
-            // Use different system prompt based on Thinking Mode toggle (only for Qwen3)
-            val systemPrompt = if (config.modelName.equals("qwen3", ignoreCase = true) && config.IsThinkingModeAvailable) {
-                if (thinkingToggle.isChecked) config.defaultSystemPrompt
-                else "${config.defaultSystemPrompt} /no_think"
-            } else {
-                config.defaultSystemPrompt
+            if (!::onnxModel.isInitialized) {
+                markwon.setMarkdown(outputText, "⏳ Please wait, the model is still loading.")
+                return@setOnClickListener
             }
 
+            // Qwen3 can think by default, so make the mode explicit.
+            val systemPrompt = buildSystemPrompt(
+                config = config,
+                thinkingEnabled = thinkingToggle.isChecked
+            )
+
             val intent = PromptIntent.QA(systemPrompt)
-            val inputIds = promptBuilder.buildPromptTokens(messages, intent, maxTokens = 500)
+            val inputIds = promptBuilder.buildPromptTokens(inputEditText.text.toString(), intent)
 
-            toggleGenerating(true)
-
-            val botResponseBuilder = StringBuilder()
-            val botMessage = Message("", isUser = false)
-            messages.add(botMessage)
-            val botIndex = messages.lastIndex
-            chatAdapter.notifyItemInserted(botIndex)
-            chatRecyclerView.scrollToPosition(botIndex)
-            var tokenCounter = 0
+            sendButton.isEnabled = false
+            stopButton.isEnabled = true
+            followOutput = true
+            markwon.setMarkdown(outputText, "⏳ Thinking...")
 
             inferenceJob = inferenceScope.launch {
                 try {
+                    val builder = StringBuilder()
+                    var tokenCounter = 0
+
+                    withContext(Dispatchers.Main) {
+                        markwon.setMarkdown(outputText, "")
+                    }
+
+                    // Stream tokens one-by-one using past KV cache
                     onnxModel.runInferenceStreamingWithPastKV(
                         inputIds = inputIds,
                         endTokenIds = END_TOKEN_IDS,
@@ -220,59 +173,81 @@ class MainActivity : AppCompatActivity() {
                                 tokenizer.decodeSingleToken(tokenId)
                             }
 
-                            // Skip first 4 tokens if Qwen3
-                            if (!(config.modelName.equals("Qwen3", ignoreCase = true) && tokenCounter < 4)) {
-                                botResponseBuilder.append(tokenStr)
-
+                            // Skip first few tokens (typically structural in Qwen3)
+                            if (!(config.modelName.equals("qwen3", ignoreCase = true) && tokenCounter < 4)) {
+                                builder.append(tokenStr)
                                 runOnUiThread {
-                                    messages[botIndex] = botMessage.copy(text = botResponseBuilder.toString())
-                                    chatAdapter.notifyItemChanged(botIndex)
-                                    chatRecyclerView.scrollToPosition(botIndex)
+                                    outputText.text = builder.toString()
+                                    scrollOutputToBottomIfNeeded(scrollView)
                                 }
                             }
-
-                            tokenCounter++  // Increment after each token
+                            tokenCounter++
                         }
                     )
-                } catch (e: Exception) {
+
+                    // Finalize output after generation ends
                     withContext(Dispatchers.Main) {
-                        messages.add(Message("❌ Error: ${e.message ?: "Unknown error."}", isUser = false))
-                        chatAdapter.notifyItemInserted(messages.size - 1)
+                        markwon.setMarkdown(outputText, builder.toString())
+                        scrollOutputToBottomIfNeeded(scrollView, force = true)
+                    }
+
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Generation error", e)
+                    withContext(Dispatchers.Main) {
+                        markwon.setMarkdown(outputText, "❌ Error: ${e.message ?: "Unknown error."}")
                     }
                 } finally {
                     withContext(Dispatchers.Main) {
-                        sendButton.visibility = View.VISIBLE
-                        stopButton.visibility = View.GONE
+                        sendButton.isEnabled = true
+                        stopButton.isEnabled = false
                     }
                 }
             }
         }
 
+        // === Stop Button Listener ===
         stopButton.setOnClickListener {
             inferenceJob?.cancel()
-            messages.add(Message("⛔ Generation stopped.", isUser = false))
-            chatAdapter.notifyItemInserted(messages.size - 1)
-            chatRecyclerView.scrollToPosition(messages.size - 1)
-            toggleGenerating(false)
-        }
-        /*
-        clearButton.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle("Clear Chat?")
-                .setMessage("This will remove all messages. Proceed?")
-                .setPositiveButton("Yes") { _, _ ->
-                    messages.clear()
-                    chatAdapter.clearAll()
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
+            val current = outputText.text.toString()
+            markwon.setMarkdown(outputText, "$current\n⛔ Generation stopped.")
+            scrollOutputToBottomIfNeeded(scrollView, force = true)
+            sendButton.isEnabled = true
+            stopButton.isEnabled = false
         }
 
-         */
+        // === Clear Button Listener ===
+        clearButton.setOnClickListener {
+            inputEditText.text.clear()
+            markwon.setMarkdown(outputText, "")
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        inferenceScope.cancel()
+        inferenceScope.cancel()  // Cancel background inference when activity is destroyed
+        if (::onnxModel.isInitialized) {
+            runCatching { onnxModel.close() }
+                .onFailure { Log.w("MainActivity", "Failed to close ONNX session cleanly", it) }
+        }
+    }
+
+    private fun scrollOutputToBottomIfNeeded(scrollView: ScrollView, force: Boolean = false) {
+        if (!force && !followOutput) return
+        scrollView.post { scrollView.fullScroll(ScrollView.FOCUS_DOWN) }
+    }
+
+    private fun isScrolledToBottom(scrollView: ScrollView): Boolean {
+        val child = scrollView.getChildAt(0) ?: return true
+        val bottomOffset = child.bottom - (scrollView.height + scrollView.scrollY)
+        return bottomOffset <= 32
+    }
+
+    private fun buildSystemPrompt(config: ModelConfig, thinkingEnabled: Boolean): String {
+        if (!config.modelName.equals("qwen3", ignoreCase = true) || !config.IsThinkingModeAvailable) {
+            return config.defaultSystemPrompt
+        }
+
+        val thinkingDirective = if (thinkingEnabled) "/think" else "/no_think"
+        return "${config.defaultSystemPrompt} $thinkingDirective".trim()
     }
 }
