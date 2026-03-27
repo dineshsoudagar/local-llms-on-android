@@ -8,12 +8,20 @@ import java.text.Normalizer
 
 class BpeTokenizer(context: Context) {
 
+    companion object {
+        private val PRETOKENIZE_REGEX = Regex(
+            "(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"
+        )
+    }
+
     private val vocab: Map<String, Int>
     private val idToToken: Map<Int, String>
     private val merges: List<Pair<String, String>>
     private val bpeRanks: Map<Pair<String, String>, Int>
     private val specialTokens: Map<String, Int>
     private val nfcNormalize: Boolean
+    private val byteEncoder: Map<Int, Char> = bytesToUnicode()
+    private val bpeCache = mutableMapOf<String, List<String>>()
 
     init {
         val tokenizerJson = loadTokenizerJson(context)
@@ -64,10 +72,18 @@ class BpeTokenizer(context: Context) {
 
         val processed = if (nfcNormalize) Normalizer.normalize(text, Normalizer.Form.NFC) else text
 
-        val bpeTokens = bpe(processed)
-        bpeTokens.forEach { bpeToken ->
-            vocab[bpeToken]?.let { tokens.add(it) }
+        preTokenize(processed).forEach { piece ->
+            val byteLevelPiece = encodeToByteLevel(piece)
+            val bpeTokens = bpe(byteLevelPiece)
+            bpeTokens.forEach { bpeToken ->
+                val tokenId = vocab[bpeToken]
+                    ?: throw IllegalArgumentException(
+                        "Token piece '$bpeToken' from '$piece' was not found in the tokenizer vocab."
+                    )
+                tokens.add(tokenId)
+            }
         }
+
         if (addSpecialTokens) {
             specialTokens["<|im_end|>"]?.let { tokens.add(it) }
         }
@@ -129,14 +145,8 @@ class BpeTokenizer(context: Context) {
     }
 
 
-    /* Regex as per tokenizer
     private fun preTokenize(text: String): List<String> {
-        val regex = Regex("(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+")
-        return regex.findAll(text).map { it.value }.toList()
-    }*/
-
-    private fun preTokenize(text: String): List<String> {
-        return Regex("""\S+|\s+""").findAll(text).map { it.value }.toList()
+        return PRETOKENIZE_REGEX.findAll(text).map { it.value }.toList()
     }
 
     private fun getPairs(word: List<String>): Set<Pair<String, String>> {
@@ -144,6 +154,8 @@ class BpeTokenizer(context: Context) {
     }
 
     private fun bpe(token: String): List<String> {
+        bpeCache[token]?.let { return it }
+
         var word = token.toCharArray().map { it.toString() }.toMutableList()
         var pairs = getPairs(word)
         while (true) {
@@ -165,7 +177,37 @@ class BpeTokenizer(context: Context) {
             word = newWord
             pairs = getPairs(word)
         }
-        return word
+        return word.also { bpeCache[token] = it }
+    }
+
+    private fun encodeToByteLevel(text: String): String {
+        val bytes = text.toByteArray(Charsets.UTF_8)
+        val builder = StringBuilder(bytes.size)
+        for (byteValue in bytes) {
+            val mappedChar = byteEncoder[byteValue.toInt() and 0xFF]
+                ?: throw IllegalStateException("Byte ${byteValue.toInt() and 0xFF} is missing from the byte encoder.")
+            builder.append(mappedChar)
+        }
+        return builder.toString()
+    }
+
+    private fun bytesToUnicode(): Map<Int, Char> {
+        val bs = mutableListOf<Int>()
+        bs.addAll(33..126)
+        bs.addAll(161..172)
+        bs.addAll(174..255)
+
+        val cs = bs.toMutableList()
+        var extra = 0
+        for (byteValue in 0..255) {
+            if (byteValue !in bs) {
+                bs.add(byteValue)
+                cs.add(256 + extra)
+                extra += 1
+            }
+        }
+
+        return bs.zip(cs.map(Int::toChar)).toMap()
     }
 
     private fun loadTokenizerJson(context: Context): JSONObject {
