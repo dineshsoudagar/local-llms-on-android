@@ -153,7 +153,7 @@ class MainActivity : AppCompatActivity() {
         // ---------------------------------------------------------------------
         // SELECT WHICH MODEL TO RUN
         // ---------------------------------------------------------------------
-        val config = modelconfigqwen25  // ← Switch to modelconfigqwen3 to run Qwen 3
+        val config = modelconfigqwen3  // ← Switch to modelconfigqwen3 to run Qwen 3
 
         if (config.IsThinkingModeAvailable) {
             thinkingToggle.visibility = View.VISIBLE
