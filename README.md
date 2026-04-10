@@ -4,6 +4,13 @@ An Android application that brings a large language model (LLM) to your phone �
 
 ---
 
+### 🔗 Also Check Out
+
+**[local-document-intelligence](https://github.com/dineshsoudagar/local-document-intelligence)**  
+A privacy-first offline document intelligence system with persistent local RAG, hybrid retrieval, and source-grounded answers.
+
+---
+
 ## ✨ Features
 
 - 📱 Fully on-device LLM inference with ONNX Runtime.
