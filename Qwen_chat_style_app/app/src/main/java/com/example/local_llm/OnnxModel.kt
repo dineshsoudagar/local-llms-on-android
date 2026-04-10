@@ -6,15 +6,16 @@ import ai.onnxruntime.OnnxJavaType
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
-import android.content.Context
 import android.util.Log
 import java.io.File
-import java.io.FileOutputStream
 import java.nio.FloatBuffer
 import java.nio.LongBuffer
 import java.nio.ShortBuffer
 
-class OnnxModel(private val context: Context, private val config: ModelConfig) {
+class OnnxModel(
+    private val modelFile: File,
+    private val config: ModelConfig
+) {
 
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
     private val session: OrtSession = initializeModel()
@@ -41,7 +42,6 @@ class OnnxModel(private val context: Context, private val config: ModelConfig) {
 
     // Initialize ONNX session from asset model path
     private fun initializeModel(): OrtSession {
-        val modelFile = loadModelFile(config.modelPath)
         Log.d(TAG, "Loading model from: ${modelFile.absolutePath}")
         val opts = OrtSession.SessionOptions()
         try {
@@ -126,18 +126,6 @@ class OnnxModel(private val context: Context, private val config: ModelConfig) {
         }
 
         return inputs
-    }
-
-    // Copy model file from assets to internal storage (required by ONNX runtime)
-    private fun loadModelFile(filename: String): File {
-        val assetManager = context.assets
-        val inputStream = assetManager.open(filename)
-        val file = File(context.filesDir, filename)
-        val outputStream = FileOutputStream(file)
-        inputStream.copyTo(outputStream)
-        inputStream.close()
-        outputStream.close()
-        return file
     }
 
     // Temperature scaling for logits

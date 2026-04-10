@@ -6,7 +6,10 @@ import org.json.JSONObject
 import java.io.InputStream
 import java.text.Normalizer
 
-class BpeTokenizer(context: Context) {
+class BpeTokenizer(
+    private val context: Context,
+    private val assetFilename: String
+) {
 
     private val vocab: Map<String, Int>
     private val idToToken: Map<Int, String>
@@ -25,7 +28,7 @@ class BpeTokenizer(context: Context) {
     }
 
     init {
-        val tokenizerJson = loadTokenizerJson(context)
+        val tokenizerJson = loadTokenizerJson()
 
         // Load base vocabulary
         vocab = tokenizerJson.getJSONObject("model").getJSONObject("vocab").toIntMap()
@@ -177,10 +180,9 @@ class BpeTokenizer(context: Context) {
     }
 
     // Loads the tokenizer.json file from the app's assets folder
-    private fun loadTokenizerJson(context: Context): JSONObject {
-        val filename = "tokenizer.json"
-        Log.d(TAG, "Loading tokenizer from assets/$filename")
-        val inputStream: InputStream = context.assets.open(filename)
+    private fun loadTokenizerJson(): JSONObject {
+        Log.d(TAG, "Loading tokenizer from assets/$assetFilename")
+        val inputStream: InputStream = context.assets.open(assetFilename)
         val jsonStr = inputStream.bufferedReader().use { it.readText() }
         return JSONObject(jsonStr)
     }
