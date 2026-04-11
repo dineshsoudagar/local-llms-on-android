@@ -21,7 +21,7 @@
             android:name="libOpenCL.so"
             android:required="false" />
         <activity
-            android:name=".MainActivity"
+            android:name=".PocketChatActivity"
             android:exported="true"
             android:theme="@style/Theme.local_llm"
             android:windowSoftInputMode="adjustResize">

@@ -18,7 +18,7 @@
         android:layout_marginTop="8dp"
         android:layout_marginEnd="10dp"
         android:padding="10dp"
-        android:textColor="@color/white"
+        android:textColor="@color/status_text"
         android:textSize="14sp"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
@@ -89,8 +89,8 @@
             android:maxLines="10"
             android:minLines="4"
             android:padding="10dp"
-            android:textColor="@color/white"
-            android:textColorHint="#AAAAAA"
+            android:textColor="@color/input_text"
+            android:textColorHint="@color/input_hint"
             android:textSize="16sp" />
 
         <FrameLayout

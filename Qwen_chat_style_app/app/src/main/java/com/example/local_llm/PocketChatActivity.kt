@@ -8,7 +8,6 @@ import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -17,7 +16,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
 
-class MainActivity : AppCompatActivity() {
+class PocketChatActivity : AppCompatActivity() {
 
     private lateinit var chatController: PersistentChatController
     private lateinit var chatAdapter: ChatAdapter
@@ -147,7 +146,7 @@ class MainActivity : AppCompatActivity() {
                 append(session.title)
                 append("\n")
                 append(session.modelDisplayName)
-                append(" • ")
+                append(" - ")
                 append(updated)
             }
         }.toTypedArray()
@@ -174,73 +173,6 @@ class MainActivity : AppCompatActivity() {
 
         chatRecyclerView.post {
             chatRecyclerView.scrollToPosition(lastIndex)
-        }
-    }
-
-    private fun renderOutput(state: ChatUiState): String {
-        if (state.transcript.isEmpty()) {
-            return state.statusMessage
-        }
-
-        return buildString {
-            if (state.statusMessage.isNotBlank()) {
-                append(state.statusMessage)
-                append("\n\n")
-            }
-
-            state.transcript.forEachIndexed { index, turn ->
-                append(if (turn.role == ChatRole.USER) "You" else "Assistant")
-                append(":\n")
-
-                if (!turn.thinkingText.isNullOrBlank()) {
-                    append("[Thinking]\n")
-                    append(turn.thinkingText.trimEnd())
-                    append("\n\n")
-                }
-
-                if (turn.text.isNotBlank()) {
-                    append(turn.text.trimEnd())
-                } else if (state.isGenerating && turn.role == ChatRole.ASSISTANT && index == state.transcript.lastIndex) {
-                    append("⏳ Thinking...")
-                }
-
-                if (turn.stopped) {
-                    if (turn.text.isNotBlank() || !turn.thinkingText.isNullOrBlank()) {
-                        append("\n")
-                    }
-                    append("[Generation stopped]")
-                }
-
-                if (index < state.transcript.lastIndex) {
-                    append("\n\n")
-                }
-            }
-        }
-    }
-
-    private fun scrollOutputToBottomIfNeeded(scrollView: ScrollView, force: Boolean = false) {
-        if (!force && !followOutput) return
-        scrollView.post { scrollView.fullScroll(ScrollView.FOCUS_DOWN) }
-    }
-
-    private fun isScrolledToBottom(scrollView: ScrollView): Boolean {
-        val child = scrollView.getChildAt(0) ?: return true
-        val bottomOffset = child.bottom - (scrollView.height + scrollView.scrollY)
-        return bottomOffset <= 32
-    }
-
-    private fun scrollChatToBottomIfNeeded(recyclerView: RecyclerView, force: Boolean = false) {
-        if (!force && !followOutput) {
-            return
-        }
-
-        val lastIndex = chatAdapter.itemCount - 1
-        if (lastIndex < 0) {
-            return
-        }
-
-        recyclerView.post {
-            recyclerView.scrollToPosition(lastIndex)
         }
     }
 }

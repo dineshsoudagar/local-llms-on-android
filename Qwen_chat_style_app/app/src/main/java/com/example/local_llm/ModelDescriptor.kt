@@ -8,6 +8,7 @@ sealed class ModelDescriptor(
 
 data class OnnxQwenSpec(
     val modelName: String,
+    val displayNameOverride: String = modelName,
     val promptStyle: PromptStyle,
     val modelAssetName: String,
     val tokenizerAssetName: String,
@@ -23,18 +24,20 @@ data class OnnxQwenSpec(
     val thinkingModeAvailable: Boolean = false
 ) : ModelDescriptor(
     id = modelName.lowercase(),
-    displayName = modelName,
+    displayName = displayNameOverride,
     supportsThinking = thinkingModeAvailable
 )
 
 data class GemmaLiteRtSpec(
     val modelName: String,
     val modelAssetName: String,
-    val defaultSystemInstruction: String
+    val defaultSystemInstruction: String,
+    val displayNameOverride: String = modelName,
+    val thinkingModeAvailable: Boolean = false
 ) : ModelDescriptor(
     id = modelName.lowercase(),
-    displayName = modelName,
-    supportsThinking = true
+    displayName = displayNameOverride,
+    supportsThinking = thinkingModeAvailable
 )
 
 object ModelRegistry {
@@ -77,7 +80,9 @@ object ModelRegistry {
     val gemma4E2B = GemmaLiteRtSpec(
         modelName = "Gemma4_E2B",
         modelAssetName = GEMMA_MODEL_ASSET,
-        defaultSystemInstruction = "You are Gemma, a helpful assistant."
+        defaultSystemInstruction = "You are Gemma, a helpful assistant.",
+        displayNameOverride = "Gemma4",
+        thinkingModeAvailable = false
     )
 
     private val models = listOf(qwen25, qwen3, gemma4E2B)

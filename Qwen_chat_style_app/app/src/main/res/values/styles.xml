@@ -2,16 +2,20 @@
 <resources>
     <style name="SendButton">
         <item name="android:background">@drawable/btn_send</item>
-        <item name="android:backgroundTint">@null</item> <!-- This is key -->
+        <item name="android:backgroundTint">@null</item>
         <item name="android:textColor">#FFFFFF</item>
-        <item name="android:padding">8dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:paddingHorizontal">18dp</item>
+        <item name="android:paddingVertical">8dp</item>
     </style>
 
     <style name="StopButton">
         <item name="android:background">@drawable/btn_stop</item>
-        <item name="android:backgroundTint">@null</item> <!-- This is key -->
+        <item name="android:backgroundTint">@null</item>
         <item name="android:textColor">#FFFFFF</item>
-        <item name="android:padding">8dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:paddingHorizontal">18dp</item>
+        <item name="android:paddingVertical">8dp</item>
     </style>
 
     <style name="ClearButton">
