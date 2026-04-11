@@ -42,13 +42,13 @@ class MainActivity : AppCompatActivity() {
         return when (item.itemId) {
             R.id.menu_clear -> {
                 AlertDialog.Builder(ContextThemeWrapper(this, R.style.DarkAlertDialog))
-                    .setTitle("Clear Chat?")
-                    .setMessage("This will remove all messages.")
-                    .setPositiveButton("Yes") { _, _ ->
+                    .setTitle(getString(R.string.dialog_clear_chat_title))
+                    .setMessage(getString(R.string.dialog_clear_chat_message))
+                    .setPositiveButton(getString(R.string.yes)) { _, _ ->
                         messages.clear()
                         chatAdapter.clearAll()
                     }
-                    .setNegativeButton("Cancel", null)
+                    .setNegativeButton(getString(R.string.cancel), null)
                     .show()
                 true
             }
@@ -129,7 +129,7 @@ class MainActivity : AppCompatActivity() {
             numKvHeads = 2,
             headDim = 64,
             batchSize = 1,
-            defaultSystemPrompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.",
+            defaultSystemPrompt = getString(R.string.default_system_prompt_qwen25),
             roleTokenIds = roleTokens,
             scalarPosId = false
         )
@@ -143,7 +143,7 @@ class MainActivity : AppCompatActivity() {
             numKvHeads = 8,
             headDim = 128,
             batchSize = 1,
-            defaultSystemPrompt = "You are Qwen. You are a helpful assistant",
+            defaultSystemPrompt = getString(R.string.default_system_prompt_qwen3),
             roleTokenIds = roleTokens,
             scalarPosId = true,
             dtype = "float16",
@@ -159,18 +159,18 @@ class MainActivity : AppCompatActivity() {
             thinkingToggle.visibility = View.VISIBLE
         }
 
-        title = "Pocket LLM — ${config.modelName}"
+        title = getString(R.string.app_title_format, config.modelName)
         val promptBuilder = PromptBuilder(tokenizer, config)
         val mapper = TokenDisplayMapper(this, config.modelName)
 
         toggleGenerating(false)
-        messages.add(Message("⏳ Please wait, the model is loading.", isUser = false))
+        messages.add(Message(getString(R.string.msg_model_loading), isUser = false))
         chatAdapter.notifyItemInserted(messages.size - 1)
 
         inferenceScope.launch {
             onnxModel = OnnxModel(this@MainActivity, config)
             withContext(Dispatchers.Main) {
-                messages.add(Message("✅ Model is ready.", isUser = false))
+                messages.add(Message(getString(R.string.msg_model_ready), isUser = false))
                 chatAdapter.notifyItemInserted(messages.size - 1)
                 chatRecyclerView.scrollToPosition(messages.size - 1)
                 toggleGenerating(false)
@@ -236,7 +236,8 @@ class MainActivity : AppCompatActivity() {
                     )
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
-                        messages.add(Message("❌ Error: ${e.message ?: "Unknown error."}", isUser = false))
+                        val errorMsg = getString(R.string.msg_error_format, e.message ?: getString(R.string.msg_unknown_error))
+                        messages.add(Message(errorMsg, isUser = false))
                         chatAdapter.notifyItemInserted(messages.size - 1)
                     }
                 } finally {
@@ -250,7 +251,7 @@ class MainActivity : AppCompatActivity() {
 
         stopButton.setOnClickListener {
             inferenceJob?.cancel()
-            messages.add(Message("⛔ Generation stopped.", isUser = false))
+            messages.add(Message(getString(R.string.msg_generation_stopped), isUser = false))
             chatAdapter.notifyItemInserted(messages.size - 1)
             chatRecyclerView.scrollToPosition(messages.size - 1)
             toggleGenerating(false)

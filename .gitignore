@@ -1,0 +1,30 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# IntelliJ / Android Studio
+**/.idea/
+**/*.iml
+
+# Gradle / Kotlin local state
+**/.gradle/
+**/.gradle-user-home/
+**/.kotlin/
+**/local.properties
+**/gradle/gradle-daemon-jvm.properties
+
+# Build outputs
+**/build/
+**/captures/
+**/.externalNativeBuild/
+**/.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Local model assets
+**/app/src/main/assets/model.onnx
+**/app/src/main/assets/tokenizer.json
+**/app/src/main/assets/*.litertlm

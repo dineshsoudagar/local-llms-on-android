@@ -1,7 +1,8 @@
 package com.example.local_llm
 
 import android.os.Bundle
-import android.view.MotionEvent
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
@@ -10,39 +11,46 @@ import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var chatController: ChatController
+    private lateinit var chatAdapter: ChatAdapter
+    private lateinit var inputEditText: EditText
     private var followOutput = true
+    private var lastTurnCount = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         val thinkingToggle: CheckBox = findViewById(R.id.thinkingToggle)
-        val inputEditText: EditText = findViewById(R.id.userInput)
+        inputEditText = findViewById(R.id.userInput)
         val sendButton: Button = findViewById(R.id.sendButton)
         val stopButton: Button = findViewById(R.id.stopButton)
-        val clearButton: Button = findViewById(R.id.clearButton)
-        val outputText: TextView = findViewById(R.id.outputView)
-        val scrollView: ScrollView = findViewById(R.id.outputScroll)
+        val statusView: TextView = findViewById(R.id.statusView)
+        val chatRecyclerView: RecyclerView = findViewById(R.id.chatRecyclerView)
 
-        inputEditText.movementMethod = android.text.method.ScrollingMovementMethod.getInstance()
-        outputText.movementMethod = android.text.method.ScrollingMovementMethod.getInstance()
-
-        scrollView.setOnTouchListener { _, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN,
-                MotionEvent.ACTION_MOVE,
-                MotionEvent.ACTION_UP,
-                MotionEvent.ACTION_CANCEL -> followOutput = isScrolledToBottom(scrollView)
+        chatAdapter = ChatAdapter()
+        chatRecyclerView.layoutManager = LinearLayoutManager(this)
+        chatRecyclerView.adapter = chatAdapter
+        chatRecyclerView.itemAnimator = null
+        chatRecyclerView.addOnScrollListener(
+            object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                    followOutput = !recyclerView.canScrollVertically(1)
+                }
             }
-            false
-        }
-        scrollView.setOnScrollChangeListener { _, _, _, _, _ ->
-            followOutput = isScrolledToBottom(scrollView)
+        )
+
+        inputEditText.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                followOutput = true
+                scrollChatToBottomIfNeeded(chatRecyclerView, force = true)
+            }
         }
 
         chatController = ChatController(this, ModelRegistry.selected)
@@ -51,27 +59,35 @@ class MainActivity : AppCompatActivity() {
             chatController.state.collect { state ->
                 title = state.title
                 thinkingToggle.visibility = if (state.supportsThinking) View.VISIBLE else View.GONE
+                sendButton.visibility = if (state.isGenerating) View.GONE else View.VISIBLE
+                stopButton.visibility = if (state.isGenerating) View.VISIBLE else View.GONE
                 sendButton.isEnabled = state.isReady && !state.isGenerating
                 stopButton.isEnabled = state.isGenerating
-                clearButton.isEnabled = state.isReady && !state.isGenerating
 
-                outputText.text = renderOutput(state)
-                scrollOutputToBottomIfNeeded(scrollView, force = state.isGenerating)
+                statusView.text = state.statusMessage
+                statusView.visibility = if (state.statusMessage.isBlank()) View.GONE else View.VISIBLE
+
+                chatAdapter.submitTurns(state.transcript)
+
+                val forceScroll = state.isGenerating || state.transcript.size != lastTurnCount
+                lastTurnCount = state.transcript.size
+                scrollChatToBottomIfNeeded(chatRecyclerView, force = forceScroll)
             }
         }
 
         sendButton.setOnClickListener {
+            val prompt = inputEditText.text.toString()
+            if (prompt.isBlank()) {
+                return@setOnClickListener
+            }
+
             followOutput = true
-            chatController.sendPrompt(inputEditText.text.toString())
+            chatController.sendPrompt(prompt)
+            inputEditText.text.clear()
         }
 
         stopButton.setOnClickListener {
             chatController.cancelGeneration()
-        }
-
-        clearButton.setOnClickListener {
-            inputEditText.text.clear()
-            chatController.resetConversation()
         }
 
         thinkingToggle.setOnCheckedChangeListener { _, isChecked ->
@@ -79,6 +95,24 @@ class MainActivity : AppCompatActivity() {
         }
 
         chatController.initialize()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.chat_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.menu_clear -> {
+                if (!chatController.state.value.isGenerating) {
+                    inputEditText.text.clear()
+                    chatController.resetConversation()
+                }
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
     }
 
     override fun onDestroy() {
@@ -136,5 +170,20 @@ class MainActivity : AppCompatActivity() {
         val child = scrollView.getChildAt(0) ?: return true
         val bottomOffset = child.bottom - (scrollView.height + scrollView.scrollY)
         return bottomOffset <= 32
+    }
+
+    private fun scrollChatToBottomIfNeeded(recyclerView: RecyclerView, force: Boolean = false) {
+        if (!force && !followOutput) {
+            return
+        }
+
+        val lastIndex = chatAdapter.itemCount - 1
+        if (lastIndex < 0) {
+            return
+        }
+
+        recyclerView.post {
+            recyclerView.scrollToPosition(lastIndex)
+        }
     }
 }

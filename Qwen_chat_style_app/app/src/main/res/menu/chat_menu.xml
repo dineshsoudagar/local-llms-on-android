@@ -8,10 +8,4 @@
         android:icon="@android:drawable/ic_menu_delete"
         app:showAsAction="never" />
 
-    <item
-        android:id="@+id/menu_sessions"
-        android:title="Previous Chats"
-        android:icon="@android:drawable/ic_menu_recent_history"
-        app:showAsAction="never" />
-
 </menu>

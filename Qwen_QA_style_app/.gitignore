@@ -33,3 +33,5 @@ captures/
 # Local model assets
 /app/src/main/assets/model.onnx
 /app/src/main/assets/tokenizer.json
+!app
+
