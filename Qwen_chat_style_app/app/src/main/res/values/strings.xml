@@ -1,8 +1,13 @@
 <resources>
     <string name="app_name">Local LLM</string>
+    <string name="toolbar_app_title">Pocket LLM</string>
     <string name="enter_your_prompt">Message your local model</string>
     <string name="send">Send</string>
     <string name="stop">Stop</string>
+    <string name="delete">Delete</string>
+    <string name="delete_chat">Delete chat</string>
+    <string name="delete_chat_confirmation">Delete this saved chat? This cannot be undone.</string>
+    <string name="chat_deleted">Chat deleted.</string>
     <string name="enable_thinking_mode">Enable Thinking Mode</string>
     <string name="new_chat">New Chat</string>
     <string name="previous_chats">Previous Chats</string>

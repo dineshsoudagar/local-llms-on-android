@@ -1,10 +1,24 @@
 # 🤖 Local LLMs on Android (Offline, Private & Fast)
 
-An Android application that brings a large language model (LLM) to your phone — fully offline, no internet needed. Powered by ONNX Runtime and a Hugging Face-compatible tokenizer, it provides fast, private, on-device question answering with streaming responses.
+An Android application that brings local LLM chat to your phone — fully offline, private, and fast.
+
+It supports both **ONNX-based Qwen models** and **Gemma 4 with the LiteRT backend**, with streaming responses, persistent local chat history, previous chat restore, markdown-rendered replies, and a cleaner chat-first UI.
 
 ---
 
-### 🔗 Also Check Out 
+## 🆕 New in v1.3.0
+
+- Added **Gemma 4** support with the **LiteRT backend**
+- Added persistent local chat history with automatic save/load
+- Added **Previous Chats** support to reopen and continue older sessions
+- Auto-restored the latest chat for the selected model at app launch
+- Added markdown rendering for assistant replies, including earlier live markdown rendering during streaming
+- Added built-in themes and chat font size settings
+- Refreshed the app with a more polished chat-style UI
+
+---
+
+### 🔗 Also Check Out
 
 **[local-document-intelligence](https://github.com/dineshsoudagar/local-document-intelligence)**  
 A privacy-first offline document intelligence system with persistent local RAG, hybrid retrieval, and source-grounded answers.
@@ -13,58 +27,147 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 ## ✨ Features
 
-- 📱 Fully on-device LLM inference with ONNX Runtime.
-- 🔤 Hugging Face-compatible BPE tokenizer (`tokenizer.json`)  
-- 🧠 Qwen2.5 & Qwen3 prompt formatting with streaming generation  
-- 🧩 Custom `ModelConfig` for precision, prompt style, and KV cache  
-- 🧘‍♂️ **Thinking Mode** toggle (enabled in Qwen3) for step-by-step reasoning  
-- 🚀 Coroutine-based UI for smooth user experience.
-- 🔐 Runs 100% offline - no network, no telemetry  
+- 📱 Fully on-device LLM inference for privacy-first offline usage
+- 🧠 Supports **Qwen2.5**, **Qwen3**, and **Gemma 4**
+- ⚡ **Gemma 4 LiteRT backend** for fast local inference on supported Android devices
+- 🔤 Hugging Face-compatible BPE tokenizer support for Qwen models (`tokenizer.json`)
+- 🧩 Custom model configuration for prompt style, precision, KV cache, and backend setup
+- 🧘‍♂️ **Thinking Mode** support for **Qwen3**
+- 💬 Persistent multi-turn chat with connected conversations
+- 🕘 Automatic local save/load of chat history
+- 📂 Previous Chats support to reopen and continue older sessions
+- 🔄 Auto-restore of the latest chat for the selected model on app launch
+- 📝 Markdown rendering for assistant replies
+- 🔗 Selectable assistant replies with working links inside chat bubbles
+- 🎨 Multiple built-in themes
+- 🔠 Adjustable chat font size
+- 🛑 Stop-generation support with smoother chat interaction
+- 🔐 Runs 100% offline — no network, no telemetry
 
 ---
 
 ## 📸 Inference Preview
 
 <p align="center">
-  <img src="data/Demo.gif" alt="Model Output 2" width="23.8%" style="margin: 1%"/>
-  <img src="data/Qwen3demo.gif" alt="Input Prompt" width="23.8%" style="margin: 1%"/>
-  <img src="data/Qwen2.5_chat_style.gif" alt="Model Output 2" width="25%" style="margin: 1%"/>
+  <img src="data/Demo.gif" alt="Model Output 1" width="23.8%" style="margin: 1%"/>
+  <img src="data/Qwen3demo.gif" alt="Model Output 2" width="23.8%" style="margin: 1%"/>
+  <img src="data/Qwen2.5_chat_style.gif" alt="Chat UI Preview" width="25%" style="margin: 1%"/>
 </p>
 
 <p align="center">
-  <em>Figure: App interface showing prompt input and generated answers using the local LLM.</em>
+  <em>Figure: App interface showing local LLM chat and streaming responses on Android.</em>
 </p>
 
 ---
 
-## 📂 App Variants
+## 🧠 Model Support
 
-This repo includes **two modes** of interaction:
+This app supports both **ONNX-based Qwen models** and **Gemma 4 via LiteRT**.
 
-### [Qwen_QA_style_app](Qwen_QA_style_app)
-- Single-turn QA with minimal prompt.
-- Fastest response time.
-- Best for quick facts or instructions.
+### Supported models
 
-### [Qwen_chat_style_app](Qwen_chat_style_app)
-- Multi-turn chat with short-term memory.
-- Qwen-style prompt formatting with context compression.
-- Best for reasoning, assistant-style dialogue, and follow-up questions.
+- **Qwen2.5-0.5B-Instruct**
+- **Qwen3-0.6B**
+- **Gemma 4 E2B** via `.litertlm`
+
+### Backend overview
+
+- **Qwen2.5 / Qwen3** run through the ONNX backend
+- **Gemma 4** runs through the LiteRT backend
+
+### Qwen model files
+
+For Qwen models, the app expects:
+
+- `model.onnx`
+- `tokenizer.json`
+- `qwen_token_display_mapping.json`
+
+### Gemma model files
+
+For Gemma 4, the app expects:
+
+- `gemma-4-E2B-it.litertlm`
+
+### Thinking Mode
+
+- **Qwen3** supports **Thinking Mode**
+- **Gemma 4** does not use Thinking Mode in this app, so the toggle is hidden
 
 ---
 
-## 🧠 Model Info
+## 🚀 Why Gemma 4 + LiteRT is a strong fit for this app
 
-This app supports both **Qwen2.5-0.5B-Instruct** and **Qwen3-0.6B** — optimized for instruction-following, QA, and reasoning tasks.
+**Gemma 4 E2B** is one of the most practical current choices for fast local Android chat because:
 
-### 🔁 Option 1: Use Preconverted ONNX Model
+- it is part of Gemma 4’s small-size family built for **ultra-mobile and edge deployment**
+- Gemma 4 is provided with **open weights** and supports **responsible commercial use**
+- the Gemma 4 family brings strong general-purpose capability for **generation, summarization, reasoning, and multilingual use**
+- LiteRT-LM is designed specifically for **high-performance on-device LLM deployment**
+- LiteRT-LM supports **hardware acceleration**, including **GPU and NPU acceleration** on supported devices
 
-Download the `model.onnx` and `tokenizer.json` from Hugging Face:
+In Google’s official LiteRT-LM showcase for **Gemma-4-E2B** on Android, GPU execution achieved much faster startup than CPU execution, including about **0.3 s time-to-first-token on GPU vs 1.8 s on CPU** on the referenced device. That lines up with the kind of fast chat experience this app is aiming for.
 
-- 🔹 [Qwen2.5](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct)  
-- 🔹 [Qwen3](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX)  
+> Note: this app currently uses Gemma 4 for **text chat**. The wider Gemma 4 family also supports multimodal capabilities, but those are not exposed in this app yet.
 
-### ⚙️ Option 2: Convert Model Yourself
+---
+
+## ⚙️ Requirements
+
+- [Android Studio](https://developer.android.com/studio)
+- [ONNX Runtime for Android](https://github.com/microsoft/onnxruntime-genai/releases) for Qwen builds
+- LiteRT dependencies for Gemma builds
+- A physical Android device for deployment and testing
+- ≥ 4 GB RAM for FP16 / Q4 models
+- ≥ 6 GB RAM for FP32 models
+- Real hardware is preferred — emulators are mainly useful for UI checks
+
+---
+
+## 🔁 Choose Which Model to Build With
+
+The active model is selected in:
+
+`app/src/main/java/com/example/local_llm/ModelDescriptor.kt`
+
+Inside `ModelRegistry`, change:
+
+```kotlin
+private const val SELECTED_MODEL_ID = "gemma4_e2b"
+```
+
+to one of:
+
+```kotlin
+"qwen2_5"      // Qwen2.5
+"qwen3"        // Qwen3
+"gemma4_e2b"   // Gemma 4
+```
+
+### Notes
+
+- The app title uses the selected model display name
+- **Thinking Mode** is available for **Qwen3**
+- **Gemma 4** is displayed as **Gemma4** in the UI
+
+---
+
+## 🔁 Get or Convert Models
+
+### Option 1: Use preconverted ONNX Qwen models
+
+Download the ONNX model files from Hugging Face:
+
+- 🔹 [Qwen2.5](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct)
+- 🔹 [Qwen3](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX)
+
+### Option 2: Use Gemma 4 with LiteRT
+
+Use the Gemma 4 E2B LiteRT model file:
+
+- 🔹 `gemma-4-E2B-it.litertlm`
+
+### Option 3: Convert a Qwen model yourself
 
 ```bash
 pip install optimum[onnxruntime]
@@ -78,82 +181,93 @@ Export the model:
 optimum-cli export onnx --model Qwen/Qwen2.5-0.5B-Instruct qwen2.5-0.5B-onnx/
 ```
 
-- You can also convert any fine-tuned variant by specifying the model path.
-- Learn more about [Optimum here](https://huggingface.co/docs/optimum/main/en/index).
+You can also convert a fine-tuned Qwen variant by pointing Optimum to your model path.
 
 ---
 
-## ⚙️ Requirements
+## 🚀 How to Build & Run
 
-- [Android Studio](https://developer.android.com/studio)
-- [ONNX Runtime for Android](https://github.com/microsoft/onnxruntime-genai/releases) (already included in this repo).
-- A physical Android device for deployment and testing, ≥ 4 GB RAM for FP16 / Q4 models, ≥ 6 GB RAM for FP32 models.
-- Real hardware preferred—emulators are acceptable for UI checks only.
+1. Clone this repository.
+2. Install the latest **Android Studio**.
+3. Open the Android source folder in Android Studio:
 
----
----
-#### Choose which Qwen model to run
+   ```text
+     Pocket_LLM_src/
+    ```
+4. Place the required model assets in:
 
-In[MainActivity.kt](app/src/main/java/com/example/local_llm/MainActivity.kt) you will find two pre-defined `ModelConfig` objects:
-
-```kotlin
-val modelconfigqwen25 = …   // Qwen 2.5-0.5B
-val modelconfigqwen3  = …   // Qwen 3-0.6B
-````
-Right below them is a single line that tells the app which one to use:
-
-````kotlin
-val config = modelconfigqwen25      // ← change to modelconfigqwen3 for Qwen 3
-````
-
-----
-## How to Build & Run
-
-1. Open Android Studio and create a new project (Empty Activity).
-2. Name your app `local_llm`.
-3. Copy all the project files from [Qwen_QA_style_app](Qwen_QA_style_app) or [Qwen_chat_style_app](Qwen_chat_style_app) into the appropriate folders.
-4. Place your `model.onnx` and `tokenizer.json` in:
-   ```
+   ```text
    app/src/main/assets/
    ```
-5. Connect your Android phone using wireless debugging or USB.
-6. To install:
-   - Press Run ▶️ in Android Studio, **or**
-   - Go to **Build → Generate Signed Bundle / APK** to export the `.apk` file.
-7. Once installed, look for the **Pocket LLM** icon&nbsp;
-   <img src="data/pocket_llm_icon.png" alt="Pocket LLM icon" width="28" style="vertical-align:middle;border-radius:100%"/>
-   on your home screen.
 
-**Note**: All Kotlin files are declared in the package com.example.local_llm, and the Gradle script sets applicationId "com.example.local_llm".
-If you name the app (or change the package) to anything other than local_llm, you must refactor:
-- The directory structure in app/src/main/java/...,                     
-- Every package com.example.local_llm line, and
-- The applicationId in app/build.gradle.
-- Otherwise, Android Studio will raise “package … does not exist” errors and the project will fail to compile.
-----
+5. Add the files that match the model you selected:
+
+   **For Qwen2.5 / Qwen3**
+   - `model.onnx`
+   - `tokenizer.json`
+   - `qwen_token_display_mapping.json`
+
+   **For Gemma 4**
+   - `gemma-4-E2B-it.litertlm`
+
+6. In `ModelDescriptor.kt`, set the active model using `SELECTED_MODEL_ID`.
+7. Connect your Android phone using USB or wireless debugging.
+8. Run the app from Android Studio, or generate a signed APK from:
+
+   **Build → Generate Signed Bundle / APK**
+
+9. Once installed, look for the **Pocket LLM** icon on your device.
+
+**Note**: All Kotlin files are declared in the package `com.example.local_llm`, and the Gradle script uses the same application id.  
+If you rename the app or package, you must also refactor the package declarations, folder structure, and Gradle application id.
+
+---
 
 ## 📦 Download Prebuilt APKs
 
-- ➡️ [pocket_llm_qwen2.5_0.5B_v1.1.0.apk](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.1.0/pocket_llm_qwen2.5_0.5B_v1.1.0.apk)  
-  - Full precision (FP32). Best for high-end devices. Improved inference performance.
+### v1.3.0
 
-- ➡️ [pocket_llm_qwen2.5_0.5B_fp16_v1.1.0.apk](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.1.0/pocket_llm_qwen2.5_0.5B_fp16_v1.1.0.apk)  
-  - Half-precision (FP16). Great balance of speed and accuracy for most devices.
+- ➡️ `pocket_llm_gemma4_e2b_v1.3.0.apk`  
+  Gemma 4 with LiteRT backend and the new chat-style UI
 
-- ➡️ [pocket_llm_qwen2.5_0.5B_q4fp16_v1.1.0.apk](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.1.0/pocket_llm_qwen2.5_0.5B_q4fp16_v1.1.0.apk)  
-  - Quantized Q4 + FP16. Fastest and lightest version of Qwen2.5.
+- ➡️ `pocket_llm_qwen2.5_0.5B_v1.3.0.apk`  
+  Updated Qwen2.5 build with the new UI and persistent chat support
 
-- ➡️ [pocket_llm_qwen3_0.6B_fp16_v1.1.0.apk](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.1.0/pocket_llm_qwen3_0.6B_fp16_v1.1.0.apk)  
-  - 🔥 New! Qwen3-0.6B with improved reasoning and **Thinking Mode** support.
+- ➡️ `pocket_llm_qwen2.5_0.5B_fp16_v1.3.0.apk`  
+  FP16 Qwen2.5 build with the refreshed UI and connected chat flow
 
-- ➡️ [pocket_llm_qwen3_0.6B_q4fp16_v1.1.0.apk](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.1.0/pocket_llm_qwen3_0.6B_q4fp16_v1.1.0.apk)  
-  - 🔥 New! Qwen3 quantized version (Q4 + FP16). Compact and fast with Thinking Mode.
+- ➡️ `pocket_llm_qwen2.5_0.5B_q4fp16_v1.3.0.apk`  
+  Quantized Qwen2.5 build with the refreshed UI and connected chat flow
 
-## Customize Your App Experience with These
-- Define the assistant’s tone and role by setting defaultSystemPrompt (in your model config).
-- Adjust TEMPERATURE to control response randomness — lower for accuracy, higher for creativity ([OnnxModel.kt](app/src/main/java/com/example/local_llm/OnnxModel.kt)).
-- Use REPETITION_PENALTY to avoid repetitive answers and improve fluency ([OnnxModel.kt](app/src/main/java/com/example/local_llm/OnnxModel.kt)).
-- Change MAX_TOKENS to limit or expand the length of generated replies ([OnnxModel.kt](app/src/main/java/com/example/local_llm/OnnxModel.kt)).
+- ➡️ `pocket_llm_qwen3_0.6B_fp16_v1.3.0.apk`  
+  Qwen3 build with Thinking Mode support and the new persistent chat UI
 
-### 📄 License Notice
-Note: These ONNX models are based on Qwen, which is licensed under the [Apache License 2.0](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/blob/main/LICENSE).
+- ➡️ `pocket_llm_qwen3_0.6B_q4fp16_v1.3.0.apk`  
+  Compact Qwen3 build with Thinking Mode support and the new UI
+
+---
+
+## Customize Your App Experience
+
+- Define the assistant’s tone and role using the model’s default system prompt
+- Adjust `TEMPERATURE` to control response randomness
+- Adjust `REPETITION_PENALTY` to reduce repetitive output
+- Change `MAX_TOKENS` to control reply length
+- Use built-in themes for a different look and feel
+- Adjust chat font size from the Settings screen
+
+---
+
+## 📄 License Notice
+
+### Gemma 4
+
+Gemma 4 is provided by Google under the **Apache License 2.0**. Google’s Gemma documentation also states that Gemma models are provided with open weights and support responsible commercial use.
+
+- Gemma 4 license: https://ai.google.dev/gemma/apache_2
+- Gemma 4 overview: https://ai.google.dev/gemma/docs/core
+
+### Qwen models
+
+Qwen-based ONNX models follow the upstream Qwen license terms.  
+Please review the original model license before redistribution or commercial usage.

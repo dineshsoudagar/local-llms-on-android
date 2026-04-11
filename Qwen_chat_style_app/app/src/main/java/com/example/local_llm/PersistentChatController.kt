@@ -210,6 +210,15 @@ class PersistentChatController(
         return sessionStore.list()
     }
 
+    fun deleteSession(sessionId: String): Boolean {
+        val deleted = sessionStore.delete(sessionId)
+        if (deleted && currentSessionId == sessionId) {
+            currentSessionId = null
+            currentSessionCreatedAtMillis = 0L
+        }
+        return deleted
+    }
+
     fun loadSession(sessionId: String) {
         if (generationJob != null) {
             return

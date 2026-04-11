@@ -6,7 +6,7 @@
         android:id="@+id/menu_new_chat"
         android:title="@string/new_chat"
         android:icon="@android:drawable/ic_menu_add"
-        app:showAsAction="never" />
+        app:showAsAction="always" />
 
     <item
         android:id="@+id/menu_sessions"

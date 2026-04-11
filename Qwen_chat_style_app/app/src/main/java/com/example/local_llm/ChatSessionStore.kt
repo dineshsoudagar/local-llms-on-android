@@ -43,6 +43,13 @@ class ChatSessionStore(context: Context) {
         }.getOrNull()
     }
 
+    fun delete(sessionId: String): Boolean {
+        return runCatching {
+            val file = fileFor(sessionId)
+            !file.exists() || file.delete()
+        }.getOrDefault(false)
+    }
+
     fun list(): List<ChatSessionSummary> {
         return sessionsDir.listFiles()
             ?.filter { it.extension.equals("json", ignoreCase = true) }

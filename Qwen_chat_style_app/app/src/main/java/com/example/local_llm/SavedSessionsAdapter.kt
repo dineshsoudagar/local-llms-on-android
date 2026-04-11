@@ -5,6 +5,7 @@ import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -12,7 +13,8 @@ import androidx.recyclerview.widget.RecyclerView
 
 class SavedSessionsAdapter(
     private val fontSizeSp: Float,
-    private val onSessionSelected: (ChatSessionSummary) -> Unit
+    private val onSessionSelected: (ChatSessionSummary) -> Unit,
+    private val onDeleteRequested: (ChatSessionSummary) -> Unit
 ) : ListAdapter<ChatSessionSummary, SavedSessionsAdapter.SavedSessionViewHolder>(DiffCallback) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SavedSessionViewHolder {
@@ -38,12 +40,14 @@ class SavedSessionsAdapter(
         holder.metaView.setTextSize(TypedValue.COMPLEX_UNIT_SP, (fontSizeSp - 2f).coerceAtLeast(12f))
         holder.previewView.setTextSize(TypedValue.COMPLEX_UNIT_SP, (fontSizeSp - 1f).coerceAtLeast(13f))
         holder.itemView.setOnClickListener { onSessionSelected(session) }
+        holder.deleteButton.setOnClickListener { onDeleteRequested(session) }
     }
 
     class SavedSessionViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val titleView: TextView = view.findViewById(R.id.sessionTitle)
         val metaView: TextView = view.findViewById(R.id.sessionMeta)
         val previewView: TextView = view.findViewById(R.id.sessionPreview)
+        val deleteButton: ImageButton = view.findViewById(R.id.sessionDeleteButton)
     }
 
     private object DiffCallback : DiffUtil.ItemCallback<ChatSessionSummary>() {

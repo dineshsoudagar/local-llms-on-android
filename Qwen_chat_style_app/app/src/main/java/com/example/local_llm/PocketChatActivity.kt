@@ -1,5 +1,6 @@
 package com.example.local_llm
 
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.Menu
@@ -8,6 +9,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.TextView
@@ -15,16 +17,22 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.launch
 
 open class PocketChatActivity : AppCompatActivity() {
+
+    companion object {
+        private const val TOOLBAR_LOGO_ASSET = "pocket_llm_logo.png"
+    }
 
     private lateinit var settingsStore: AppSettingsStore
     private lateinit var currentSettings: AppSettings
     private lateinit var chatController: PersistentChatController
     private lateinit var chatAdapter: ChatAdapter
     private lateinit var inputEditText: EditText
+    private lateinit var toolbarSubtitleView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         settingsStore = AppSettingsStore(this)
@@ -33,12 +41,20 @@ open class PocketChatActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        val toolbar: MaterialToolbar = findViewById(R.id.topToolbar)
+        val toolbarLogoView: ImageView = findViewById(R.id.toolbarLogo)
+        toolbarSubtitleView = findViewById(R.id.toolbarSubtitle)
         val thinkingToggle: CheckBox = findViewById(R.id.thinkingToggle)
         inputEditText = findViewById(R.id.userInput)
         val sendButton: Button = findViewById(R.id.sendButton)
         val stopButton: Button = findViewById(R.id.stopButton)
         val statusView: TextView = findViewById(R.id.statusView)
         val chatRecyclerView: RecyclerView = findViewById(R.id.chatRecyclerView)
+
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+        toolbarSubtitleView.text = ModelRegistry.selected.displayName
+        loadToolbarLogo(toolbarLogoView)
 
         chatAdapter = ChatAdapter(currentSettings.chatFontSizeSp)
         chatRecyclerView.layoutManager = LinearLayoutManager(this)
@@ -51,6 +67,7 @@ open class PocketChatActivity : AppCompatActivity() {
         lifecycleScope.launch {
             chatController.state.collect { state ->
                 title = state.title
+                toolbarSubtitleView.text = state.title.substringAfter("Pocket LLM - ", ModelRegistry.selected.displayName)
                 thinkingToggle.visibility = if (state.supportsThinking) View.VISIBLE else View.GONE
                 sendButton.visibility = if (state.isGenerating) View.GONE else View.VISIBLE
                 stopButton.visibility = if (state.isGenerating) View.VISIBLE else View.GONE
@@ -137,15 +154,36 @@ open class PocketChatActivity : AppCompatActivity() {
             .setNegativeButton(android.R.string.cancel, null)
             .create()
 
-        recyclerView.adapter = SavedSessionsAdapter(
+        lateinit var adapter: SavedSessionsAdapter
+        adapter = SavedSessionsAdapter(
             fontSizeSp = currentSettings.chatFontSizeSp,
             onSessionSelected = { session ->
                 dialog.dismiss()
                 chatController.loadSession(session.sessionId)
+            },
+            onDeleteRequested = { session ->
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(getString(R.string.delete_chat))
+                    .setMessage(getString(R.string.delete_chat_confirmation))
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(getString(R.string.delete)) { _, _ ->
+                        if (chatController.deleteSession(session.sessionId)) {
+                            val remainingSessions = chatController.listSavedSessions()
+                            adapter.submitList(remainingSessions)
+                            if (remainingSessions.isEmpty()) {
+                                dialog.dismiss()
+                                MaterialAlertDialogBuilder(this)
+                                    .setMessage(getString(R.string.no_saved_chats))
+                                    .setPositiveButton(android.R.string.ok, null)
+                                    .show()
+                            }
+                        }
+                    }
+                    .show()
             }
-        ).apply {
-            submitList(sessions)
-        }
+        )
+        recyclerView.adapter = adapter
+        adapter.submitList(sessions)
 
         dialog.show()
     }
@@ -230,5 +268,15 @@ open class PocketChatActivity : AppCompatActivity() {
     ) {
         fontSizeValue.text = "${fontSizeSp.toInt()} sp"
         fontSizePreview.textSize = fontSizeSp
+    }
+
+    private fun loadToolbarLogo(toolbarLogoView: ImageView) {
+        runCatching {
+            assets.open(TOOLBAR_LOGO_ASSET).use { input ->
+                BitmapFactory.decodeStream(input)
+            }
+        }.getOrNull()?.let { bitmap ->
+            toolbarLogoView.setImageBitmap(bitmap)
+        }
     }
 }
