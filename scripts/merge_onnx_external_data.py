@@ -1,9 +1,8 @@
 import onnx
 import os
 import argparse
-from onnx.external_data_helper import load_external_data_for_model
 
-def merge_external_data(model_path: str, output_path: str = None):
+def merge_external_data(model_path: str, output_path: str | None = None):
     """
     Load an ONNX model with external data and merge it into a single .onnx file.
 
@@ -37,7 +36,6 @@ if __name__ == "__main__":
     parser.add_argument("--output_path", type=str, help="Path to save the merged ONNX model")
 
     args = parser.parse_args()
-
     try:
         merge_external_data(args.model_path, args.output_path)
     except Exception as e:

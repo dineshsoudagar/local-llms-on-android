@@ -2,6 +2,12 @@
 .DS_Store
 Thumbs.db
 
+# Python local state
+.venv/
+**/__pycache__/
+**/.pytest_cache/
+*.pyc
+
 # IntelliJ / Android Studio
 **/.idea/
 **/*.iml
@@ -32,3 +38,4 @@ Thumbs.db
 **/.gradle-user-home-verify/
 **/.g/
 g/
+g-check*/
