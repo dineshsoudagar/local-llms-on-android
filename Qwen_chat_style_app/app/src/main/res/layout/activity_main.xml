@@ -15,7 +15,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:background="@drawable/bg_chat_surface"
-        android:minHeight="68dp"
+        android:minHeight="50dp"
         android:paddingStart="12dp"
         android:paddingEnd="6dp"
         app:contentInsetStartWithNavigation="0dp"
