@@ -165,6 +165,7 @@ open class PocketChatActivity : AppCompatActivity() {
             AppThemeOption.OCEAN -> themeGroup.check(R.id.themeOcean)
             AppThemeOption.MIDNIGHT -> themeGroup.check(R.id.themeMidnight)
             AppThemeOption.FOREST -> themeGroup.check(R.id.themeForest)
+            AppThemeOption.VIOLET -> themeGroup.check(R.id.themeViolet)
         }
 
         val initialProgress = (currentSettings.chatFontSizeSp - 13f).toInt().coerceIn(0, 11)
@@ -194,6 +195,7 @@ open class PocketChatActivity : AppCompatActivity() {
             val selectedTheme = when (themeGroup.checkedRadioButtonId) {
                 R.id.themeMidnight -> AppThemeOption.MIDNIGHT
                 R.id.themeForest -> AppThemeOption.FOREST
+                R.id.themeViolet -> AppThemeOption.VIOLET
                 else -> AppThemeOption.OCEAN
             }
             val selectedFontSize = 13f + fontSizeSeekBar.progress

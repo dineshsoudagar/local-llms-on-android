@@ -48,5 +48,19 @@
     <color name="forest_send_stroke">#AEEBDD</color>
     <color name="forest_stop_fill">#E48D74</color>
     <color name="forest_stop_stroke">#FFD1C4</color>
+    <color name="violet_background">#140C24</color>
+    <color name="violet_frame">#201238</color>
+    <color name="violet_user_bubble">#F3EAF8</color>
+    <color name="violet_assistant_bubble">#6C4BC9</color>
+    <color name="violet_user_text">#24123D</color>
+    <color name="violet_assistant_text">#F8F5FF</color>
+    <color name="violet_input_background">#F7EEFB</color>
+    <color name="violet_input_text">#24123D</color>
+    <color name="violet_input_hint">#8B7BA3</color>
+    <color name="violet_status_text">#DDD1FF</color>
+    <color name="violet_send_fill">#8B5CF6</color>
+    <color name="violet_send_stroke">#C5B0FF</color>
+    <color name="violet_stop_fill">#E07A9B</color>
+    <color name="violet_stop_stroke">#FFC1D5</color>
     <color name="white">#FFFFFFFF</color>
 </resources>

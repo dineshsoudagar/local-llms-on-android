@@ -66,4 +66,26 @@
         <item name="colorStopFill">@color/forest_stop_fill</item>
         <item name="colorStopStroke">@color/forest_stop_stroke</item>
     </style>
+
+    <style name="Theme.local_llm.Violet" parent="Theme.local_llm">
+        <item name="colorPrimary">@color/violet_frame</item>
+        <item name="colorPrimaryVariant">@color/violet_background</item>
+        <item name="colorOnBackground">@color/violet_assistant_text</item>
+        <item name="colorSurface">@color/violet_frame</item>
+        <item name="colorOnSurface">@color/violet_assistant_text</item>
+        <item name="colorAppBackground">@color/violet_background</item>
+        <item name="colorFrameBackground">@color/violet_frame</item>
+        <item name="colorUserBubble">@color/violet_user_bubble</item>
+        <item name="colorAssistantBubble">@color/violet_assistant_bubble</item>
+        <item name="colorUserText">@color/violet_user_text</item>
+        <item name="colorAssistantText">@color/violet_assistant_text</item>
+        <item name="colorInputBackground">@color/violet_input_background</item>
+        <item name="colorInputText">@color/violet_input_text</item>
+        <item name="colorInputHint">@color/violet_input_hint</item>
+        <item name="colorStatusText">@color/violet_status_text</item>
+        <item name="colorSendFill">@color/violet_send_fill</item>
+        <item name="colorSendStroke">@color/violet_send_stroke</item>
+        <item name="colorStopFill">@color/violet_stop_fill</item>
+        <item name="colorStopStroke">@color/violet_stop_stroke</item>
+    </style>
 </resources>

@@ -45,6 +45,14 @@
             android:buttonTint="?attr/colorSendFill"
             android:textColor="?attr/colorAssistantText"
             android:text="Forest Night" />
+
+        <RadioButton
+            android:id="@+id/themeViolet"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:buttonTint="?attr/colorSendFill"
+            android:textColor="?attr/colorAssistantText"
+            android:text="Violet Night" />
     </RadioGroup>
 
     <TextView

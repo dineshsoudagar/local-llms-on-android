@@ -5,7 +5,8 @@ import android.content.Context
 enum class AppThemeOption(val styleRes: Int, val label: String) {
     OCEAN(R.style.Theme_local_llm, "Ocean Blue"),
     MIDNIGHT(R.style.Theme_local_llm_Midnight, "Midnight Slate"),
-    FOREST(R.style.Theme_local_llm_Forest, "Forest Night")
+    FOREST(R.style.Theme_local_llm_Forest, "Forest Night"),
+    VIOLET(R.style.Theme_local_llm_Violet, "Violet Night")
 }
 
 data class AppSettings(
