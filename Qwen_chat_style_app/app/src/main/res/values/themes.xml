@@ -1,11 +1,69 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.local_llm" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
-        <item name="colorPrimary">#0B1E35</item>
-        <item name="colorPrimaryVariant">#071426</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorOnBackground">#EAF3FF</item>
-        <item name="colorSurface">#0E233B</item>
-        <item name="colorOnSurface">#FFFFFF</item>
-        <item name="android:windowBackground">#071426</item>
+        <item name="colorPrimary">@color/frame_layout_background</item>
+        <item name="colorPrimaryVariant">@color/app_background</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorOnBackground">@color/assistant_text</item>
+        <item name="colorSurface">@color/frame_layout_background</item>
+        <item name="colorOnSurface">@color/assistant_text</item>
+        <item name="android:windowBackground">?attr/colorAppBackground</item>
+        <item name="colorAppBackground">@color/app_background</item>
+        <item name="colorFrameBackground">@color/frame_layout_background</item>
+        <item name="colorUserBubble">@color/user_bubble</item>
+        <item name="colorAssistantBubble">@color/bot_bubble</item>
+        <item name="colorUserText">@color/user_text</item>
+        <item name="colorAssistantText">@color/assistant_text</item>
+        <item name="colorInputBackground">@color/input_background</item>
+        <item name="colorInputText">@color/input_text</item>
+        <item name="colorInputHint">@color/input_hint</item>
+        <item name="colorStatusText">@color/status_text</item>
+        <item name="colorSendFill">@color/send_button_fill</item>
+        <item name="colorSendStroke">@color/send_button_stroke</item>
+        <item name="colorStopFill">@color/stop_button_fill</item>
+        <item name="colorStopStroke">@color/stop_button_stroke</item>
+    </style>
+
+    <style name="Theme.local_llm.Midnight" parent="Theme.local_llm">
+        <item name="colorPrimary">@color/midnight_frame</item>
+        <item name="colorPrimaryVariant">@color/midnight_background</item>
+        <item name="colorOnBackground">@color/midnight_assistant_text</item>
+        <item name="colorSurface">@color/midnight_frame</item>
+        <item name="colorOnSurface">@color/midnight_assistant_text</item>
+        <item name="colorAppBackground">@color/midnight_background</item>
+        <item name="colorFrameBackground">@color/midnight_frame</item>
+        <item name="colorUserBubble">@color/midnight_user_bubble</item>
+        <item name="colorAssistantBubble">@color/midnight_assistant_bubble</item>
+        <item name="colorUserText">@color/midnight_user_text</item>
+        <item name="colorAssistantText">@color/midnight_assistant_text</item>
+        <item name="colorInputBackground">@color/midnight_input_background</item>
+        <item name="colorInputText">@color/midnight_input_text</item>
+        <item name="colorInputHint">@color/midnight_input_hint</item>
+        <item name="colorStatusText">@color/midnight_status_text</item>
+        <item name="colorSendFill">@color/midnight_send_fill</item>
+        <item name="colorSendStroke">@color/midnight_send_stroke</item>
+        <item name="colorStopFill">@color/midnight_stop_fill</item>
+        <item name="colorStopStroke">@color/midnight_stop_stroke</item>
+    </style>
+
+    <style name="Theme.local_llm.Forest" parent="Theme.local_llm">
+        <item name="colorPrimary">@color/forest_frame</item>
+        <item name="colorPrimaryVariant">@color/forest_background</item>
+        <item name="colorOnBackground">@color/forest_assistant_text</item>
+        <item name="colorSurface">@color/forest_frame</item>
+        <item name="colorOnSurface">@color/forest_assistant_text</item>
+        <item name="colorAppBackground">@color/forest_background</item>
+        <item name="colorFrameBackground">@color/forest_frame</item>
+        <item name="colorUserBubble">@color/forest_user_bubble</item>
+        <item name="colorAssistantBubble">@color/forest_assistant_bubble</item>
+        <item name="colorUserText">@color/forest_user_text</item>
+        <item name="colorAssistantText">@color/forest_assistant_text</item>
+        <item name="colorInputBackground">@color/forest_input_background</item>
+        <item name="colorInputText">@color/forest_input_text</item>
+        <item name="colorInputHint">@color/forest_input_hint</item>
+        <item name="colorStatusText">@color/forest_status_text</item>
+        <item name="colorSendFill">@color/forest_send_fill</item>
+        <item name="colorSendStroke">@color/forest_send_stroke</item>
+        <item name="colorStopFill">@color/forest_stop_fill</item>
+        <item name="colorStopStroke">@color/forest_stop_stroke</item>
     </style>
 </resources>

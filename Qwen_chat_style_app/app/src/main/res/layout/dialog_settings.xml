@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_dialog_panel"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:id="@+id/themeLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/theme_label"
+        android:textColor="?attr/colorAssistantText"
+        android:textStyle="bold"
+        android:textSize="16sp" />
+
+    <RadioGroup
+        android:id="@+id/themeGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="vertical">
+
+        <RadioButton
+            android:id="@+id/themeOcean"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:buttonTint="?attr/colorSendFill"
+            android:textColor="?attr/colorAssistantText"
+            android:text="Ocean Blue" />
+
+        <RadioButton
+            android:id="@+id/themeMidnight"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:buttonTint="?attr/colorSendFill"
+            android:textColor="?attr/colorAssistantText"
+            android:text="Midnight Slate" />
+
+        <RadioButton
+            android:id="@+id/themeForest"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:buttonTint="?attr/colorSendFill"
+            android:textColor="?attr/colorAssistantText"
+            android:text="Forest Night" />
+    </RadioGroup>
+
+    <TextView
+        android:id="@+id/fontSizeLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:text="@string/font_size_label"
+        android:textColor="?attr/colorAssistantText"
+        android:textStyle="bold"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/fontSizeValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="16 sp"
+        android:textColor="?attr/colorStatusText"
+        android:textSize="14sp" />
+
+    <SeekBar
+        android:id="@+id/fontSizeSeekBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:max="11"
+        android:progressTint="?attr/colorSendFill"
+        android:thumbTint="?attr/colorSendFill"
+        android:progress="3" />
+
+    <TextView
+        android:id="@+id/fontSizePreview"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/rounded_edittext"
+        android:padding="12dp"
+        android:text="@string/font_size_preview"
+        android:textColor="?attr/colorInputText"
+        android:textSize="16sp" />
+
+    <LinearLayout
+        android:id="@+id/settingsActions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:gravity="end"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/settingsCancelButton"
+            style="@style/DialogSecondaryButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:layout_weight="1"
+            android:text="@android:string/cancel" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/settingsSaveButton"
+            style="@style/DialogPrimaryButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/save" />
+    </LinearLayout>
+
+</LinearLayout>

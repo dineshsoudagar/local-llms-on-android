@@ -5,20 +5,22 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/app_background"
+    android:background="?attr/colorAppBackground"
     android:fitsSystemWindows="true"
-    android:padding="8dp"
-    tools:context=".MainActivity">
+    android:padding="12dp"
+    tools:context=".PocketChatActivity">
 
     <TextView
         android:id="@+id/statusView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
+        android:layout_marginStart="4dp"
         android:layout_marginTop="8dp"
-        android:layout_marginEnd="10dp"
-        android:padding="10dp"
-        android:textColor="@color/status_text"
+        android:layout_marginEnd="4dp"
+        android:background="@drawable/bg_status_chip"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp"
+        android:textColor="?attr/colorStatusText"
         android:textSize="14sp"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
@@ -30,8 +32,8 @@
         android:id="@+id/chatFrame"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="8dp"
-        android:background="@color/frame_layout_background"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_chat_surface"
         app:layout_constraintBottom_toTopOf="@id/thinkingToggle"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -42,18 +44,19 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
-            android:padding="8dp" />
+            android:overScrollMode="always"
+            android:padding="10dp" />
     </FrameLayout>
 
     <CheckBox
         android:id="@+id/thinkingToggle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="10dp"
         android:checked="false"
-        android:padding="1dp"
+        android:paddingHorizontal="6dp"
         android:text="@string/enable_thinking_mode"
-        android:textColor="@color/white"
+        android:textColor="?attr/colorStatusText"
         android:textSize="12sp"
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
@@ -65,9 +68,12 @@
         android:id="@+id/inputRow"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="8dp"
         android:layout_marginBottom="4dp"
+        android:background="@drawable/bg_input_panel"
+        android:gravity="bottom"
         android:orientation="horizontal"
+        android:padding="10dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -77,43 +83,41 @@
             android:id="@+id/userInput"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="10dp"
             android:layout_weight="1"
             android:background="@drawable/rounded_edittext"
             android:gravity="top|start"
             android:hint="@string/enter_your_prompt"
             android:imeOptions="actionSend"
             android:inputType="textMultiLine"
-            android:maxLines="10"
-            android:minLines="4"
-            android:padding="10dp"
-            android:textColor="@color/input_text"
-            android:textColorHint="@color/input_hint"
+            android:maxLines="8"
+            android:minLines="3"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="12dp"
+            android:textColor="?attr/colorInputText"
+            android:textColorHint="?attr/colorInputHint"
             android:textSize="16sp" />
 
         <FrameLayout
             android:id="@+id/sendStopSwitcher"
             android:layout_width="wrap_content"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:padding="2dp">
+            android:layout_marginBottom="2dp">
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/sendButton"
                 style="@style/SendButton"
-                android:layout_width="wrap_content"
-                android:layout_height="50dp"
-                android:layout_gravity="center_vertical"
+                android:layout_width="92dp"
+                android:layout_height="56dp"
+                android:layout_gravity="bottom"
                 android:text="@string/send" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/stopButton"
                 style="@style/StopButton"
-                android:layout_width="wrap_content"
-                android:layout_height="50dp"
-                android:layout_gravity="center_vertical"
+                android:layout_width="92dp"
+                android:layout_height="56dp"
+                android:layout_gravity="bottom"
                 android:text="@string/stop"
                 android:visibility="gone" />
         </FrameLayout>

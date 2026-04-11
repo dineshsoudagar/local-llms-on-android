@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="colorAppBackground" format="color" />
+    <attr name="colorFrameBackground" format="color" />
+    <attr name="colorUserBubble" format="color" />
+    <attr name="colorAssistantBubble" format="color" />
+    <attr name="colorUserText" format="color" />
+    <attr name="colorAssistantText" format="color" />
+    <attr name="colorInputBackground" format="color" />
+    <attr name="colorInputText" format="color" />
+    <attr name="colorInputHint" format="color" />
+    <attr name="colorStatusText" format="color" />
+    <attr name="colorSendFill" format="color" />
+    <attr name="colorSendStroke" format="color" />
+    <attr name="colorStopFill" format="color" />
+    <attr name="colorStopStroke" format="color" />
+</resources>

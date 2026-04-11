@@ -9,6 +9,7 @@ Thumbs.db
 # Gradle / Kotlin local state
 **/.gradle/
 **/.gradle-user-home/
+**/.gradle-user-home-local/
 **/.kotlin/
 **/local.properties
 **/gradle/gradle-daemon-jvm.properties
@@ -28,3 +29,6 @@ Thumbs.db
 **/app/src/main/assets/model.onnx
 **/app/src/main/assets/tokenizer.json
 **/app/src/main/assets/*.litertlm
+**/.gradle-user-home-verify/
+**/.g/
+g/

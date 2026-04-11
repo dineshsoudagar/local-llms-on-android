@@ -19,7 +19,7 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 - 🧩 Custom `ModelConfig` for precision, prompt style, and KV cache  
 - 🧘‍♂️ **Thinking Mode** toggle (enabled in Qwen3) for step-by-step reasoning  
 - 🚀 Coroutine-based UI for smooth user experience.
-- 🔐 Runs 100% offline — no network, no telemetry  
+- 🔐 Runs 100% offline - no network, no telemetry  
 
 ---
 

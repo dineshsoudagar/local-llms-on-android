@@ -5,7 +5,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +20,8 @@ class PersistentChatController(
 ) {
 
     companion object {
-        private const val MARKDOWN_STREAM_INTERVAL = 60
+        // Roughly 10 tokens worth of text before live markdown rendering kicks in.
+        private const val MARKDOWN_STREAM_CHAR_THRESHOLD = 40
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -43,7 +43,8 @@ class PersistentChatController(
     private var generationJob: Job? = null
     private var streamingAssistantTurn: ChatTurn? = null
     private var thinkingEnabled = false
-    private var streamingUpdateCount = 0
+    private var liveMarkdownEnabled = false
+    private var currentGenerationId: Long = 0L
     private var currentSessionId: String? = null
     private var currentSessionCreatedAtMillis: Long = 0L
 
@@ -96,26 +97,43 @@ class PersistentChatController(
         committedTurns += ChatTurn(role = ChatRole.USER, text = prompt)
         persistCurrentSession()
 
-        streamingUpdateCount = 0
+        val generationId = currentGenerationId + 1L
+        currentGenerationId = generationId
+        liveMarkdownEnabled = false
         streamingAssistantTurn = ChatTurn(role = ChatRole.ASSISTANT, text = "")
         publishState(statusMessage = "", isGenerating = true)
 
         generationJob = scope.launch {
             try {
                 val response = withContext(Dispatchers.IO) {
-                    backend.streamReply(committedTurns.toList(), thinkingEnabled) { partial ->
-                        streamingUpdateCount += 1
-                        val shouldRenderMarkdown = streamingUpdateCount % MARKDOWN_STREAM_INTERVAL == 0
-                        scope.launch {
-                            streamingAssistantTurn = (streamingAssistantTurn
-                                ?: ChatTurn(role = ChatRole.ASSISTANT, text = "")).copy(
-                                text = partial.text,
-                                thinkingText = partial.thinkingText,
-                                renderAsMarkdown = shouldRenderMarkdown
-                            )
-                            publishState(isGenerating = true)
+                    backend.streamReply(
+                        committedTurns.toList(),
+                        thinkingEnabled,
+                        partialCallback@{ partial ->
+                            if (generationId != currentGenerationId) {
+                                return@partialCallback
+                            }
+
+                            liveMarkdownEnabled = liveMarkdownEnabled || shouldEnableLiveMarkdown(partial)
+                            scope.launch {
+                                if (generationId != currentGenerationId) {
+                                    return@launch
+                                }
+
+                                streamingAssistantTurn = (streamingAssistantTurn
+                                    ?: ChatTurn(role = ChatRole.ASSISTANT, text = "")).copy(
+                                    text = partial.text,
+                                    thinkingText = partial.thinkingText,
+                                    renderAsMarkdown = liveMarkdownEnabled
+                                )
+                                publishState(isGenerating = true)
+                            }
                         }
-                    }
+                    )
+                }
+
+                if (generationId != currentGenerationId) {
+                    return@launch
                 }
 
                 val finalAssistantTurn = (streamingAssistantTurn
@@ -131,16 +149,23 @@ class PersistentChatController(
                     persistCurrentSession()
                 }
 
+                currentGenerationId = 0L
                 streamingAssistantTurn = null
+                liveMarkdownEnabled = false
                 publishState(isGenerating = false)
             } catch (_: CancellationException) {
-                commitStoppedAssistantTurn()
-                withContext(NonCancellable + Dispatchers.IO) {
-                    backend.resetConversation(committedTurns.toList(), thinkingEnabled)
+                if (generationId == currentGenerationId) {
+                    currentGenerationId = 0L
                 }
+                commitStoppedAssistantTurn()
+                liveMarkdownEnabled = false
                 publishState(statusMessage = "Generation stopped.", isGenerating = false)
             } catch (e: Exception) {
+                if (generationId == currentGenerationId) {
+                    currentGenerationId = 0L
+                }
                 streamingAssistantTurn = null
+                liveMarkdownEnabled = false
                 publishState(
                     statusMessage = "Error: ${e.message ?: "Unknown error."}",
                     isGenerating = false
@@ -164,7 +189,8 @@ class PersistentChatController(
 
         committedTurns.clear()
         streamingAssistantTurn = null
-        streamingUpdateCount = 0
+        liveMarkdownEnabled = false
+        currentGenerationId = 0L
         currentSessionId = null
         currentSessionCreatedAtMillis = 0L
 
@@ -204,7 +230,8 @@ class PersistentChatController(
             committedTurns.clear()
             committedTurns += session.turns
             streamingAssistantTurn = null
-            streamingUpdateCount = 0
+            liveMarkdownEnabled = false
+            currentGenerationId = 0L
 
             try {
                 withContext(Dispatchers.IO) {
@@ -292,6 +319,13 @@ class PersistentChatController(
             persistCurrentSession()
         }
         streamingAssistantTurn = null
+        liveMarkdownEnabled = false
+        currentGenerationId = 0L
+    }
+
+    private fun shouldEnableLiveMarkdown(partial: BackendResponse): Boolean {
+        val combinedLength = partial.text.length + (partial.thinkingText?.length ?: 0)
+        return combinedLength >= MARKDOWN_STREAM_CHAR_THRESHOLD
     }
 
     private fun publishState(
