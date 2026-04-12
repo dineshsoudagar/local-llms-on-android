@@ -11,8 +11,6 @@ It supports both **ONNX-based Qwen models** and **Gemma 4 with the LiteRT backen
 - Added **Gemma 4** support with the **LiteRT backend**
 - Added persistent local chat history with automatic save/load
 - Added **Previous Chats** support to reopen and continue older sessions
-- Auto-restored the latest chat for the selected model at app launch
-- Added markdown rendering for assistant replies, including earlier live markdown rendering during streaming
 - Added built-in themes and chat font size settings
 - Refreshed the app with a more polished chat-style UI
 
@@ -29,16 +27,14 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 - 📱 Fully on-device LLM inference for privacy-first offline usage
 - 🧠 Supports **Qwen2.5**, **Qwen3**, and **Gemma 4**
-- ⚡ **Gemma 4 LiteRT backend** for fast local inference on supported Android devices
-- 🔤 Hugging Face-compatible BPE tokenizer support for Qwen models (`tokenizer.json`)
+- ⚡ **Gemma 4 LiteRT backend** for fast local inference.
+- 🔤 Hugging Face compatible BPE tokenizer support for Qwen models.
 - 🧩 Custom model configuration for prompt style, precision, KV cache, and backend setup
 - 🧘‍♂️ **Thinking Mode** support for **Qwen3**
 - 💬 Persistent multi-turn chat with connected conversations
 - 🕘 Automatic local save/load of chat history
 - 📂 Previous Chats support to reopen and continue older sessions
-- 🔄 Auto-restore of the latest chat for the selected model on app launch
 - 📝 Markdown rendering for assistant replies
-- 🔗 Selectable assistant replies with working links inside chat bubbles
 - 🎨 Multiple built-in themes
 - 🔠 Adjustable chat font size
 - 🛑 Stop-generation support with smoother chat interaction
