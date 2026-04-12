@@ -15,7 +15,6 @@ class OnnxChatBackend(
     private lateinit var tokenizer: BpeTokenizer
     private lateinit var config: ModelConfig
     private lateinit var promptBuilder: PromptBuilder
-    private lateinit var tokenDisplayMapper: TokenDisplayMapper
     private lateinit var onnxModel: OnnxModel
     private val cancelRequested = AtomicBoolean(false)
 
@@ -23,11 +22,6 @@ class OnnxChatBackend(
         tokenizer = BpeTokenizer(context, spec.tokenizerAssetName)
         config = spec.toModelConfig(tokenizer)
         promptBuilder = PromptBuilder(tokenizer, config)
-        tokenDisplayMapper = TokenDisplayMapper(
-            context = context,
-            modelName = spec.modelName,
-            assetFilename = spec.tokenDisplayMappingAssetName
-        )
 
         val modelFile = modelFileResolver.resolveAssetToFile(spec.modelAssetName)
         onnxModel = OnnxModel(modelFile, config)
@@ -48,6 +42,7 @@ class OnnxChatBackend(
         val systemPrompt = buildSystemPrompt(thinkingEnabled)
         val promptTokens = promptBuilder.buildPromptTokens(history, PromptIntent.QA(systemPrompt))
         val responseBuilder = StringBuilder()
+        val streamDecoder = tokenizer.createStreamDecoder()
         var tokenCounter = 0
 
         onnxModel.runInferenceStreamingWithPastKV(
@@ -55,11 +50,7 @@ class OnnxChatBackend(
             endTokenIds = config.eosTokenIds,
             shouldStop = { cancelRequested.get() || !coroutineIsActive() },
             onTokenGenerated = { tokenId ->
-                val tokenText = if (spec.modelName.startsWith("Qwen", ignoreCase = true)) {
-                    tokenDisplayMapper.map(tokenId)
-                } else {
-                    tokenizer.decodeSingleToken(tokenId)
-                }
+                val tokenText = streamDecoder.append(tokenId)
 
                 val shouldSkip = spec.modelName.equals("qwen3", ignoreCase = true) && tokenCounter < 4
                 if (!shouldSkip) {
@@ -69,6 +60,12 @@ class OnnxChatBackend(
                 tokenCounter += 1
             }
         )
+
+        val trailingText = streamDecoder.flush()
+        if (trailingText.isNotEmpty()) {
+            responseBuilder.append(trailingText)
+            onPartial(BackendResponse(responseBuilder.toString()))
+        }
 
         BackendResponse(text = responseBuilder.toString())
     }

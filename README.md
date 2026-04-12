@@ -81,7 +81,6 @@ For Qwen models, the app expects:
 
 - `model.onnx`
 - `tokenizer.json`
-- `qwen_token_display_mapping.json`
 
 ### Gemma model files
 
@@ -200,12 +199,13 @@ You can also convert a fine-tuned Qwen variant by pointing Optimum to your model
    app/src/main/assets/
    ```
 
+   You can place `model.onnx` and `tokenizer.json` directly in that folder or inside a single nested model folder.
+
 5. Add the files that match the model you selected:
 
    **For Qwen2.5 / Qwen3**
    - `model.onnx`
    - `tokenizer.json`
-   - `qwen_token_display_mapping.json`
 
    **For Gemma 4**
    - `gemma-4-E2B-it.litertlm`

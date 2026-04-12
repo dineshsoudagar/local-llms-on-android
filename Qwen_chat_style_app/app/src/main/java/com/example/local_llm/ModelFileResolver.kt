@@ -8,15 +8,24 @@ class ModelFileResolver(private val context: Context) {
 
     fun resolveAssetToFile(assetPath: String): File {
         val targetDir = File(context.filesDir, "models").apply { mkdirs() }
-        val targetFile = File(targetDir, assetPath.substringAfterLast('/'))
-        if (targetFile.exists() && targetFile.length() > 0L) {
+        val resolvedAssetPath = AssetLocator.resolvePath(context, assetPath)
+        val targetFile = File(targetDir, resolvedAssetPath.replace('/', '_'))
+        val packageLastUpdateTime = context.packageManager
+            .getPackageInfo(context.packageName, 0)
+            .lastUpdateTime
+
+        if (
+            targetFile.exists() &&
+            targetFile.length() > 0L &&
+            targetFile.lastModified() >= packageLastUpdateTime
+        ) {
             return targetFile
         }
 
         val tempFile = File(targetFile.absolutePath + ".tmp")
         tempFile.parentFile?.mkdirs()
 
-        context.assets.open(assetPath).use { input ->
+        context.assets.open(resolvedAssetPath).use { input ->
             FileOutputStream(tempFile).use { output ->
                 input.copyTo(output)
             }
@@ -28,6 +37,7 @@ class ModelFileResolver(private val context: Context) {
         check(tempFile.renameTo(targetFile)) {
             "Failed to move copied asset into place: ${targetFile.absolutePath}"
         }
+        targetFile.setLastModified(packageLastUpdateTime)
         return targetFile
     }
 }

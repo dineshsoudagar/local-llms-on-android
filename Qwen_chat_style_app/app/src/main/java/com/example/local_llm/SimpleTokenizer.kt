@@ -25,6 +25,48 @@ class BpeTokenizer(
 
     companion object {
         private const val TAG = "BpeTokenizer"
+        private val DEFAULT_SPLIT_PATTERN = Regex(
+            """'(?i:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+        )
+    }
+
+    inner class StreamDecoder {
+        private val pendingBytes = ArrayList<Byte>()
+
+        fun append(tokenId: Int): String {
+            val token = idToToken[tokenId]
+            if (token == null) {
+                val special = specialTokensById[tokenId]
+                val flushed = flushPending(force = true)
+                return flushed + (special ?: "<unk>")
+            }
+
+            pendingBytes.addAll(encodedToBytes(token).toList())
+            return flushPending(force = false)
+        }
+
+        fun flush(): String {
+            return flushPending(force = true)
+        }
+
+        private fun flushPending(force: Boolean): String {
+            if (pendingBytes.isEmpty()) return ""
+
+            val bytes = pendingBytes.toByteArray()
+            val completeLength = if (force) {
+                bytes.size
+            } else {
+                findCompleteUtf8PrefixLength(bytes)
+            }
+
+            if (completeLength <= 0) {
+                return ""
+            }
+
+            val decoded = bytes.copyOfRange(0, completeLength).toString(Charsets.UTF_8)
+            repeat(completeLength) { pendingBytes.removeAt(0) }
+            return if (nfcNormalize) Normalizer.normalize(decoded, Normalizer.Form.NFC) else decoded
+        }
     }
 
     init {
@@ -132,6 +174,8 @@ class BpeTokenizer(
         return decodedTokenCache[tokenId] ?: "<unk>"
     }
 
+    fun createStreamDecoder(): StreamDecoder = StreamDecoder()
+
     // Returns the token ID for a string (special tokens included)
     fun getTokenId(token: String): Int {
         return specialTokens[token]
@@ -181,27 +225,36 @@ class BpeTokenizer(
 
     // Loads the tokenizer.json file from the app's assets folder
     private fun loadTokenizerJson(): JSONObject {
-        Log.d(TAG, "Loading tokenizer from assets/$assetFilename")
-        val inputStream: InputStream = context.assets.open(assetFilename)
+        val resolvedAssetPath = AssetLocator.resolvePath(context, assetFilename)
+        Log.d(TAG, "Loading tokenizer from assets/$resolvedAssetPath")
+        val inputStream: InputStream = context.assets.open(resolvedAssetPath)
         val jsonStr = inputStream.bufferedReader().use { it.readText() }
         return JSONObject(jsonStr)
     }
 
     private fun loadSplitPattern(tokenizerJson: JSONObject): Regex {
-        val pretokenizers = tokenizerJson
-            .getJSONObject("pre_tokenizer")
-            .optJSONArray("pretokenizers")
-            ?: throw IllegalArgumentException("Tokenizer pre_tokenizer.pretokenizers not found.")
+        val preTokenizer = tokenizerJson.optJSONObject("pre_tokenizer")
+            ?: return DEFAULT_SPLIT_PATTERN
 
-        val splitRegex = (0 until pretokenizers.length())
-            .map { pretokenizers.getJSONObject(it) }
-            .firstOrNull { it.optString("type").equals("Split", ignoreCase = true) }
-            ?.getJSONObject("pattern")
-            ?.optString("Regex")
-            ?.takeIf { it.isNotBlank() }
-            ?: throw IllegalArgumentException("Tokenizer Split regex not found.")
+        val pretokenizers = preTokenizer.optJSONArray("pretokenizers")
+        val candidates = if (pretokenizers != null) {
+            (0 until pretokenizers.length()).mapNotNull { index ->
+                pretokenizers.optJSONObject(index)
+            }
+        } else {
+            listOf(preTokenizer)
+        }
 
-        return Regex(splitRegex)
+        val splitRegex = candidates.firstNotNullOfOrNull { candidate ->
+            candidate.takeIf { it.optString("type").equals("Split", ignoreCase = true) }
+                ?.optJSONObject("pattern")
+                ?.let { pattern ->
+                    pattern.optString("Regex").takeIf { it.isNotBlank() }
+                        ?: pattern.optString("String").takeIf { it.isNotBlank() }
+                }
+        }
+
+        return splitRegex?.let(::Regex) ?: DEFAULT_SPLIT_PATTERN
     }
 
     // Converts a JSON object of string→int mappings into a Kotlin map
@@ -223,16 +276,21 @@ class BpeTokenizer(
 
     private fun decodeByteLevelString(encoded: String): String {
         if (encoded.isEmpty()) return ""
+        val bytes = encodedToBytes(encoded)
+        return bytes.toString(Charsets.UTF_8)
+    }
+
+    private fun encodedToBytes(encoded: String): ByteArray {
         val bytes = ByteArray(encoded.length)
         encoded.forEachIndexed { index, symbol ->
             val value = unicodeToByte[symbol]
             if (value == null) {
                 Log.w(TAG, "Unknown byte-level symbol '$symbol' while decoding.")
-                return encoded
+                throw IllegalArgumentException("Unknown byte-level symbol '$symbol'.")
             }
             bytes[index] = value.toByte()
         }
-        return bytes.toString(Charsets.UTF_8)
+        return bytes
     }
 
     private fun buildByteToUnicodeMap(): Map<Int, Char> {
@@ -252,6 +310,38 @@ class BpeTokenizer(
         }
 
         return bytes.indices.associate { index -> bytes[index] to chars[index].toChar() }
+    }
+
+    private fun findCompleteUtf8PrefixLength(bytes: ByteArray): Int {
+        var index = 0
+
+        while (index < bytes.size) {
+            val firstByte = bytes[index].toInt() and 0xFF
+            val expectedLength = when {
+                firstByte and 0b1000_0000 == 0 -> 1
+                firstByte and 0b1110_0000 == 0b1100_0000 -> 2
+                firstByte and 0b1111_0000 == 0b1110_0000 -> 3
+                firstByte and 0b1111_1000 == 0b1111_0000 -> 4
+                else -> 1
+            }
+
+            if (index + expectedLength > bytes.size) {
+                break
+            }
+
+            var valid = true
+            for (offset in 1 until expectedLength) {
+                val nextByte = bytes[index + offset].toInt() and 0xFF
+                if (nextByte and 0b1100_0000 != 0b1000_0000) {
+                    valid = false
+                    break
+                }
+            }
+
+            index += if (valid) expectedLength else 1
+        }
+
+        return index
     }
 
     // Precomputed cache for fast single-token decoding
