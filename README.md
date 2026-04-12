@@ -2,15 +2,15 @@
 
 An Android application that brings local LLM chat to your phone — fully offline, private, and fast.
 
-It supports both **ONNX-based Qwen models** and **Gemma 4 with the LiteRT backend**, with streaming responses, persistent local chat history, previous chat restore, markdown-rendered replies, and a cleaner chat-first UI.
+It supports both **ONNX-based Qwen models** and **Gemma 4 with the LiteRT backend**, with streaming responses, persistent local chat history, manual previous chat reopen, markdown-rendered replies, and a cleaner chat-first UI.
 
 ---
 
 ## 🆕 New in v1.3.0
 
 - Added **Gemma 4** support with the **LiteRT backend**
-- Added persistent local chat history with automatic save/load
-- Added **Previous Chats** support to reopen and continue older sessions
+- Added persistent local chat history with automatic saving
+- Added **Previous Chats** support to reopen and continue older sessions on demand
 - Added built-in themes and chat font size settings
 - Refreshed the app with a more polished chat-style UI
 
@@ -32,8 +32,9 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 - 🧩 Custom model configuration for prompt style, precision, KV cache, and backend setup
 - 🧘‍♂️ **Thinking Mode** support for **Qwen3**
 - 💬 Persistent multi-turn chat with connected conversations
-- 🕘 Automatic local save/load of chat history
-- 📂 Previous Chats support to reopen and continue older sessions
+- 🕘 Automatic local saving of chat history
+- 📂 Previous Chats support to reopen and continue older sessions on demand
+- 🆕 Fresh chat session each time the model loads
 - 📝 Markdown rendering for assistant replies
 - 🎨 Multiple built-in themes
 - 🔠 Adjustable chat font size

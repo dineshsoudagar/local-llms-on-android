@@ -61,15 +61,11 @@ class PersistentChatController(
             try {
                 withContext(Dispatchers.IO) {
                     backend.initialize()
-                    restoreLatestSessionIfAvailable()
+                    resetConversationForFreshSession()
                 }
 
                 publishState(
-                    statusMessage = if (committedTurns.isEmpty()) {
-                        "Model is ready."
-                    } else {
-                        "Loaded your latest chat."
-                    },
+                    statusMessage = "Model is ready.",
                     isLoading = false,
                     isReady = true
                 )
@@ -187,12 +183,7 @@ class PersistentChatController(
             return
         }
 
-        committedTurns.clear()
-        streamingAssistantTurn = null
-        liveMarkdownEnabled = false
-        currentGenerationId = 0L
-        currentSessionId = null
-        currentSessionCreatedAtMillis = 0L
+        clearActiveChatState()
 
         scope.launch {
             try {
@@ -259,21 +250,18 @@ class PersistentChatController(
         scope.cancel()
     }
 
-    private suspend fun restoreLatestSessionIfAvailable() {
-        val latestSession = sessionStore.list()
-            .firstOrNull { it.modelId == modelDescriptor.id }
-            ?.let { sessionStore.load(it.sessionId) }
+    private suspend fun resetConversationForFreshSession() {
+        clearActiveChatState()
+        backend.resetConversation(emptyList(), thinkingEnabled)
+    }
 
-        if (latestSession == null) {
-            backend.resetConversation(emptyList(), thinkingEnabled)
-            return
-        }
-
-        currentSessionId = latestSession.sessionId
-        currentSessionCreatedAtMillis = latestSession.createdAtMillis
+    private fun clearActiveChatState() {
         committedTurns.clear()
-        committedTurns += latestSession.turns
-        backend.resetConversation(committedTurns.toList(), thinkingEnabled)
+        streamingAssistantTurn = null
+        liveMarkdownEnabled = false
+        currentGenerationId = 0L
+        currentSessionId = null
+        currentSessionCreatedAtMillis = 0L
     }
 
     private fun ensureActiveSession() {
