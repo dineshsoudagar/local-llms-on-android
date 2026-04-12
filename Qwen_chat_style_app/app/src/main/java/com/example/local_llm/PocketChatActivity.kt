@@ -31,8 +31,21 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var currentSettings: AppSettings
     private lateinit var chatController: PersistentChatController
     private lateinit var chatAdapter: ChatAdapter
+    private lateinit var chatRecyclerView: RecyclerView
     private lateinit var inputEditText: EditText
     private lateinit var toolbarSubtitleView: TextView
+    private var autoScrollDuringGeneration = false
+    private var autoScrollPendingFinalUpdate = false
+    private var wasGenerating = false
+    private val chatAdapterObserver = object : RecyclerView.AdapterDataObserver() {
+        override fun onChanged() = scrollChatToBottomIfNeeded()
+
+        override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = scrollChatToBottomIfNeeded()
+
+        override fun onItemRangeChanged(positionStart: Int, itemCount: Int) = scrollChatToBottomIfNeeded()
+
+        override fun onItemRangeChanged(positionStart: Int, itemCount: Int, payload: Any?) = scrollChatToBottomIfNeeded()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         settingsStore = AppSettingsStore(this)
@@ -49,7 +62,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val sendButton: Button = findViewById(R.id.sendButton)
         val stopButton: Button = findViewById(R.id.stopButton)
         val statusView: TextView = findViewById(R.id.statusView)
-        val chatRecyclerView: RecyclerView = findViewById(R.id.chatRecyclerView)
+        chatRecyclerView = findViewById(R.id.chatRecyclerView)
 
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
@@ -60,12 +73,34 @@ open class PocketChatActivity : AppCompatActivity() {
         chatRecyclerView.layoutManager = LinearLayoutManager(this)
         chatRecyclerView.adapter = chatAdapter
         chatRecyclerView.itemAnimator = null
+        chatAdapter.registerAdapterDataObserver(chatAdapterObserver)
         applyTypography(statusView, sendButton, stopButton)
 
         chatController = PersistentChatController(this, ModelRegistry.selected)
+        chatRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                super.onScrollStateChanged(recyclerView, newState)
+                if (newState == RecyclerView.SCROLL_STATE_DRAGGING && chatController.state.value.isGenerating) {
+                    autoScrollDuringGeneration = false
+                    autoScrollPendingFinalUpdate = false
+                }
+            }
+        })
 
         lifecycleScope.launch {
             chatController.state.collect { state ->
+                val generationStarted = state.isGenerating && !wasGenerating
+                val generationFinished = !state.isGenerating && wasGenerating
+
+                if (generationStarted) {
+                    autoScrollDuringGeneration = true
+                    autoScrollPendingFinalUpdate = false
+                }
+                if (generationFinished) {
+                    autoScrollPendingFinalUpdate = autoScrollDuringGeneration
+                    autoScrollDuringGeneration = false
+                }
+
                 title = state.title
                 toolbarSubtitleView.text = state.title.substringAfter("Pocket LLM - ", ModelRegistry.selected.displayName)
                 thinkingToggle.visibility = if (state.supportsThinking) View.VISIBLE else View.GONE
@@ -78,6 +113,7 @@ open class PocketChatActivity : AppCompatActivity() {
                 statusView.visibility = if (state.statusMessage.isBlank()) View.GONE else View.VISIBLE
 
                 chatAdapter.submitTurns(state.transcript)
+                wasGenerating = state.isGenerating
             }
         }
 
@@ -129,6 +165,9 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (::chatAdapter.isInitialized) {
+            chatAdapter.unregisterAdapterDataObserver(chatAdapterObserver)
+        }
         super.onDestroy()
         chatController.close()
     }
@@ -277,6 +316,28 @@ open class PocketChatActivity : AppCompatActivity() {
             }
         }.getOrNull()?.let { bitmap ->
             toolbarLogoView.setImageBitmap(bitmap)
+        }
+    }
+
+    private fun scrollChatToBottomIfNeeded() {
+        if (!autoScrollDuringGeneration && !autoScrollPendingFinalUpdate) {
+            return
+        }
+
+        // Keep streamed output anchored to the bottom until the user takes control.
+        chatRecyclerView.post {
+            if (!autoScrollDuringGeneration && !autoScrollPendingFinalUpdate) {
+                return@post
+            }
+
+            val lastPosition = chatAdapter.itemCount - 1
+            if (lastPosition >= 0) {
+                chatRecyclerView.scrollToPosition(lastPosition)
+            }
+
+            if (!autoScrollDuringGeneration) {
+                autoScrollPendingFinalUpdate = false
+            }
         }
     }
 }

@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Local LLM</string>
     <string name="toolbar_app_title">Pocket LLM</string>
-    <string name="enter_your_prompt">Message your local model</string>
+    <string name="enter_your_prompt">Type your message</string>
     <string name="send">Send</string>
     <string name="stop">Stop</string>
     <string name="delete">Delete</string>

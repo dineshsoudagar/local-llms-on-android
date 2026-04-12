@@ -6,7 +6,7 @@
         android:topLeftRadius="22dp"
         android:topRightRadius="22dp"
         android:bottomLeftRadius="22dp"
-        android:bottomRightRadius="8dp" />
+        android:bottomRightRadius="22dp" />
     <padding
         android:left="14dp"
         android:top="10dp"
