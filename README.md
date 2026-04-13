@@ -5,7 +5,9 @@ An Android application that brings local LLM chat to your phone — fully offlin
 It supports both **ONNX-based Qwen models** and **Gemma 4 with the LiteRT backend**, with streaming responses, persistent local chat history, manual previous chat reopen, markdown-rendered replies, and a cleaner chat-first UI.
 
 ---
+
 [![Total APK downloads](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/total?logo=github&label=Total%20APK%20downloads)](https://github.com/dineshsoudagar/local-llms-on-android/releases)
+
 ---
 
 ## 🆕 New in v1.3.0
