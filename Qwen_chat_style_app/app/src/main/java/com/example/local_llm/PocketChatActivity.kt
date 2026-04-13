@@ -110,7 +110,9 @@ open class PocketChatActivity : AppCompatActivity() {
                 stopButton.isEnabled = state.isGenerating
 
                 statusView.text = state.statusMessage
-                statusView.visibility = if (state.statusMessage.isBlank()) View.GONE else View.VISIBLE
+                val showInlineStatus = state.statusMessage.isNotBlank() &&
+                    (state.transcript.isEmpty() || !state.isReady)
+                statusView.visibility = if (showInlineStatus) View.VISIBLE else View.GONE
 
                 chatAdapter.submitTurns(state.transcript)
                 wasGenerating = state.isGenerating

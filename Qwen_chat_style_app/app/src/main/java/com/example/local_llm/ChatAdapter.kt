@@ -17,6 +17,11 @@ class ChatAdapter(
     private var fontSizeSp: Float = 16f
 ) : ListAdapter<ChatTurn, ChatAdapter.MessageViewHolder>(DiffCallback) {
 
+    companion object {
+        private val STEP_PREFIX_REGEX = Regex("(?m)^\\s*(?:Step\\s*)?\\d+[.)]\\s*")
+        private val BOLD_STEP_HEADING_REGEX = Regex("^\\s*\\*\\*[^*\\n]{1,80}\\*\\*:\\s*")
+    }
+
     fun submitTurns(turns: List<ChatTurn>) {
         submitList(turns.toList())
     }
@@ -69,7 +74,9 @@ class ChatAdapter(
             return null
         }
 
-        return turn.thinkingText?.trimEnd()?.takeIf { it.isNotBlank() }
+        return turn.thinkingText
+            ?.let(::extractCurrentThoughtStep)
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun buildBubbleText(turn: ChatTurn): String {
@@ -89,6 +96,30 @@ class ChatAdapter(
                 append("_Generation stopped_")
             }
         }
+    }
+
+    private fun extractCurrentThoughtStep(rawThought: String): String {
+        val normalizedThought = rawThought
+            .replace("\r\n", "\n")
+            .lineSequence()
+            .filterNot { line -> line.trim().equals("Thinking Process:", ignoreCase = true) }
+            .joinToString("\n")
+            .trim()
+
+        if (normalizedThought.isBlank()) {
+            return ""
+        }
+
+        val currentStep = STEP_PREFIX_REGEX.findAll(normalizedThought)
+            .lastOrNull()
+            ?.let { match -> normalizedThought.substring(match.range.first) }
+            ?: normalizedThought
+
+        return currentStep
+            .replaceFirst(STEP_PREFIX_REGEX, "")
+            .replaceFirst(BOLD_STEP_HEADING_REGEX, "")
+            .replace("**", "")
+            .trim()
     }
 
     class MessageViewHolder(view: View, val markwon: Markwon) : RecyclerView.ViewHolder(view) {

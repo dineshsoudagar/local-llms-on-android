@@ -56,7 +56,7 @@ object ModelRegistry {
     private const val TOKENIZER_ASSET = "tokenizer.json"
     private const val QWEN_MODEL_ASSET = "model.onnx"
     private const val QWEN_DISPLAY_MAPPING_ASSET = "qwen_token_display_mapping.json"
-    private const val QWEN_LITERT_MODEL_ASSET = "qwen3.litertlm"
+    private const val QWEN_LITERT_MODEL_ASSET = "Qwen3-0.6B.litertlm"
     private const val GEMMA_MODEL_ASSET = "gemma-4-E2B-it.litertlm"
     private const val GEMMA_E4B_MODEL_ASSET = "gemma-4-E4B-it.litertlm"
 
@@ -117,7 +117,7 @@ object ModelRegistry {
 
     private val models = listOf(qwen25, qwen3, qwen3LiteRt, gemma4E2B, gemma4E4B)
 
-    private const val SELECTED_MODEL_ID = "gemma4_e2b"
+    private const val SELECTED_MODEL_ID = "qwen3_litert"
 
     val selected: ModelDescriptor = models.first { it.id == SELECTED_MODEL_ID }
 }

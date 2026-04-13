@@ -65,34 +65,16 @@
         </LinearLayout>
     </com.google.android.material.appbar.MaterialToolbar>
 
-    <TextView
-        android:id="@+id/statusView"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="4dp"
-        android:layout_marginTop="10dp"
-        android:layout_marginEnd="4dp"
-        android:background="@drawable/bg_status_chip"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="10dp"
-        android:textColor="?attr/colorStatusText"
-        android:textSize="14sp"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/topToolbar"
-        tools:text="Model is ready." />
-
     <FrameLayout
         android:id="@+id/chatFrame"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="10dp"
         android:background="@drawable/bg_chat_surface"
         app:layout_constraintBottom_toTopOf="@id/thinkingToggle"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/statusView">
+        app:layout_constraintTop_toBottomOf="@id/topToolbar">
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/chatRecyclerView"
@@ -101,14 +83,30 @@
             android:clipToPadding="false"
             android:overScrollMode="always"
             android:padding="10dp" />
+
+        <TextView
+            android:id="@+id/statusView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:paddingHorizontal="20dp"
+            android:textColor="?attr/colorStatusText"
+            android:textSize="14sp"
+            android:visibility="gone"
+            tools:text="Model is ready." />
     </FrameLayout>
 
     <CheckBox
         android:id="@+id/thinkingToggle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="2dp"
         android:checked="false"
+        android:minHeight="0dp"
+        android:minWidth="0dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
         android:paddingHorizontal="6dp"
         android:text="@string/enable_thinking_mode"
         android:textColor="?attr/colorStatusText"
@@ -123,7 +121,7 @@
         android:id="@+id/inputRow"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="2dp"
         android:layout_marginBottom="4dp"
         android:background="@drawable/bg_input_panel"
         android:gravity="bottom"
