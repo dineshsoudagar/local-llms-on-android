@@ -3,9 +3,22 @@
     android:id="@+id/messageContainer"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:gravity="start"
+    android:orientation="vertical"
     android:paddingHorizontal="4dp"
-    android:paddingVertical="5dp"
-    android:orientation="horizontal">
+    android:paddingVertical="5dp">
+
+    <TextView
+        android:id="@+id/thoughtView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="6dp"
+        android:lineSpacingExtra="4dp"
+        android:paddingHorizontal="12dp"
+        android:textColor="?attr/colorStatusText"
+        android:textIsSelectable="true"
+        android:textSize="15sp"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/messageText"

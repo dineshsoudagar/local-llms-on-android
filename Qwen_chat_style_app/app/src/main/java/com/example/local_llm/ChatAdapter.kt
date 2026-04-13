@@ -36,57 +36,64 @@ class ChatAdapter(
         val turn = getItem(position)
         val bubbleBackground = if (turn.isUser) R.drawable.bg_bubble_user else R.drawable.bg_bubble_bot
         val textColorAttr = if (turn.isUser) R.attr.colorUserText else R.attr.colorAssistantText
-        val layoutParams = holder.textView.layoutParams as LinearLayout.LayoutParams
+        val messageLayoutParams = holder.textView.layoutParams as LinearLayout.LayoutParams
+        val thoughtLayoutParams = holder.thoughtView.layoutParams as LinearLayout.LayoutParams
 
         holder.textView.setBackgroundResource(bubbleBackground)
         holder.textView.setTextColor(resolveThemeColor(holder.textView, textColorAttr))
         holder.textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp)
+        holder.thoughtView.setTextColor(resolveThemeColor(holder.thoughtView, R.attr.colorStatusText))
+        holder.thoughtView.setTextSize(TypedValue.COMPLEX_UNIT_SP, (fontSizeSp - 1f).coerceAtLeast(12f))
         holder.container.gravity = if (turn.isUser) Gravity.END else Gravity.START
-        layoutParams.width = if (turn.isUser) ViewGroup.LayoutParams.WRAP_CONTENT else ViewGroup.LayoutParams.MATCH_PARENT
-        holder.textView.layoutParams = layoutParams
+        messageLayoutParams.width = if (turn.isUser) ViewGroup.LayoutParams.WRAP_CONTENT else ViewGroup.LayoutParams.MATCH_PARENT
+        thoughtLayoutParams.width = ViewGroup.LayoutParams.MATCH_PARENT
+        holder.textView.layoutParams = messageLayoutParams
+        holder.thoughtView.layoutParams = thoughtLayoutParams
 
-        val displayText = buildDisplayText(turn)
-        if (!turn.isUser && turn.renderAsMarkdown) {
-            holder.markwon.setMarkdown(holder.textView, displayText)
+        val thoughtText = buildThoughtText(turn)
+        holder.thoughtView.visibility = if (thoughtText.isNullOrBlank()) View.GONE else View.VISIBLE
+        holder.thoughtView.text = thoughtText
+
+        val bubbleText = buildBubbleText(turn)
+        holder.textView.visibility = if (bubbleText.isBlank()) View.GONE else View.VISIBLE
+        if (holder.textView.visibility == View.VISIBLE && !turn.isUser && turn.renderAsMarkdown) {
+            holder.markwon.setMarkdown(holder.textView, bubbleText)
             holder.textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp)
         } else {
-            holder.textView.text = displayText
+            holder.textView.text = bubbleText
         }
     }
 
-    private fun buildDisplayText(turn: ChatTurn): String {
+    private fun buildThoughtText(turn: ChatTurn): String? {
+        if (turn.isUser || turn.text.isNotBlank()) {
+            return null
+        }
+
+        return turn.thinkingText?.trimEnd()?.takeIf { it.isNotBlank() }
+    }
+
+    private fun buildBubbleText(turn: ChatTurn): String {
         if (turn.isUser) {
             return turn.text
         }
 
         return buildString {
-            if (!turn.thinkingText.isNullOrBlank()) {
-                append("**Thinking**\n")
-                append(turn.thinkingText.trimEnd())
-            }
-
             if (turn.text.isNotBlank()) {
-                if (isNotEmpty()) {
-                    append("\n\n")
-                }
                 append(turn.text.trimEnd())
             }
 
-            if (turn.stopped) {
+            if (turn.stopped && turn.text.isNotBlank()) {
                 if (isNotEmpty()) {
                     append("\n\n")
                 }
                 append("_Generation stopped_")
-            }
-
-            if (isEmpty()) {
-                append("Thinking...")
             }
         }
     }
 
     class MessageViewHolder(view: View, val markwon: Markwon) : RecyclerView.ViewHolder(view) {
         val container: LinearLayout = view.findViewById(R.id.messageContainer)
+        val thoughtView: TextView = view.findViewById(R.id.thoughtView)
         val textView: TextView = view.findViewById(R.id.messageText)
 
         init {

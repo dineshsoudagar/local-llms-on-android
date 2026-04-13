@@ -12,9 +12,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 
-class GemmaLiteRtBackend(
+class QwenLiteRtBackend(
     private val context: Context,
-    private val spec: GemmaLiteRtSpec,
+    private val spec: QwenLiteRtSpec,
     private val modelFileResolver: ModelFileResolver
 ) : ChatBackend {
 
@@ -66,7 +66,7 @@ class GemmaLiteRtBackend(
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse = withContext(Dispatchers.IO) {
         require(history.isNotEmpty() && history.last().role == ChatRole.USER) {
-            "Gemma backend expects the final history turn to be the user's prompt."
+            "Qwen LiteRT backend expects the final history turn to be the user's prompt."
         }
 
         val initialHistory = history.dropLast(1)
@@ -132,11 +132,8 @@ class GemmaLiteRtBackend(
     }
 
     private fun buildSystemInstruction(thinkingEnabled: Boolean): String {
-        return if (thinkingEnabled) {
-            "<|think|>\n${spec.defaultSystemInstruction}"
-        } else {
-            spec.defaultSystemInstruction
-        }
+        val thinkingDirective = if (thinkingEnabled) "/think" else "/no_think"
+        return "${spec.defaultSystemInstruction} $thinkingDirective".trim()
     }
 
     private fun closeConversation() {

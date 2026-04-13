@@ -43,6 +43,7 @@ class ChatController(
         backend = when (modelDescriptor) {
             is OnnxQwenSpec -> OnnxChatBackend(appContext, modelDescriptor, modelFileResolver)
             is GemmaLiteRtSpec -> GemmaLiteRtBackend(appContext, modelDescriptor, modelFileResolver)
+            is QwenLiteRtSpec -> QwenLiteRtBackend(appContext, modelDescriptor, modelFileResolver)
         }
     }
 
@@ -90,7 +91,7 @@ class ChatController(
                             streamingAssistantTurn = ChatTurn(
                                 role = ChatRole.ASSISTANT,
                                 text = partial.text,
-                                thinkingText = partial.thinkingText
+                                thinkingText = partial.thinkingText.takeIf { partial.text.isBlank() }
                             )
                             publishState(isGenerating = true)
                         }
@@ -100,9 +101,9 @@ class ChatController(
                 val finalTurn = ChatTurn(
                     role = ChatRole.ASSISTANT,
                     text = response.text,
-                    thinkingText = response.thinkingText
+                    thinkingText = null
                 )
-                if (finalTurn.text.isNotBlank() || !finalTurn.thinkingText.isNullOrBlank()) {
+                if (finalTurn.text.isNotBlank()) {
                     committedTurns += finalTurn
                 }
                 streamingAssistantTurn = null
@@ -158,8 +159,11 @@ class ChatController(
 
     private fun commitStoppedAssistantTurn() {
         val partialTurn = streamingAssistantTurn
-        if (partialTurn != null && (partialTurn.text.isNotBlank() || !partialTurn.thinkingText.isNullOrBlank())) {
-            committedTurns += partialTurn.copy(stopped = true)
+        if (partialTurn != null && partialTurn.text.isNotBlank()) {
+            committedTurns += partialTurn.copy(
+                thinkingText = null,
+                stopped = true
+            )
         }
         streamingAssistantTurn = null
     }

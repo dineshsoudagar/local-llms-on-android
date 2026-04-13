@@ -53,6 +53,7 @@ class PersistentChatController(
         backend = when (modelDescriptor) {
             is OnnxQwenSpec -> OnnxChatBackend(appContext, modelDescriptor, modelFileResolver)
             is GemmaLiteRtSpec -> GemmaLiteRtBackend(appContext, modelDescriptor, modelFileResolver)
+            is QwenLiteRtSpec -> QwenLiteRtBackend(appContext, modelDescriptor, modelFileResolver)
         }
     }
 
@@ -119,7 +120,7 @@ class PersistentChatController(
                                 streamingAssistantTurn = (streamingAssistantTurn
                                     ?: ChatTurn(role = ChatRole.ASSISTANT, text = "")).copy(
                                     text = partial.text,
-                                    thinkingText = partial.thinkingText,
+                                    thinkingText = partial.thinkingText.takeIf { partial.text.isBlank() },
                                     renderAsMarkdown = liveMarkdownEnabled
                                 )
                                 publishState(isGenerating = true)
@@ -135,12 +136,12 @@ class PersistentChatController(
                 val finalAssistantTurn = (streamingAssistantTurn
                     ?: ChatTurn(role = ChatRole.ASSISTANT, text = response.text)).copy(
                     text = response.text,
-                    thinkingText = response.thinkingText,
+                    thinkingText = null,
                     stopped = false,
                     renderAsMarkdown = true
                 )
 
-                if (finalAssistantTurn.text.isNotBlank() || !finalAssistantTurn.thinkingText.isNullOrBlank()) {
+                if (finalAssistantTurn.text.isNotBlank()) {
                     committedTurns += finalAssistantTurn
                     persistCurrentSession()
                 }
@@ -308,8 +309,9 @@ class PersistentChatController(
 
     private fun commitStoppedAssistantTurn() {
         val partialTurn = streamingAssistantTurn
-        if (partialTurn != null && (partialTurn.text.isNotBlank() || !partialTurn.thinkingText.isNullOrBlank())) {
+        if (partialTurn != null && partialTurn.text.isNotBlank()) {
             committedTurns += partialTurn.copy(
+                thinkingText = null,
                 stopped = true,
                 renderAsMarkdown = true
             )
@@ -321,8 +323,7 @@ class PersistentChatController(
     }
 
     private fun shouldEnableLiveMarkdown(partial: BackendResponse): Boolean {
-        val combinedLength = partial.text.length + (partial.thinkingText?.length ?: 0)
-        return combinedLength >= MARKDOWN_STREAM_CHAR_THRESHOLD
+        return partial.text.length >= MARKDOWN_STREAM_CHAR_THRESHOLD
     }
 
     private fun publishState(

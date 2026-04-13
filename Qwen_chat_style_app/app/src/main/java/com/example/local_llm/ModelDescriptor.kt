@@ -40,10 +40,23 @@ data class GemmaLiteRtSpec(
     supportsThinking = thinkingModeAvailable
 )
 
+data class QwenLiteRtSpec(
+    val modelName: String,
+    val modelAssetName: String,
+    val defaultSystemInstruction: String,
+    val displayNameOverride: String = modelName,
+    val thinkingModeAvailable: Boolean = false
+) : ModelDescriptor(
+    id = modelName.lowercase(),
+    displayName = displayNameOverride,
+    supportsThinking = thinkingModeAvailable
+)
+
 object ModelRegistry {
     private const val TOKENIZER_ASSET = "tokenizer.json"
     private const val QWEN_MODEL_ASSET = "model.onnx"
     private const val QWEN_DISPLAY_MAPPING_ASSET = "qwen_token_display_mapping.json"
+    private const val QWEN_LITERT_MODEL_ASSET = "qwen3.litertlm"
     private const val GEMMA_MODEL_ASSET = "gemma-4-E2B-it.litertlm"
     private const val GEMMA_E4B_MODEL_ASSET = "gemma-4-E4B-it.litertlm"
 
@@ -78,12 +91,20 @@ object ModelRegistry {
         thinkingModeAvailable = true
     )
 
+    val qwen3LiteRt = QwenLiteRtSpec(
+        modelName = "Qwen3_LiteRT",
+        modelAssetName = QWEN_LITERT_MODEL_ASSET,
+        defaultSystemInstruction = "You are Qwen. a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
+        displayNameOverride = "Qwen3 LiteRT",
+        thinkingModeAvailable = true
+    )
+
     val gemma4E2B = GemmaLiteRtSpec(
         modelName = "Gemma4_E2B",
         modelAssetName = GEMMA_MODEL_ASSET,
         defaultSystemInstruction = "You are Gemma, a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
         displayNameOverride = "Gemma4",
-        thinkingModeAvailable = false
+        thinkingModeAvailable = true
     )
 
     val gemma4E4B = GemmaLiteRtSpec(
@@ -91,10 +112,10 @@ object ModelRegistry {
         modelAssetName = GEMMA_E4B_MODEL_ASSET,
         defaultSystemInstruction = "You are Gemma, a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
         displayNameOverride = "Gemma4",
-        thinkingModeAvailable = false
+        thinkingModeAvailable = true
     )
 
-    private val models = listOf(qwen25, qwen3, gemma4E2B, gemma4E4B)
+    private val models = listOf(qwen25, qwen3, qwen3LiteRt, gemma4E2B, gemma4E4B)
 
     private const val SELECTED_MODEL_ID = "gemma4_e2b"
 
