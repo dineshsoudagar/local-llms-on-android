@@ -65,8 +65,8 @@ This app supports both **ONNX-based Qwen models** and **Gemma 4 via LiteRT**.
 
 - **Qwen2.5-0.5B-Instruct**
 - **Qwen3-0.6B**
-- **Gemma 4 E2B** 
-- **Gemma 4 E4B**
+- **Gemma4-E2B** 
+- **Gemma4-E4B**
 
 ### Backend overview
 
@@ -142,8 +142,7 @@ to one of:
 ### Notes
 
 - The app title uses the selected model display name
-- **Thinking Mode** is available for **Qwen3**
-- **Gemma 4** is displayed as **Gemma4** in the UI
+- **Thinking Mode** is available for **Qwen3** and **Gemma4**
 
 ---
 
@@ -160,9 +159,9 @@ Download the ONNX model files from Hugging Face:
 
 Use the Gemma 4 E2B LiteRT model file:
 
-- [gemma-4-E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/tree/main)
-- [gemma-4-E2B](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/tree/main)
-- [qwen3-0.6B](https://huggingface.co/litert-community/Qwen3-0.6B/tree/main)
+- [Gemma4-E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/tree/main)
+- [Gemma4-E2B](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/tree/main)
+- [Qwen3-0.6B](https://huggingface.co/litert-community/Qwen3-0.6B/tree/main)
 
 ### Option 3: Convert a Qwen model yourself
 
