@@ -45,6 +45,7 @@ object ModelRegistry {
     private const val QWEN_MODEL_ASSET = "model.onnx"
     private const val QWEN_DISPLAY_MAPPING_ASSET = "qwen_token_display_mapping.json"
     private const val GEMMA_MODEL_ASSET = "gemma-4-E2B-it.litertlm"
+    private const val GEMMA_E4B_MODEL_ASSET = "gemma-4-E4B-it.litertlm"
 
     val qwen25 = OnnxQwenSpec(
         modelName = "Qwen2_5",
@@ -71,7 +72,7 @@ object ModelRegistry {
         numKvHeads = 8,
         headDim = 128,
         batchSize = 1,
-        defaultSystemPrompt = "You are Qwen. You are a helpful assistant",
+        defaultSystemPrompt = "You are Qwen. a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
         scalarPosId = true,
         dtype = "float16",
         thinkingModeAvailable = true
@@ -80,12 +81,20 @@ object ModelRegistry {
     val gemma4E2B = GemmaLiteRtSpec(
         modelName = "Gemma4_E2B",
         modelAssetName = GEMMA_MODEL_ASSET,
-        defaultSystemInstruction = "You are Gemma, a helpful assistant.",
+        defaultSystemInstruction = "You are Gemma, a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
         displayNameOverride = "Gemma4",
         thinkingModeAvailable = false
     )
 
-    private val models = listOf(qwen25, qwen3, gemma4E2B)
+    val gemma4E4B = GemmaLiteRtSpec(
+        modelName = "Gemma4_E4B",
+        modelAssetName = GEMMA_E4B_MODEL_ASSET,
+        defaultSystemInstruction = "You are Gemma, a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
+        displayNameOverride = "Gemma4",
+        thinkingModeAvailable = false
+    )
+
+    private val models = listOf(qwen25, qwen3, gemma4E2B, gemma4E4B)
 
     private const val SELECTED_MODEL_ID = "gemma4_e2b"
 
