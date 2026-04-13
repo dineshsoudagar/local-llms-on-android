@@ -57,6 +57,7 @@ dependencies {
     implementation (libs.json.json)
     implementation("androidx.constraintlayout:constraintlayout:2.2.1")
     implementation("io.noties.markwon:core:4.6.2")
+    implementation("io.noties.markwon:ext-tables:4.6.2")
     implementation("androidx.recyclerview:recyclerview:1.4.0")
     implementation ("com.google.android.material:material:1.12.0")
     implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")

@@ -12,6 +12,8 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import io.noties.markwon.Markwon
+import io.noties.markwon.ext.tables.TableAwareMovementMethod
+import io.noties.markwon.ext.tables.TablePlugin
 
 class ChatAdapter(
     private var fontSizeSp: Float = 16f
@@ -34,7 +36,12 @@ class ChatAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_message, parent, false)
-        return MessageViewHolder(view, Markwon.create(parent.context))
+        return MessageViewHolder(
+            view,
+            Markwon.builder(parent.context)
+                .usePlugin(TablePlugin.create(parent.context))
+                .build()
+        )
     }
 
     override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
@@ -77,6 +84,15 @@ class ChatAdapter(
         return turn.thinkingText
             ?.let(::extractCurrentThoughtStep)
             ?.takeIf { it.isNotBlank() }
+            ?.let { stepText ->
+                buildString {
+                    append("Thinking...")
+                    if (stepText.isNotBlank()) {
+                        append("\n")
+                        append(stepText)
+                    }
+                }
+            }
     }
 
     private fun buildBubbleText(turn: ChatTurn): String {
@@ -128,7 +144,11 @@ class ChatAdapter(
         val textView: TextView = view.findViewById(R.id.messageText)
 
         init {
-            textView.movementMethod = LinkMovementMethod.getInstance()
+            textView.movementMethod = runCatching {
+                TableAwareMovementMethod.create()
+            }.getOrElse {
+                LinkMovementMethod.getInstance()
+            }
         }
     }
 

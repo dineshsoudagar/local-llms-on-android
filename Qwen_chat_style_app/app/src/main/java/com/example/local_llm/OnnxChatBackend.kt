@@ -38,6 +38,7 @@ class OnnxChatBackend(
     ): BackendResponse = withContext(Dispatchers.IO) {
         cancelRequested.set(false)
         val coroutineIsActive = { isActive }
+        val isQwen3 = spec.modelName.equals("qwen3", ignoreCase = true)
 
         val systemPrompt = buildSystemPrompt(thinkingEnabled)
         val promptTokens = promptBuilder.buildPromptTokens(history, PromptIntent.QA(systemPrompt))
@@ -52,10 +53,10 @@ class OnnxChatBackend(
             onTokenGenerated = { tokenId ->
                 val tokenText = streamDecoder.append(tokenId)
 
-                val shouldSkip = spec.modelName.equals("qwen3", ignoreCase = true) && tokenCounter < 4
+                val shouldSkip = isQwen3 && tokenCounter < 4
                 if (!shouldSkip) {
                     responseBuilder.append(tokenText)
-                    onPartial(BackendResponse(responseBuilder.toString()))
+                    onPartial(parseBackendResponse(responseBuilder.toString(), isQwen3))
                 }
                 tokenCounter += 1
             }
@@ -64,10 +65,10 @@ class OnnxChatBackend(
         val trailingText = streamDecoder.flush()
         if (trailingText.isNotEmpty()) {
             responseBuilder.append(trailingText)
-            onPartial(BackendResponse(responseBuilder.toString()))
+            onPartial(parseBackendResponse(responseBuilder.toString(), isQwen3))
         }
 
-        BackendResponse(text = responseBuilder.toString())
+        parseBackendResponse(responseBuilder.toString(), isQwen3)
     }
 
     override fun cancelGeneration() {
@@ -87,6 +88,14 @@ class OnnxChatBackend(
 
         val thinkingDirective = if (thinkingEnabled) "/think" else "/no_think"
         return "${spec.defaultSystemPrompt} $thinkingDirective".trim()
+    }
+
+    private fun parseBackendResponse(rawOutput: String, isQwen3: Boolean): BackendResponse {
+        return if (isQwen3) {
+            QwenResponseParser.parseVisibleResponse(rawOutput)
+        } else {
+            BackendResponse(text = rawOutput)
+        }
     }
 
     private fun OnnxQwenSpec.toModelConfig(tokenizer: BpeTokenizer): ModelConfig {

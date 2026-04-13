@@ -26,8 +26,8 @@
         <LinearLayout
             android:id="@+id/toolbarBranding"
             android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:layout_gravity="start|center_vertical"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -35,6 +35,7 @@
                 android:id="@+id/toolbarLogo"
                 android:layout_width="38dp"
                 android:layout_height="38dp"
+                android:layout_gravity="center_vertical"
                 android:contentDescription="@string/toolbar_app_title"
                 tools:ignore="ContentDescription" />
 
@@ -42,12 +43,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
+                android:gravity="center_vertical"
                 android:orientation="vertical">
 
                 <TextView
                     android:id="@+id/toolbarTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
                     android:text="@string/toolbar_app_title"
                     android:textColor="?attr/colorAssistantText"
                     android:textSize="21sp"
@@ -57,7 +60,7 @@
                     android:id="@+id/toolbarSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="1dp"
+                    android:includeFontPadding="false"
                     android:textColor="?attr/colorStatusText"
                     android:textSize="12sp"
                     tools:text="Gemma4" />

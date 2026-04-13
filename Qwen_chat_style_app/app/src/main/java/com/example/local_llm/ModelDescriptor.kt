@@ -117,7 +117,7 @@ object ModelRegistry {
 
     private val models = listOf(qwen25, qwen3, qwen3LiteRt, gemma4E2B, gemma4E4B)
 
-    private const val SELECTED_MODEL_ID = "qwen3_litert"
+    private const val SELECTED_MODEL_ID = "gemma4_e2b"
 
     val selected: ModelDescriptor = models.first { it.id == SELECTED_MODEL_ID }
 }
