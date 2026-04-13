@@ -22,6 +22,9 @@ class PersistentChatController(
     companion object {
         // Roughly 10 tokens worth of text before live markdown rendering kicks in.
         private const val MARKDOWN_STREAM_CHAR_THRESHOLD = 40
+        private const val TABLE_MARKDOWN_UPDATE_WORD_STEP = 50
+        private const val TABLE_MARKDOWN_UPDATE_CHAR_STEP = 220
+        private val TABLE_SEPARATOR_REGEX = Regex("^\\|?(?:\\s*:?-{3,}:?\\s*\\|)+\\s*:?-{3,}:?\\s*\\|?$")
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -47,6 +50,8 @@ class PersistentChatController(
     private var currentGenerationId: Long = 0L
     private var currentSessionId: String? = null
     private var currentSessionCreatedAtMillis: Long = 0L
+    private var lastPublishedMarkdownWordCount: Int = 0
+    private var lastPublishedMarkdownTextLength: Int = 0
 
     init {
         val modelFileResolver = ModelFileResolver(appContext)
@@ -84,6 +89,10 @@ class PersistentChatController(
         thinkingEnabled = enabled
     }
 
+    fun isThinkingEnabled(): Boolean {
+        return thinkingEnabled
+    }
+
     fun sendPrompt(text: String) {
         val prompt = text.trim()
         if (prompt.isEmpty() || generationJob != null || !_state.value.isReady) {
@@ -97,6 +106,8 @@ class PersistentChatController(
         val generationId = currentGenerationId + 1L
         currentGenerationId = generationId
         liveMarkdownEnabled = false
+        lastPublishedMarkdownWordCount = 0
+        lastPublishedMarkdownTextLength = 0
         streamingAssistantTurn = ChatTurn(role = ChatRole.ASSISTANT, text = "")
         publishState(statusMessage = "", isGenerating = true)
 
@@ -112,6 +123,9 @@ class PersistentChatController(
                             }
 
                             liveMarkdownEnabled = liveMarkdownEnabled || shouldEnableLiveMarkdown(partial)
+                            if (!shouldPublishStreamingUpdate(partial)) {
+                                return@partialCallback
+                            }
                             scope.launch {
                                 if (generationId != currentGenerationId) {
                                     return@launch
@@ -149,6 +163,8 @@ class PersistentChatController(
                 currentGenerationId = 0L
                 streamingAssistantTurn = null
                 liveMarkdownEnabled = false
+                lastPublishedMarkdownWordCount = 0
+                lastPublishedMarkdownTextLength = 0
                 publishState(isGenerating = false)
             } catch (_: CancellationException) {
                 if (generationId == currentGenerationId) {
@@ -156,6 +172,8 @@ class PersistentChatController(
                 }
                 commitStoppedAssistantTurn()
                 liveMarkdownEnabled = false
+                lastPublishedMarkdownWordCount = 0
+                lastPublishedMarkdownTextLength = 0
                 publishState(statusMessage = "Generation stopped.", isGenerating = false)
             } catch (e: Exception) {
                 if (generationId == currentGenerationId) {
@@ -163,6 +181,8 @@ class PersistentChatController(
                 }
                 streamingAssistantTurn = null
                 liveMarkdownEnabled = false
+                lastPublishedMarkdownWordCount = 0
+                lastPublishedMarkdownTextLength = 0
                 publishState(
                     statusMessage = "Error: ${e.message ?: "Unknown error."}",
                     isGenerating = false
@@ -233,6 +253,8 @@ class PersistentChatController(
             streamingAssistantTurn = null
             liveMarkdownEnabled = false
             currentGenerationId = 0L
+            lastPublishedMarkdownWordCount = 0
+            lastPublishedMarkdownTextLength = 0
 
             try {
                 withContext(Dispatchers.IO) {
@@ -263,6 +285,8 @@ class PersistentChatController(
         currentGenerationId = 0L
         currentSessionId = null
         currentSessionCreatedAtMillis = 0L
+        lastPublishedMarkdownWordCount = 0
+        lastPublishedMarkdownTextLength = 0
     }
 
     private fun ensureActiveSession() {
@@ -320,10 +344,49 @@ class PersistentChatController(
         streamingAssistantTurn = null
         liveMarkdownEnabled = false
         currentGenerationId = 0L
+        lastPublishedMarkdownWordCount = 0
+        lastPublishedMarkdownTextLength = 0
     }
 
     private fun shouldEnableLiveMarkdown(partial: BackendResponse): Boolean {
         return partial.text.length >= MARKDOWN_STREAM_CHAR_THRESHOLD
+    }
+
+    private fun shouldPublishStreamingUpdate(partial: BackendResponse): Boolean {
+        if (!liveMarkdownEnabled || !containsMarkdownTable(partial.text)) {
+            lastPublishedMarkdownWordCount = countWords(partial.text)
+            lastPublishedMarkdownTextLength = partial.text.length
+            return true
+        }
+
+        val wordCount = countWords(partial.text)
+        val wordDelta = wordCount - lastPublishedMarkdownWordCount
+        val charDelta = partial.text.length - lastPublishedMarkdownTextLength
+        val shouldPublish = lastPublishedMarkdownTextLength == 0 ||
+            wordDelta >= TABLE_MARKDOWN_UPDATE_WORD_STEP ||
+            charDelta >= TABLE_MARKDOWN_UPDATE_CHAR_STEP
+
+        if (shouldPublish) {
+            lastPublishedMarkdownWordCount = wordCount
+            lastPublishedMarkdownTextLength = partial.text.length
+        }
+
+        return shouldPublish
+    }
+
+    private fun containsMarkdownTable(text: String): Boolean {
+        val lines = text
+            .replace("\r\n", "\n")
+            .lineSequence()
+            .toList()
+
+        return lines.zipWithNext().any { (current, next) ->
+            current.contains('|') && TABLE_SEPARATOR_REGEX.matches(next.trim())
+        }
+    }
+
+    private fun countWords(text: String): Int {
+        return Regex("\\S+").findAll(text).count()
     }
 
     private fun publishState(

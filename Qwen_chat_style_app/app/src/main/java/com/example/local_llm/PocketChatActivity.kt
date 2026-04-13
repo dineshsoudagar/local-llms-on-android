@@ -27,6 +27,10 @@ open class PocketChatActivity : AppCompatActivity() {
         private const val TOOLBAR_LOGO_ASSET = "pocket_llm_logo.png"
     }
 
+    private data class RetainedControllerHolder(
+        val chatController: PersistentChatController
+    )
+
     private lateinit var settingsStore: AppSettingsStore
     private lateinit var currentSettings: AppSettings
     private lateinit var chatController: PersistentChatController
@@ -76,7 +80,9 @@ open class PocketChatActivity : AppCompatActivity() {
         chatAdapter.registerAdapterDataObserver(chatAdapterObserver)
         applyTypography(statusView, sendButton, stopButton)
 
-        chatController = PersistentChatController(this, ModelRegistry.selected)
+        val retainedHolder = lastCustomNonConfigurationInstance as? RetainedControllerHolder
+        chatController = retainedHolder?.chatController
+            ?: PersistentChatController(this, ModelRegistry.selected)
         chatRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 super.onScrollStateChanged(recyclerView, newState)
@@ -86,6 +92,8 @@ open class PocketChatActivity : AppCompatActivity() {
                 }
             }
         })
+
+        thinkingToggle.isChecked = chatController.isThinkingEnabled()
 
         lifecycleScope.launch {
             chatController.state.collect { state ->
@@ -137,7 +145,9 @@ open class PocketChatActivity : AppCompatActivity() {
             chatController.setThinkingEnabled(isChecked)
         }
 
-        chatController.initialize()
+        if (retainedHolder == null) {
+            chatController.initialize()
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -171,7 +181,17 @@ open class PocketChatActivity : AppCompatActivity() {
             chatAdapter.unregisterAdapterDataObserver(chatAdapterObserver)
         }
         super.onDestroy()
-        chatController.close()
+        if (::chatController.isInitialized && !isChangingConfigurations) {
+            chatController.close()
+        }
+    }
+
+    override fun onRetainCustomNonConfigurationInstance(): Any? {
+        return if (::chatController.isInitialized) {
+            RetainedControllerHolder(chatController)
+        } else {
+            null
+        }
     }
 
     private fun showPreviousChats() {
@@ -278,14 +298,24 @@ open class PocketChatActivity : AppCompatActivity() {
                 else -> AppThemeOption.OCEAN
             }
             val selectedFontSize = 13f + fontSizeSeekBar.progress
-            settingsStore.save(
-                AppSettings(
-                    theme = selectedTheme,
-                    chatFontSizeSp = selectedFontSize
-                )
+            val updatedSettings = AppSettings(
+                theme = selectedTheme,
+                chatFontSizeSp = selectedFontSize
             )
+            val themeChanged = updatedSettings.theme != currentSettings.theme
+            currentSettings = updatedSettings
+            settingsStore.save(updatedSettings)
             dialog.dismiss()
-            recreate()
+            if (themeChanged) {
+                recreate()
+            } else {
+                chatAdapter.updateFontSize(updatedSettings.chatFontSizeSp)
+                applyTypography(
+                    findViewById(R.id.statusView),
+                    findViewById(R.id.sendButton),
+                    findViewById(R.id.stopButton)
+                )
+            }
         }
 
         dialog.show()
@@ -334,7 +364,14 @@ open class PocketChatActivity : AppCompatActivity() {
 
             val lastPosition = chatAdapter.itemCount - 1
             if (lastPosition >= 0) {
-                chatRecyclerView.scrollToPosition(lastPosition)
+                val remainingScroll = (
+                    chatRecyclerView.computeVerticalScrollRange() -
+                        chatRecyclerView.computeVerticalScrollExtent() -
+                        chatRecyclerView.computeVerticalScrollOffset()
+                    ).coerceAtLeast(0)
+                if (remainingScroll > 0) {
+                    chatRecyclerView.scrollBy(0, remainingScroll)
+                }
             }
 
             if (!autoScrollDuringGeneration) {

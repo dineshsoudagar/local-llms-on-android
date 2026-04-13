@@ -103,7 +103,7 @@ object ModelRegistry {
         modelName = "Gemma4_E2B",
         modelAssetName = GEMMA_MODEL_ASSET,
         defaultSystemInstruction = "You are Gemma, a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
-        displayNameOverride = "Gemma4",
+        displayNameOverride = "Gemma4-2B",
         thinkingModeAvailable = true
     )
 
@@ -111,13 +111,13 @@ object ModelRegistry {
         modelName = "Gemma4_E4B",
         modelAssetName = GEMMA_E4B_MODEL_ASSET,
         defaultSystemInstruction = "You are Gemma, a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
-        displayNameOverride = "Gemma4",
+        displayNameOverride = "Gemma4-4B",
         thinkingModeAvailable = true
     )
 
     private val models = listOf(qwen25, qwen3, qwen3LiteRt, gemma4E2B, gemma4E4B)
 
-    private const val SELECTED_MODEL_ID = "gemma4_e2b"
+    private const val SELECTED_MODEL_ID = "qwen2_5"
 
     val selected: ModelDescriptor = models.first { it.id == SELECTED_MODEL_ID }
 }

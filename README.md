@@ -10,11 +10,12 @@ It supports both **ONNX-based Qwen models** and **Gemma 4 with the LiteRT backen
 
 ## 🆕 New in v1.3.0
 
-- Added **Gemma 4** support with the **LiteRT backend**
-- Added persistent local chat history with automatic saving
+- Added  new **Gemma4-E2B**, **Gemma4-E4B** and **Qwen3-0.6B** models support with the **LiteRT backend**
+- **Thinking mode** toggle for new Gemma4 models
+- Refreshed the app with a more polished chat-style UI, with improved markdown support
+- Added persistent local chat history with automatic saving.
 - Added **Previous Chats** support to reopen and continue older sessions on demand
 - Added built-in themes and chat font size settings
-- Refreshed the app with a more polished chat-style UI
 
 ---
 
@@ -27,21 +28,18 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 ## ✨ Features
 
-- 📱 Fully on-device LLM inference for privacy-first offline usage
-- 🧠 Supports **Qwen2.5**, **Qwen3**, and **Gemma 4**
-- ⚡ **Gemma 4 LiteRT backend** for fast local inference.
-- 🔤 Hugging Face compatible BPE tokenizer support for Qwen models.
-- 🧩 Custom model configuration for prompt style, precision, KV cache, and backend setup
-- 🧘‍♂️ **Thinking Mode** support for **Qwen3**
-- 💬 Persistent multi-turn chat with connected conversations
-- 🕘 Automatic local saving of chat history
-- 📂 Previous Chats support to reopen and continue older sessions on demand
-- 🆕 Fresh chat session each time the model loads
+- 📱 Fully on-device LLM inference for private offline use
+- 🧠 Supports **Qwen2.5**, **Qwen3**, **Gemma 4 2B**, and **Gemma 4 4B**
+- ⚡ Supports **ONNX** and **LiteRT** backends
+- 🚀 Hardware-accelerated **LiteRT** inference on supported devices
+- 🔤 Hugging Face compatible tokenizer support for ONNX Qwen models
+- 🧩 Configurable prompts, precision, KV cache, and backend setup
+- 🧘‍♂️ **Thinking Mode** for **Qwen3** and **Gemma 4**
+- 💬 Persistent multi-turn chat with local history and Previous Chats
 - 📝 Markdown rendering for assistant replies
-- 🎨 Multiple built-in themes
-- 🔠 Adjustable chat font size
-- 🛑 Stop-generation support with smoother chat interaction
-- 🔐 Runs 100% offline — no network, no telemetry
+- 🎨 Built-in themes and adjustable chat font size
+- 🛑 Stop-generation support
+- 🔐 100% offline — no network, no telemetry
 
 ---
 
@@ -67,46 +65,45 @@ This app supports both **ONNX-based Qwen models** and **Gemma 4 via LiteRT**.
 
 - **Qwen2.5-0.5B-Instruct**
 - **Qwen3-0.6B**
-- **Gemma 4 E2B** via `.litertlm`
+- **Gemma 4 E2B** 
+- **Gemma 4 E4B**
 
 ### Backend overview
 
-- **Qwen2.5 / Qwen3** run through the ONNX backend
-- **Gemma 4** runs through the LiteRT backend
+- **ONNX backend**, supports Qwen2.5 and Qwen3 models
+- **LiteRT backend**, supports Qwen3 and Gemma4 models
 
-### Qwen model files
+### ONNX model files
 
-For Qwen models, the app expects:
+For ONNX builds, the app expects:
 
 - `model.onnx`
 - `tokenizer.json`
 
-### Gemma model files
+### LiteRT model files
 
-For Gemma 4, the app expects:
-
-- `gemma-4-E2B-it.litertlm`
+For LiteRT builds, the app expects the matching `.litertlm` model file for the selected model.
 
 ### Thinking Mode
 
-- **Qwen3** supports **Thinking Mode**
-- **Gemma 4** does not use Thinking Mode in this app, so the toggle is hidden
+- **Qwen3** and **Gemma 4**, supports **Thinking Mode**
+- The toggle is shown only for models that support it
 
 ---
 
-## 🚀 Why Gemma 4 + LiteRT is a strong fit for this app
+## 🚀 Why LiteRT is a strong fit for this app
 
-**Gemma 4 E2B** is one of the most practical current choices for fast local Android chat because:
+**LiteRT** is a strong fit for fast local Android chat because:
 
-- it is part of Gemma 4’s small-size family built for **ultra-mobile and edge deployment**
-- Gemma 4 is provided with **open weights** and supports **responsible commercial use**
-- the Gemma 4 family brings strong general-purpose capability for **generation, summarization, reasoning, and multilingual use**
-- LiteRT-LM is designed specifically for **high-performance on-device LLM deployment**
-- LiteRT-LM supports **hardware acceleration**, including **GPU and NPU acceleration** on supported devices
+- it is designed for **high-performance on-device LLM deployment**
+- it supports **hardware acceleration**, including **GPU and NPU acceleration** on supported devices
+- it helps reduce startup and generation latency for local chat workloads
+- it expands the range of practical Android model builds beyond a single backend path
+- it fits well with a privacy-first app design focused on fully offline usage
 
-In Google’s official LiteRT-LM showcase for **Gemma-4-E2B** on Android, GPU execution achieved much faster startup than CPU execution, including about **0.3 s time-to-first-token on GPU vs 1.8 s on CPU** on the referenced device. That lines up with the kind of fast chat experience this app is aiming for.
+This release uses LiteRT to broaden the app’s supported local model lineup while keeping the experience fully on-device.
 
-> Note: this app currently uses Gemma 4 for **text chat**. The wider Gemma 4 family also supports multimodal capabilities, but those are not exposed in this app yet.
+> Note: model capability and performance still depend on the specific model build and the hardware of the target Android device.
 
 ---
 
@@ -118,7 +115,7 @@ In Google’s official LiteRT-LM showcase for **Gemma-4-E2B** on Android, GPU ex
 - A physical Android device for deployment and testing
 - ≥ 4 GB RAM for FP16 / Q4 models
 - ≥ 6 GB RAM for FP32 models
-- Real hardware is preferred — emulators are mainly useful for UI checks
+- Real hardware is preferred - emulators are mainly useful for UI checks
 
 ---
 
@@ -156,14 +153,16 @@ to one of:
 
 Download the ONNX model files from Hugging Face:
 
-- 🔹 [Qwen2.5](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct)
-- 🔹 [Qwen3](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX)
+- [Qwen2.5](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct)
+- [Qwen3](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX)
 
 ### Option 2: Use Gemma 4 with LiteRT
 
 Use the Gemma 4 E2B LiteRT model file:
 
-- 🔹 `gemma-4-E2B-it.litertlm`
+- [gemma-4-E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/tree/main)
+- [gemma-4-E2B](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/tree/main)
+- [qwen3-0.6B](https://huggingface.co/litert-community/Qwen3-0.6B/tree/main)
 
 ### Option 3: Convert a Qwen model yourself
 
@@ -200,14 +199,14 @@ You can also convert a fine-tuned Qwen variant by pointing Optimum to your model
 
    You can place `model.onnx` and `tokenizer.json` directly in that folder or inside a single nested model folder.
 
-5. Add the files that match the model you selected:
+5. Add the files that match the model build you selected:
 
-   **For Qwen2.5 / Qwen3**
+   **For ONNX builds**
    - `model.onnx`
    - `tokenizer.json`
 
-   **For Gemma 4**
-   - `gemma-4-E2B-it.litertlm`
+   **For LiteRT builds**
+   - the matching `.litertlm` model file for that model
 
 6. In `ModelDescriptor.kt`, set the active model using `SELECTED_MODEL_ID`.
 7. Connect your Android phone using USB or wireless debugging.
@@ -226,23 +225,20 @@ If you rename the app or package, you must also refactor the package declaration
 
 ### v1.3.0
 
-- ➡️ `pocket_llm_gemma4_e2b_v1.3.0.apk`  
-  Gemma 4 with LiteRT backend and the new chat-style UI
+- ➡️ `pocket_llm_gemma4_e2b_litertlm_v1.3.0.apk`  
+  Gemma 4 E2B with LiteRT backend
 
-- ➡️ `pocket_llm_qwen2.5_0.5B_v1.3.0.apk`  
-  Updated Qwen2.5 build with the new UI and persistent chat support
+- ➡️ `pocket_llm_gemma4_e4b_litertlm_v1.3.0.apk`  
+  Gemma 4 E4B with LiteRT backend
 
-- ➡️ `pocket_llm_qwen2.5_0.5B_fp16_v1.3.0.apk`  
-  FP16 Qwen2.5 build with the refreshed UI and connected chat flow
-
-- ➡️ `pocket_llm_qwen2.5_0.5B_q4fp16_v1.3.0.apk`  
-  Quantized Qwen2.5 build with the refreshed UI and connected chat flow
-
-- ➡️ `pocket_llm_qwen3_0.6B_fp16_v1.3.0.apk`  
-  Qwen3 build with Thinking Mode support and the new persistent chat UI
+- ➡️ `pocket_llm_qwen3_0.6B_fp32_v1.3.0.apk`  
+  Qwen3 0.6B with onnx-runtime backend
 
 - ➡️ `pocket_llm_qwen3_0.6B_q4fp16_v1.3.0.apk`  
-  Compact Qwen3 build with Thinking Mode support and the new UI
+  Compact  Qwen3 0.6B with onnx-runtime backend
+
+- ➡️ `pocket_llm_qwen2.5_0.5B_v1.3.0.apk`  
+  Qwen2.5 0.5B build with onnx-runtime backend
 
 ---
 
