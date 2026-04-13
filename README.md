@@ -231,11 +231,14 @@ If you rename the app or package, you must also refactor the package declaration
 - ➡️ `pocket_llm_gemma4_e4b_litertlm_v1.3.0.apk`  
   Gemma 4 E4B with LiteRT backend
 
+- ➡️ `pocket_llm_qwen3_0.6B_litertlm_v1.3.0.apk`  
+  Qwen3 0.6B with with LiteRT backend
+
 - ➡️ `pocket_llm_qwen3_0.6B_fp32_v1.3.0.apk`  
   Qwen3 0.6B with onnx-runtime backend
 
 - ➡️ `pocket_llm_qwen3_0.6B_q4fp16_v1.3.0.apk`  
-  Compact  Qwen3 0.6B with onnx-runtime backend
+  Compact Qwen3 0.6B with onnx-runtime backend
 
 - ➡️ `pocket_llm_qwen2.5_0.5B_v1.3.0.apk`  
   Qwen2.5 0.5B build with onnx-runtime backend
