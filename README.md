@@ -11,11 +11,19 @@ It supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 mod
 ## 🆕 New in v1.3.0
 
 - Added support for **Gemma 4 E2B**, **Gemma 4 E4B**, and **Qwen3-0.6B** with the **LiteRT backend**
-- Added a **Thinking Mode** toggle for **Qwen3** and **Gemma 4**
+- Added a **Thinking Mode** toggle for supported models
 - Refreshed the app with a more polished chat-style UI and improved markdown rendering
 - Added persistent local chat history with automatic saving
 - Added **Previous Chats** support to reopen and continue saved sessions on demand
 - Added built-in themes and chat font-size settings
+
+## 📦 Download Prebuilt APKs - V1.3.0
+
+- 🚀 **Gemma 4 E4B LiteRT** — Best for **flagship mobiles** ([Download here](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_gemma4_e4b_litertlm_v1.3.0.apk))
+- ⚖️ **Gemma 4 E2B LiteRT** — Best for **decent to mid-range mobiles** ([Download here](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_gemma4_e2b_litertlm_v1.3.0.apk))
+- 📱 **Qwen3 0.6B LiteRT** — Best for **low-end mobiles** ([Download here](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.3.0/pocket_llm_qwen3_0.6B_litertlm_v1.3.0.apk))
+- ⚡ **Qwen3 0.6B Q4FP16 ONNX** — Good for **low to mid-range mobiles** ([Download here](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.3.0/pocket_llm_qwen3_0.6B_q4fp16_v1.3.0.apk))
+- 🧠 **Qwen2.5 0.5B ONNX** — Best for **mid to high-end mobiles**, **full precision** ([Download here](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.3.0/pocket_llm_qwen2.5_0.5B_v1.3.0.apk))
 
 ---
 
@@ -191,7 +199,7 @@ You can also convert a fine-tuned Qwen variant by pointing Optimum to your model
 3. Open the Android project folder in Android Studio:
 
    ```text
-   Qwen_chat_style_app/
+   pocket_llm_src/
    ```
 4. Place the required model assets in:
 
@@ -220,32 +228,6 @@ You can also convert a fine-tuned Qwen variant by pointing Optimum to your model
 
 **Note**: All Kotlin files are declared in the package `com.example.local_llm`, and the Gradle script uses the same `applicationId`.  
 If you rename the app or package, you must also refactor the package declarations, folder structure, and Gradle `applicationId`.
-
----
-
-## 📦 Download Prebuilt APKs
-
-### v1.3.0
-
-- ➡️ `pocket_llm_gemma4_e2b_litertlm_v1.3.0.apk`  
-  Gemma 4 E2B with LiteRT backend
-
-- ➡️ `pocket_llm_gemma4_e4b_litertlm_v1.3.0.apk`  
-  Gemma 4 E4B with LiteRT backend
-
-- ➡️ `pocket_llm_qwen3_0.6B_litertlm_v1.3.0.apk`  
-  Qwen3 0.6B with LiteRT backend
-
-- ➡️ `pocket_llm_qwen3_0.6B_fp32_v1.3.0.apk`  
-  Qwen3 0.6B with ONNX Runtime backend
-
-- ➡️ `pocket_llm_qwen3_0.6B_q4fp16_v1.3.0.apk`  
-  Compact Qwen3 0.6B with ONNX Runtime backend
-
-- ➡️ `pocket_llm_qwen2.5_0.5B_v1.3.0.apk`  
-  Qwen2.5 0.5B build with ONNX Runtime backend
-
----
 
 ## Customize Your App Experience
 
