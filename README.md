@@ -60,7 +60,7 @@ A privacy-first offline document intelligence system with persistent local RAG, 
       <sub><b>Theme switching</b></sub>
     </td>
     <td align="center">
-      <img src="data/Gemma4 thinking.gif" alt="Chat UI Preview" width="270"/><br/>
+      <img src="data/Gemma4 thinking.gif" alt="Chat UI Preview" width="280"/><br/>
       <sub><b>Thinking mode</b></sub>
     </td>
   </tr>
