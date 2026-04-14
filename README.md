@@ -65,7 +65,7 @@ This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma
 
 - **Qwen2.5-0.5B**
 - **Qwen3-0.6B**
-- **Gemma 4 E2B**
+- **Gemma 4 E2B** 
 - **Gemma 4 E4B**
 
 ### Backend overview
@@ -143,9 +143,9 @@ to one of:
 
 ### Notes
 
-- The selected model name is shown below the **Pocket LLM** title in the toolbar
-- **Thinking Mode** is available for **Qwen3** and **Gemma 4**
-- Gemma models are displayed as **Gemma4-2B** and **Gemma4-4B** in the UI
+- The app title uses the selected model display name
+- **Thinking Mode** is available for **Qwen3**
+- **Gemma 4** is displayed as **Gemma4** in the UI
 
 ---
 
@@ -163,14 +163,8 @@ Download the ONNX model files from Hugging Face:
 Use the LiteRT model file that matches the model you select in `ModelDescriptor.kt`:
 
 - [gemma-4-E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/tree/main)
-- [gemma-4-E4B](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/tree/main)
-- [Qwen3-0.6B](https://huggingface.co/litert-community/Qwen3-0.6B/tree/main)
-
-By default, the app currently expects these LiteRT filenames:
-
-- `gemma-4-E2B-it.litertlm`
-- `gemma-4-E4B-it.litertlm`
-- `Qwen3-0.6B.litertlm`
+- [gemma-4-E2B](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/tree/main)
+- [qwen3-0.6B](https://huggingface.co/litert-community/Qwen3-0.6B/tree/main)
 
 ### Option 3: Convert a Qwen model to ONNX yourself
 
