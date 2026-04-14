@@ -184,7 +184,7 @@ Download the ONNX model files from Hugging Face:
 Use the LiteRT model file that matches the model you select in `ModelDescriptor.kt`:
 
 - [gemma-4-E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/tree/main)
-- [gemma-4-E2B](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/tree/main)
+- [gemma-4-E4B](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/tree/main)
 - [qwen3-0.6B](https://huggingface.co/litert-community/Qwen3-0.6B/tree/main)
 
 ### Option 3: Convert a Qwen model to ONNX yourself
