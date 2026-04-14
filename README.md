@@ -225,30 +225,17 @@ You can also convert a fine-tuned Qwen variant by pointing Optimum to your model
    ```text
    pocket_llm_src/
    ```
-4. Place the required model assets in:
+4. Add the required model assets to `app/src/main/assets/` based on your selected build:
+   - **ONNX:** `model.onnx` and `tokenizer.json`
+   - **LiteRT:** the matching `.litertlm` model file
 
-   ```text
-   app/src/main/assets/
-   ```
-
-   You can place `model.onnx` and `tokenizer.json` directly in that folder, or inside a single nested model folder.
-
-5. Add the files that match the model build you selected:
-
-   **For ONNX builds**
-   - `model.onnx`
-   - `tokenizer.json`
-
-   **For LiteRT builds**
-   - the matching `.litertlm` model file for that model
-
-6. In `ModelDescriptor.kt`, set the active model using `SELECTED_MODEL_ID`.
-7. Connect your Android phone using USB or wireless debugging.
-8. Run the app from Android Studio, or generate a signed APK from:
+5. In `ModelDescriptor.kt`, set the active model using `SELECTED_MODEL_ID`.
+6. Connect your Android phone using USB or wireless debugging.
+7. Run the app from Android Studio, or generate a signed APK from:
 
    **Build → Generate Signed Bundle / APK**
 
-9. Once installed, look for the **Pocket LLM** icon on your device.
+8. Once installed, look for the **Pocket LLM** icon on your device.
 
 **Note**: All Kotlin files are declared in the package `com.example.local_llm`, and the Gradle script uses the same `applicationId`.  
 If you rename the app or package, you must also refactor the package declarations, folder structure, and Gradle `applicationId`.
