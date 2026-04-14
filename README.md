@@ -53,11 +53,22 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 ## 📸 Inference Preview
 
-<p align="center">
-  <img src="data/Gemma4chat.gif" alt="Model Output 1" width="23.8%" style="margin: 1%"/>
-  <img src="data/Themes.gif" alt="Model Output 2" width="23.8%" style="margin: 1%"/>
-  <img src="data/Gemma4 thinking.gif" alt="Chat UI Preview" width="25%" style="margin: 1%"/>
-</p>
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="data/Gemma4chat.gif" alt="Model Output 1" width="260"/><br/>
+      <sub><b>Chat inference</b></sub>
+    </td>
+    <td align="center">
+      <img src="data/Themes.gif" alt="Model Output 2" width="260"/><br/>
+      <sub><b>Theme switching</b></sub>
+    </td>
+    <td align="center">
+      <img src="data/Gemma4 thinking.gif" alt="Chat UI Preview" width="270"/><br/>
+      <sub><b>Thinking mode</b></sub>
+    </td>
+  </tr>
+</table>
 
 <p align="center">
   <em>Figure: App interface showing local LLM chat and streaming responses on Android.</em>
