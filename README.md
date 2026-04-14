@@ -20,6 +20,7 @@ It supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 mod
 - Added built-in **themes** and **chat font size** settings
 - Refined the overall **chat UI** and usability
 
+#### ➡️ [See all releases](https://github.com/dineshsoudagar/local-llms-on-android/releases)
 ---
 
 ### 🔗 Also Check Out
