@@ -5,25 +5,20 @@ An Android application that brings local LLM chat to your phone, fully offline, 
 It supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 models**, with streaming responses, persistent local chat history, manual reopening of previous chats, markdown-rendered replies, and a cleaner chat-first UI.
 
 ---
+
 [![Total APK downloads](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/total?logo=github&label=Total%20APK%20downloads)](https://github.com/dineshsoudagar/local-llms-on-android/releases)
+
 ---
 
 ## 🆕 New in v1.3.0
 
 - Added support for **Gemma 4 E2B**, **Gemma 4 E4B**, and **Qwen3-0.6B** with the **LiteRT backend**
-- Added a **Thinking Mode** toggle for supported models
-- Refreshed the app with a more polished chat-style UI and improved markdown rendering
-- Added persistent local chat history with automatic saving
-- Added **Previous Chats** support to reopen and continue saved sessions on demand
-- Added built-in themes and chat font-size settings
-
-## 📦 Download Prebuilt APKs - V1.3.0
-
-- 🚀 **Gemma 4 E4B LiteRT** — Best for **flagship mobiles** ([Download here](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_gemma4_e4b_litertlm_v1.3.0.apk))
-- ⚖️ **Gemma 4 E2B LiteRT** — Best for **decent to mid-range mobiles** ([Download here](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_gemma4_e2b_litertlm_v1.3.0.apk))
-- 📱 **Qwen3 0.6B LiteRT** — Best for **low-end mobiles** ([Download here](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_litertlm_v1.3.0.apk))
-- ⚡ **Qwen3 0.6B Q4FP16 ONNX** — Good for **low to mid-range mobiles** ([Download here](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_q4fp16_onnx_v1.3.0.apk))
-- 🧠 **Qwen2.5 0.5B ONNX** — Best for **mid to high-end mobiles**, **full precision** ([Download here](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_qwen2.5_0.5b_onnx_v1.3.0.apk))
+- Added **persistent local chat history** with automatic on-device saving
+- Added **Previous Chats** to reopen and continue saved sessions
+- Added **Thinking Mode** for supported models
+- Improved **markdown rendering** for assistant responses
+- Added built-in **themes** and **chat font size** settings
+- Refined the overall **chat UI** and usability
 
 ---
 
@@ -76,6 +71,23 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 ---
 
+## 📦 Download Prebuilt APKs - V1.3.0
+
+- 🚀 **Gemma 4 E4B LiteRT** - Best for **flagship mobiles**  
+  [Download APK](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_gemma4_e4b_litertlm_v1.3.0.apk) - `3.28 GB`
+
+- ⚖️ **Gemma 4 E2B LiteRT** - Best for **decent to mid-range mobiles**  
+  [Download APK](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_gemma4_e2b_litertlm_v1.3.0.apk) - `2.37 GB`
+
+- 📱 **Qwen3 0.6B LiteRT** - Best for **low-end mobiles**  
+  [Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_litertlm_v1.3.0.apk) - `654 MB`
+
+- ⚡ **Qwen3 0.6B Q4FP16 ONNX** - Good for **low to mid-range mobiles**  
+  [Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_q4fp16_onnx_v1.3.0.apk) - `1 GB`
+
+- 🧠 **Qwen2.5 0.5B ONNX** - Best for **mid to high-end mobiles**, **full precision**  
+  [Download APK](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_qwen2.5_0.5b_onnx_v1.3.0.apk) - `2.44 GB`
+
 ## 🧠 Model Support
 
 This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 models**.
@@ -110,7 +122,7 @@ For LiteRT builds, the app expects the matching `.litertlm` model file for the s
 
 ---
 
-## 🚀 Why LiteRT is a strong fit for this app
+## 🚀 Why LiteRT
 
 **LiteRT** is a strong fit for fast local Android chat because:
 
