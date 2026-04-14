@@ -21,9 +21,9 @@ It supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 mod
 
 - 🚀 **Gemma 4 E4B LiteRT** — Best for **flagship mobiles** ([Download here](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_gemma4_e4b_litertlm_v1.3.0.apk))
 - ⚖️ **Gemma 4 E2B LiteRT** — Best for **decent to mid-range mobiles** ([Download here](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_gemma4_e2b_litertlm_v1.3.0.apk))
-- 📱 **Qwen3 0.6B LiteRT** — Best for **low-end mobiles** ([Download here](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.3.0/pocket_llm_qwen3_0.6B_litertlm_v1.3.0.apk))
-- ⚡ **Qwen3 0.6B Q4FP16 ONNX** — Good for **low to mid-range mobiles** ([Download here](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.3.0/pocket_llm_qwen3_0.6B_q4fp16_v1.3.0.apk))
-- 🧠 **Qwen2.5 0.5B ONNX** — Best for **mid to high-end mobiles**, **full precision** ([Download here](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.3.0/pocket_llm_qwen2.5_0.5B_v1.3.0.apk))
+- 📱 **Qwen3 0.6B LiteRT** — Best for **low-end mobiles** ([Download here](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_litertlm_v1.3.0.apk))
+- ⚡ **Qwen3 0.6B Q4FP16 ONNX** — Good for **low to mid-range mobiles** ([Download here](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_q4fp16_onnx_v1.3.0.apk))
+- 🧠 **Qwen2.5 0.5B ONNX** — Best for **mid to high-end mobiles**, **full precision** ([Download here](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_qwen2.5_0.5b_onnx_v1.3.0.apk))
 
 ---
 
