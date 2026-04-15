@@ -10,7 +10,7 @@ It supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 mod
 
 ## Downloads by release
 
-[![Downloads v1.2.0](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/v1.2.0/total?logo=github&label=Downloads%20v1.2.0)](https://github.com/dineshsoudagar/local-llms-on-android/releases/tag/v1.2.0)
+[![Downloads v1.2.0](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/v1.3.0/total?logo=github&label=Downloads%20v1.3.0)](https://github.com/dineshsoudagar/local-llms-on-android/releases/tag/v1.3.0)
 [![Downloads v1.1.0](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/v1.1.0/total?logo=github&label=Downloads%20v1.1.0)](https://github.com/dineshsoudagar/local-llms-on-android/releases/tag/v1.1.0)
 [![Downloads v1.0.0](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/v1.0.0/total?logo=github&label=Downloads%20v1.0.0)](https://github.com/dineshsoudagar/local-llms-on-android/releases/tag/v1.0.0)
 
