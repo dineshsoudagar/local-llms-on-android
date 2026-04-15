@@ -7,16 +7,9 @@ It supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 mod
 ---
 
 [![Total APK downloads](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/total?logo=github&label=Total%20APK%20downloads)](https://github.com/dineshsoudagar/local-llms-on-android/releases)
-
-## Downloads by release
-
-[![Downloads v1.2.0](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/v1.3.0/total?logo=github&label=Downloads%20v1.3.0)](https://github.com/dineshsoudagar/local-llms-on-android/releases/tag/v1.3.0)
-[![Downloads v1.1.0](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/v1.1.0/total?logo=github&label=Downloads%20v1.1.0)](https://github.com/dineshsoudagar/local-llms-on-android/releases/tag/v1.1.0)
-[![Downloads v1.0.0](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/v1.0.0/total?logo=github&label=Downloads%20v1.0.0)](https://github.com/dineshsoudagar/local-llms-on-android/releases/tag/v1.0.0)
+## 🆕 New in v1.3.0
 
 ---
-
-## 🆕 New in v1.3.0
 
 - Added support for **Gemma 4 E2B**, **Gemma 4 E4B**, and **Qwen3-0.6B** with the **LiteRT backend**
 - Added **persistent local chat history** with automatic on-device saving
