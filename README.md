@@ -72,22 +72,15 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 ---
 
-## 📦 Download Prebuilt APKs - V1.3.0
+## 📦 Download Prebuilt APKs - v1.3.0
 
-- 🚀 **Gemma 4 E4B LiteRT** - Best for **flagship mobiles**  
-  [Download APK](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_gemma4_e4b_litertlm_v1.3.0.apk) - `3.28 GB`
+Due to release asset size limits, some APKs are hosted on Hugging Face.
 
-- ⚖️ **Gemma 4 E2B LiteRT** - Best for **decent to mid-range mobiles**  
-  [Download APK](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_gemma4_e2b_litertlm_v1.3.0.apk) - `2.37 GB`
-
-- 📱 **Qwen3 0.6B LiteRT** - Best for **low-end mobiles**  
-  [Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_litertlm_v1.3.0.apk) - `654 MB`
-
-- ⚡ **Qwen3 0.6B Q4FP16 ONNX** - Good for **low to mid-range mobiles**  
-  [Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_q4fp16_onnx_v1.3.0.apk) - `1 GB`
-
-- 🧠 **Qwen2.5 0.5B ONNX** - Best for **mid to high-end mobiles**, **full precision**  
-  [Download APK](https://huggingface.co/dineshdroid/local-llms-on-android-apks/resolve/main/pocket_llm_qwen2.5_0.5b_onnx_v1.3.0.apk) - `2.44 GB`
+- 🚀 **Gemma 4 E4B LiteRT** - Best for **flagship mobiles** ([Download APK](https://cutt.ly/7tGIHIL1)) - `3.28 GB`
+- ⚖️ **Gemma 4 E2B LiteRT** - Best for **decent to mid-range mobiles** ([Download APK](https://cutt.ly/YtGIL2bS)) - `2.37 GB`
+- 📱 **Qwen3 0.6B LiteRT** - Best for **low-end mobiles** ([Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_litertlm_v1.3.0.apk)) - `654 MB`
+- ⚡ **Qwen3 0.6B Q4FP16 ONNX** - Good for **low to mid-range mobiles** ([Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_q4fp16_onnx_v1.3.0.apk)) - `1 GB`
+- 🧠 **Qwen2.5 0.5B ONNX** - Best for **mid to high-end mobiles**, **full precision** ([Download APK](https://cutt.ly/EtGIXuZV)) - `2.44 GB`
 
 ## 🧠 Model Support
 
