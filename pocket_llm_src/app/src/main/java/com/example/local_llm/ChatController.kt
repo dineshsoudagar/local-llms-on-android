@@ -1,6 +1,7 @@
 package com.example.local_llm
 
 import android.content.Context
+import android.os.SystemClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +26,7 @@ class ChatController(
     private val _state = MutableStateFlow(
         ChatUiState(
             title = "Pocket LLM — ${modelDescriptor.displayName}",
-            statusMessage = "⏳ Please wait, the model is still loading.",
+            statusMessage = MODEL_LOADING_STATUS_MESSAGE,
             isLoading = true,
             supportsThinking = modelDescriptor.supportsThinking
         )
@@ -36,6 +37,9 @@ class ChatController(
     private var generationJob: Job? = null
     private var streamingAssistantTurn: ChatTurn? = null
     private var thinkingEnabled = false
+    private var currentGenerationStartedAtMillis: Long? = null
+    private var currentThinkingStartedAtMillis: Long? = null
+    private var currentThinkingFinishedAtMillis: Long? = null
 
     init {
         val appContext = context.applicationContext
@@ -55,7 +59,7 @@ class ChatController(
                     backend.resetConversation(emptyList(), thinkingEnabled)
                 }
                 publishState(
-                    statusMessage = "✅ Model is ready.",
+                    statusMessage = MODEL_READY_STATUS_MESSAGE,
                     isLoading = false,
                     isReady = true
                 )
@@ -81,6 +85,7 @@ class ChatController(
 
         committedTurns += ChatTurn(role = ChatRole.USER, text = prompt)
         streamingAssistantTurn = ChatTurn(role = ChatRole.ASSISTANT, text = "")
+        startGenerationTimer()
         publishState(statusMessage = "", isGenerating = true)
 
         generationJob = scope.launch {
@@ -91,31 +96,39 @@ class ChatController(
                             streamingAssistantTurn = ChatTurn(
                                 role = ChatRole.ASSISTANT,
                                 text = partial.text,
-                                thinkingText = partial.thinkingText.takeIf { partial.text.isBlank() }
+                                thinkingText = partial.thinkingText
                             )
+                            updateThinkingTimer(partial)
                             publishState(isGenerating = true)
                         }
                     }
                 }
 
+                updateThinkingTimer(response)
+                val finalThinkingText = response.thinkingText
+                    ?: streamingAssistantTurn?.thinkingText
                 val finalTurn = ChatTurn(
                     role = ChatRole.ASSISTANT,
                     text = response.text,
-                    thinkingText = null
+                    thinkingText = finalThinkingText,
+                    thinkingDurationMillis = thinkingDurationMillis(finalThinkingText)
                 )
-                if (finalTurn.text.isNotBlank()) {
+                if (finalTurn.text.isNotBlank() || !finalTurn.thinkingText.isNullOrBlank()) {
                     committedTurns += finalTurn
                 }
                 streamingAssistantTurn = null
+                resetGenerationTimer()
                 publishState(isGenerating = false)
             } catch (_: CancellationException) {
                 commitStoppedAssistantTurn()
                 withContext(NonCancellable + Dispatchers.IO) {
                     backend.resetConversation(committedTurns.toList(), thinkingEnabled)
                 }
+                resetGenerationTimer()
                 publishState(statusMessage = "⛔ Generation stopped.", isGenerating = false)
             } catch (e: Exception) {
                 streamingAssistantTurn = null
+                resetGenerationTimer()
                 publishState(
                     statusMessage = "❌ Error: ${e.message ?: "Unknown error."}",
                     isGenerating = false
@@ -144,7 +157,7 @@ class ChatController(
                 withContext(Dispatchers.IO) {
                     backend.resetConversation(emptyList(), thinkingEnabled)
                 }
-                publishState(statusMessage = if (_state.value.isReady) "✅ Model is ready." else "")
+                publishState(statusMessage = if (_state.value.isReady) MODEL_READY_STATUS_MESSAGE else "")
             } catch (e: Exception) {
                 publishState(statusMessage = "❌ Error: ${e.message ?: "Unknown error."}")
             }
@@ -159,13 +172,47 @@ class ChatController(
 
     private fun commitStoppedAssistantTurn() {
         val partialTurn = streamingAssistantTurn
-        if (partialTurn != null && partialTurn.text.isNotBlank()) {
+        if (partialTurn != null && (partialTurn.text.isNotBlank() || !partialTurn.thinkingText.isNullOrBlank())) {
             committedTurns += partialTurn.copy(
-                thinkingText = null,
+                thinkingDurationMillis = thinkingDurationMillis(partialTurn.thinkingText),
                 stopped = true
             )
         }
         streamingAssistantTurn = null
+        resetGenerationTimer()
+    }
+
+    private fun startGenerationTimer() {
+        val now = SystemClock.elapsedRealtime()
+        currentGenerationStartedAtMillis = now
+        currentThinkingStartedAtMillis = null
+        currentThinkingFinishedAtMillis = null
+    }
+
+    private fun updateThinkingTimer(response: BackendResponse) {
+        val now = SystemClock.elapsedRealtime()
+        if (!response.thinkingText.isNullOrBlank() && currentThinkingStartedAtMillis == null) {
+            currentThinkingStartedAtMillis = currentGenerationStartedAtMillis ?: now
+        }
+        if (response.text.isNotBlank() && currentThinkingStartedAtMillis != null && currentThinkingFinishedAtMillis == null) {
+            currentThinkingFinishedAtMillis = now
+        }
+    }
+
+    private fun thinkingDurationMillis(thinkingText: String?): Long? {
+        if (thinkingText.isNullOrBlank()) {
+            return null
+        }
+
+        val start = currentThinkingStartedAtMillis ?: currentGenerationStartedAtMillis ?: return null
+        val end = currentThinkingFinishedAtMillis ?: SystemClock.elapsedRealtime()
+        return (end - start).coerceAtLeast(0L)
+    }
+
+    private fun resetGenerationTimer() {
+        currentGenerationStartedAtMillis = null
+        currentThinkingStartedAtMillis = null
+        currentThinkingFinishedAtMillis = null
     }
 
     private fun publishState(

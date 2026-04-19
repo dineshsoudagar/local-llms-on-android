@@ -91,6 +91,8 @@ class ChatSessionStore(context: Context) {
                                 put("id", turn.id)
                                 put("role", turn.role.name)
                                 put("text", turn.text)
+                                turn.thinkingText?.let { put("thinkingText", it) }
+                                turn.thinkingDurationMillis?.let { put("thinkingDurationMillis", it) }
                                 put("stopped", turn.stopped)
                                 put("renderAsMarkdown", turn.renderAsMarkdown)
                             }
@@ -111,7 +113,9 @@ class ChatSessionStore(context: Context) {
                         id = turnJson.optString("id").ifBlank { java.util.UUID.randomUUID().toString() },
                         role = ChatRole.valueOf(turnJson.getString("role")),
                         text = turnJson.optString("text"),
-                        thinkingText = null,
+                        thinkingText = turnJson.optString("thinkingText").takeIf { it.isNotBlank() },
+                        thinkingDurationMillis = turnJson.optLong("thinkingDurationMillis")
+                            .takeIf { turnJson.has("thinkingDurationMillis") },
                         stopped = turnJson.optBoolean("stopped"),
                         renderAsMarkdown = turnJson.optBoolean("renderAsMarkdown", true)
                     )

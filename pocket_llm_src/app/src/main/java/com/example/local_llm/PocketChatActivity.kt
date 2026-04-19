@@ -412,6 +412,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val showInlineStatus = effectiveStatus.isNotBlank() &&
             ((state.transcript.isEmpty() || !state.isReady) || isModelOperationInProgress)
         statusView.visibility = if (showInlineStatus) View.VISIBLE else View.GONE
+        applyStatusBackground(effectiveStatus)
 
         chatAdapter.submitTurns(state.transcript)
         wasGenerating = state.isGenerating
@@ -430,6 +431,7 @@ open class PocketChatActivity : AppCompatActivity() {
         stopButton.isEnabled = false
         statusView.text = message
         statusView.visibility = if (message.isBlank()) View.GONE else View.VISIBLE
+        applyStatusBackground(message)
         if (!preserveTranscript) {
             chatAdapter.submitTurns(emptyList())
         }
@@ -800,6 +802,15 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun formatFileSize(sizeBytes: Long): String {
         return Formatter.formatFileSize(this, sizeBytes)
+    }
+
+    private fun applyStatusBackground(message: String) {
+        val backgroundRes = when (message) {
+            MODEL_LOADING_STATUS_MESSAGE -> R.drawable.bg_status_loading
+            MODEL_READY_STATUS_MESSAGE -> R.drawable.bg_status_ready
+            else -> R.drawable.bg_status_chip
+        }
+        statusView.setBackgroundResource(backgroundRes)
     }
 
     private fun showTransientMessage(message: String) {

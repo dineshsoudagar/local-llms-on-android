@@ -1,6 +1,7 @@
 package com.example.local_llm
 
 import android.content.Context
+import android.os.SystemClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +42,7 @@ class PersistentChatController(
     private val _state = MutableStateFlow(
         ChatUiState(
             title = "Pocket LLM - ${modelDescriptor.displayName}",
-            statusMessage = "Please wait, the model is still loading.",
+            statusMessage = MODEL_LOADING_STATUS_MESSAGE,
             isLoading = true,
             supportsThinking = modelDescriptor.supportsThinking
         )
@@ -58,6 +59,9 @@ class PersistentChatController(
     private var currentSessionCreatedAtMillis: Long = 0L
     private var lastPublishedMarkdownWordCount: Int = 0
     private var lastPublishedMarkdownTextLength: Int = 0
+    private var currentGenerationStartedAtMillis: Long? = null
+    private var currentThinkingStartedAtMillis: Long? = null
+    private var currentThinkingFinishedAtMillis: Long? = null
 
     init {
         val modelFileResolver = ModelFileResolver(appContext)
@@ -87,7 +91,7 @@ class PersistentChatController(
                 }
 
                 publishState(
-                    statusMessage = "Model is ready.",
+                    statusMessage = MODEL_READY_STATUS_MESSAGE,
                     isLoading = false,
                     isReady = true
                 )
@@ -129,6 +133,7 @@ class PersistentChatController(
 
         val generationId = currentGenerationId + 1L
         currentGenerationId = generationId
+        startGenerationTimer()
         liveMarkdownEnabled = false
         lastPublishedMarkdownWordCount = 0
         lastPublishedMarkdownTextLength = 0
@@ -158,9 +163,10 @@ class PersistentChatController(
                                 streamingAssistantTurn = (streamingAssistantTurn
                                     ?: ChatTurn(role = ChatRole.ASSISTANT, text = "")).copy(
                                     text = partial.text,
-                                    thinkingText = partial.thinkingText.takeIf { partial.text.isBlank() },
+                                    thinkingText = partial.thinkingText,
                                     renderAsMarkdown = liveMarkdownEnabled
                                 )
+                                updateThinkingTimer(partial)
                                 publishState(isGenerating = true)
                             }
                         }
@@ -171,15 +177,19 @@ class PersistentChatController(
                     return@launch
                 }
 
+                updateThinkingTimer(response)
+                val finalThinkingText = response.thinkingText
+                    ?: streamingAssistantTurn?.thinkingText
                 val finalAssistantTurn = (streamingAssistantTurn
                     ?: ChatTurn(role = ChatRole.ASSISTANT, text = response.text)).copy(
                     text = response.text,
-                    thinkingText = null,
+                    thinkingText = finalThinkingText,
+                    thinkingDurationMillis = thinkingDurationMillis(finalThinkingText),
                     stopped = false,
                     renderAsMarkdown = true
                 )
 
-                if (finalAssistantTurn.text.isNotBlank()) {
+                if (finalAssistantTurn.text.isNotBlank() || !finalAssistantTurn.thinkingText.isNullOrBlank()) {
                     committedTurns += finalAssistantTurn
                     persistCurrentSession()
                 }
@@ -189,6 +199,7 @@ class PersistentChatController(
                 liveMarkdownEnabled = false
                 lastPublishedMarkdownWordCount = 0
                 lastPublishedMarkdownTextLength = 0
+                resetGenerationTimer()
                 publishState(isGenerating = false)
             } catch (_: CancellationException) {
                 if (generationId == currentGenerationId) {
@@ -198,6 +209,7 @@ class PersistentChatController(
                 liveMarkdownEnabled = false
                 lastPublishedMarkdownWordCount = 0
                 lastPublishedMarkdownTextLength = 0
+                resetGenerationTimer()
                 publishState(statusMessage = "Generation stopped.", isGenerating = false)
             } catch (e: Exception) {
                 if (generationId == currentGenerationId) {
@@ -207,6 +219,7 @@ class PersistentChatController(
                 liveMarkdownEnabled = false
                 lastPublishedMarkdownWordCount = 0
                 lastPublishedMarkdownTextLength = 0
+                resetGenerationTimer()
                 publishState(
                     statusMessage = "Error: ${e.message ?: "Unknown error."}",
                     isGenerating = false
@@ -277,6 +290,7 @@ class PersistentChatController(
             streamingAssistantTurn = null
             liveMarkdownEnabled = false
             currentGenerationId = 0L
+            resetGenerationTimer()
             lastPublishedMarkdownWordCount = 0
             lastPublishedMarkdownTextLength = 0
 
@@ -310,6 +324,7 @@ class PersistentChatController(
         streamingAssistantTurn = null
         liveMarkdownEnabled = false
         currentGenerationId = 0L
+        resetGenerationTimer()
         lastPublishedMarkdownWordCount = 0
         lastPublishedMarkdownTextLength = 0
     }
@@ -321,6 +336,7 @@ class PersistentChatController(
         currentGenerationId = 0L
         currentSessionId = null
         currentSessionCreatedAtMillis = 0L
+        resetGenerationTimer()
         lastPublishedMarkdownWordCount = 0
         lastPublishedMarkdownTextLength = 0
     }
@@ -369,9 +385,9 @@ class PersistentChatController(
 
     private fun commitStoppedAssistantTurn() {
         val partialTurn = streamingAssistantTurn
-        if (partialTurn != null && partialTurn.text.isNotBlank()) {
+        if (partialTurn != null && (partialTurn.text.isNotBlank() || !partialTurn.thinkingText.isNullOrBlank())) {
             committedTurns += partialTurn.copy(
-                thinkingText = null,
+                thinkingDurationMillis = thinkingDurationMillis(partialTurn.thinkingText),
                 stopped = true,
                 renderAsMarkdown = true
             )
@@ -380,8 +396,42 @@ class PersistentChatController(
         streamingAssistantTurn = null
         liveMarkdownEnabled = false
         currentGenerationId = 0L
+        resetGenerationTimer()
         lastPublishedMarkdownWordCount = 0
         lastPublishedMarkdownTextLength = 0
+    }
+
+    private fun startGenerationTimer() {
+        val now = SystemClock.elapsedRealtime()
+        currentGenerationStartedAtMillis = now
+        currentThinkingStartedAtMillis = null
+        currentThinkingFinishedAtMillis = null
+    }
+
+    private fun updateThinkingTimer(response: BackendResponse) {
+        val now = SystemClock.elapsedRealtime()
+        if (!response.thinkingText.isNullOrBlank() && currentThinkingStartedAtMillis == null) {
+            currentThinkingStartedAtMillis = currentGenerationStartedAtMillis ?: now
+        }
+        if (response.text.isNotBlank() && currentThinkingStartedAtMillis != null && currentThinkingFinishedAtMillis == null) {
+            currentThinkingFinishedAtMillis = now
+        }
+    }
+
+    private fun thinkingDurationMillis(thinkingText: String?): Long? {
+        if (thinkingText.isNullOrBlank()) {
+            return null
+        }
+
+        val start = currentThinkingStartedAtMillis ?: currentGenerationStartedAtMillis ?: return null
+        val end = currentThinkingFinishedAtMillis ?: SystemClock.elapsedRealtime()
+        return (end - start).coerceAtLeast(0L)
+    }
+
+    private fun resetGenerationTimer() {
+        currentGenerationStartedAtMillis = null
+        currentThinkingStartedAtMillis = null
+        currentThinkingFinishedAtMillis = null
     }
 
     private fun shouldEnableLiveMarkdown(partial: BackendResponse): Boolean {

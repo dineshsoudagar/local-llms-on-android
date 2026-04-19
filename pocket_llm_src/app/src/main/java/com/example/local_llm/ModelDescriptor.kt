@@ -142,7 +142,7 @@ object ModelRegistry {
         scalarPosId = true,
         dtype = "float16",
         thinkingModeAvailable = true,
-        downloadSizeLabel = "581 MB",
+        downloadSizeLabel = "592 MB",
         recommendationLabel = "Good for low to mid-range mobiles",
         estimatedDownloadBytes = 592_000_000L,
         downloadArtifacts = listOf(
@@ -163,9 +163,9 @@ object ModelRegistry {
         defaultSystemInstruction = "You are Qwen. a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
         displayNameOverride = "Qwen3 0.6B LiteRT",
         thinkingModeAvailable = true,
-        downloadSizeLabel = "614 MB",
+        downloadSizeLabel = "592 MB",
         recommendationLabel = "Best for low-end mobiles",
-        estimatedDownloadBytes = 614_000_000L,
+        estimatedDownloadBytes = 592_000_000L,
         downloadArtifacts = listOf(
             ModelDownloadFile(
                 localFileName = QWEN_LITERT_MODEL_ASSET,

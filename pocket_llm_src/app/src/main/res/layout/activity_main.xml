@@ -129,15 +129,16 @@
 
         <TextView
             android:id="@+id/statusView"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:gravity="center"
             android:paddingHorizontal="20dp"
-            android:textColor="?attr/colorStatusText"
+            android:paddingVertical="8dp"
+            android:textColor="@color/white"
             android:textSize="14sp"
             android:visibility="gone"
-            tools:text="Model is ready." />
+            tools:text="Model is ready" />
     </FrameLayout>
 
     <CheckBox

@@ -20,6 +20,8 @@
     <color name="stop_button_fill">#F08A7A</color>
     <color name="stop_button_stroke">#FFC0B5</color>
     <color name="status_text">#D8E9FF</color>
+    <color name="status_loading_background">#F08A8A</color>
+    <color name="status_ready_background">#7CCF8A</color>
     <color name="midnight_background">#111111</color>
     <color name="midnight_frame">#1A1A1A</color>
     <color name="midnight_user_bubble">#F5EADB</color>

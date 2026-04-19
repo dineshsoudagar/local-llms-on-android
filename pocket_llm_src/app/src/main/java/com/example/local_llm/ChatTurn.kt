@@ -12,6 +12,7 @@ data class ChatTurn(
     val role: ChatRole,
     val text: String,
     val thinkingText: String? = null,
+    val thinkingDurationMillis: Long? = null,
     val stopped: Boolean = false,
     val renderAsMarkdown: Boolean = false
 ) {

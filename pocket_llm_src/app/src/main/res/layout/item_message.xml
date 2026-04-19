@@ -8,17 +8,38 @@
     android:paddingHorizontal="4dp"
     android:paddingVertical="5dp">
 
-    <TextView
-        android:id="@+id/thoughtView"
+    <LinearLayout
+        android:id="@+id/thoughtContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="6dp"
-        android:lineSpacingExtra="4dp"
-        android:paddingHorizontal="12dp"
-        android:textColor="?attr/colorStatusText"
-        android:textIsSelectable="true"
-        android:textSize="15sp"
-        android:visibility="gone" />
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/thoughtHeaderView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_status_chip"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="7dp"
+            android:textColor="?attr/colorStatusText"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/thoughtView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:lineSpacingExtra="4dp"
+            android:paddingHorizontal="12dp"
+            android:textColor="?attr/colorStatusText"
+            android:textIsSelectable="true"
+            android:textSize="15sp"
+            android:visibility="gone" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/messageText"
