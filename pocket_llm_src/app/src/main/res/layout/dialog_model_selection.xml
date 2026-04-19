@@ -3,20 +3,37 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingTop="8dp">
+    android:paddingStart="20dp"
+    android:paddingTop="18dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        android:id="@+id/modelPickerTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:text="@string/model_picker_title"
+        android:textColor="?attr/colorAssistantText"
+        android:textSize="22sp"
+        android:textStyle="bold" />
 
     <TextView
         android:id="@+id/modelPickerIntro"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:gravity="center"
+        android:lineSpacingExtra="2dp"
         android:textColor="?attr/colorStatusText"
-        android:textSize="14sp" />
+        android:textSize="13sp" />
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:fillViewport="true">
+        android:layout_marginTop="10dp"
+        android:fillViewport="false">
 
         <LinearLayout
             android:id="@+id/modelListContainer"
@@ -24,38 +41,5 @@
             android:layout_height="wrap_content"
             android:orientation="vertical" />
     </ScrollView>
-
-    <LinearLayout
-        android:id="@+id/downloadProgressSection"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:orientation="vertical"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/downloadProgressTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="?attr/colorAssistantText"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <ProgressBar
-            android:id="@+id/downloadProgressBar"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:max="1000" />
-
-        <TextView
-            android:id="@+id/downloadProgressBytes"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:textColor="?attr/colorStatusText"
-            android:textSize="12sp" />
-    </LinearLayout>
 
 </LinearLayout>

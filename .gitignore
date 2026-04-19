@@ -14,6 +14,7 @@ Thumbs.db
 
 # Gradle / Kotlin local state
 **/.gradle/
+.gradle-cache/
 **/.gradle-user-home/
 **/.gradle-user-home-local/
 **/.kotlin/

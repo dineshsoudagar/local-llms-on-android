@@ -1,6 +1,9 @@
 <resources>
     <string name="app_name">Local LLM</string>
     <string name="toolbar_app_title">Pocket LLM</string>
+    <string name="dropdown_arrow">▾</string>
+    <string name="change_model_hint">change model ▾</string>
+    <string name="change_model_button">Model</string>
     <string name="enter_your_prompt">Type your message</string>
     <string name="send">Send</string>
     <string name="stop">Stop</string>
@@ -26,6 +29,7 @@
     <string name="model_picker_required_intro">Choose a model to download before you can start chatting offline.</string>
     <string name="model_picker_optional_intro">Pick a different model anytime. Downloaded models switch instantly and missing ones will download here first.</string>
     <string name="model_picker_meta_format">%1$s - %2$s download</string>
+    <string name="model_picker_compact_detail_format">%1$s - %2$s - %3$s - %4$s</string>
     <string name="model_required_message">Choose a model to continue.</string>
     <string name="model_missing_message">%1$s is not available on this device yet. Download it or choose another model.</string>
     <string name="model_loading_message">Wait for the selected model to finish loading.</string>
@@ -36,14 +40,25 @@
     <string name="model_status_bundled">Bundled with app</string>
     <string name="model_status_not_downloaded">Not downloaded</string>
     <string name="model_status_downloading">Downloading...</string>
-    <string name="model_action_current">Current</string>
-    <string name="model_action_use">Use Model</string>
-    <string name="model_action_download">Download</string>
-    <string name="model_action_downloading">Downloading</string>
+    <string name="model_action_current">✓</string>
+    <string name="model_action_use">Use</string>
+    <string name="model_action_download">↓</string>
+    <string name="model_action_downloading">...</string>
+    <string name="cancel_download">Cancel</string>
     <string name="model_download_preparing">Preparing download for %1$s...</string>
+    <string name="model_download_cancelling">Cancelling model download...</string>
     <string name="model_download_progress_title">Downloading %1$s</string>
     <string name="model_download_progress_bytes">%1$s / %2$s</string>
     <string name="model_download_progress_status">Downloading %1$s: %2$s / %3$s</string>
+    <string name="model_download_progress_status_unknown">Downloading %1$s: %2$s downloaded</string>
     <string name="model_download_failed_generic">Unknown download error</string>
     <string name="model_download_failed_message">Could not download %1$s. %2$s</string>
+    <string name="download_notification_channel_name">Model downloads</string>
+    <string name="download_notification_title">Downloading %1$s</string>
+    <string name="download_notification_progress">%1$s / %2$s</string>
+    <string name="download_notification_progress_unknown">%1$s downloaded</string>
+    <string name="download_notification_complete_title">Download complete</string>
+    <string name="download_notification_complete">%1$s is ready</string>
+    <string name="download_notification_failed_title">Download failed</string>
+    <string name="download_notification_failed">Could not download %1$s</string>
 </resources>

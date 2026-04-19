@@ -18,14 +18,16 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 open class PocketChatActivity : AppCompatActivity() {
@@ -34,30 +36,21 @@ open class PocketChatActivity : AppCompatActivity() {
         private const val TOOLBAR_LOGO_ASSET = "pocket_llm_logo.png"
     }
 
-    private data class RetainedControllerHolder(
-        val chatController: PersistentChatController?,
-        val modelId: String?
-    )
-
     private data class ModelDialogViews(
         val dialog: AlertDialog,
         val introView: TextView,
-        val listContainer: LinearLayout,
-        val progressSection: View,
-        val progressTitleView: TextView,
-        val progressBar: ProgressBar,
-        val progressBytesView: TextView
+        val listContainer: LinearLayout
     )
 
     private lateinit var settingsStore: AppSettingsStore
     private lateinit var currentSettings: AppSettings
     private lateinit var modelSelectionStore: ModelSelectionStore
     private lateinit var modelFileResolver: ModelFileResolver
-    private lateinit var modelDownloader: ModelDownloader
+    private lateinit var retainedState: PocketChatViewModel
     private var currentModel: ModelDescriptor? = null
     private var chatController: PersistentChatController? = null
     private var controllerStateJob: Job? = null
-    private var modelDownloadJob: Job? = null
+    private var modelDownloadStateJob: Job? = null
     private var modelDialogViews: ModelDialogViews? = null
     private var modelDialogForceSelection = false
     private lateinit var chatAdapter: ChatAdapter
@@ -94,9 +87,9 @@ open class PocketChatActivity : AppCompatActivity() {
         currentSettings = settingsStore.load()
         modelSelectionStore = ModelSelectionStore(this)
         modelFileResolver = ModelFileResolver(this)
-        modelDownloader = ModelDownloader(modelFileResolver)
         setTheme(currentSettings.theme.styleRes)
         super.onCreate(savedInstanceState)
+        retainedState = ViewModelProvider(this)[PocketChatViewModel::class.java]
         setContentView(R.layout.activity_main)
 
         val toolbar: MaterialToolbar = findViewById(R.id.topToolbar)
@@ -158,11 +151,10 @@ open class PocketChatActivity : AppCompatActivity() {
             chatController?.setThinkingEnabled(isChecked)
         }
 
-        val retainedHolder = lastCustomNonConfigurationInstance as? RetainedControllerHolder
-        val restoredModel = retainedHolder?.modelId?.let(ModelRegistry::findById)
+        val restoredModel = retainedState.modelId?.let(ModelRegistry::findById)
         currentModel = restoredModel ?: modelSelectionStore.loadSelectedModel()
 
-        val retainedController = retainedHolder?.chatController
+        val retainedController = retainedState.chatController
         if (retainedController != null && currentModel != null) {
             chatController = retainedController
             toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
@@ -189,6 +181,9 @@ open class PocketChatActivity : AppCompatActivity() {
                 thinkingToggle.isChecked = false
             }
         }
+
+        observeModelDownloadState()
+        applyModelDownloadState(ModelDownloadStateStore.state.value)
 
         if (chatController == null) {
             chatRecyclerView.post {
@@ -230,23 +225,9 @@ open class PocketChatActivity : AppCompatActivity() {
             chatAdapter.unregisterAdapterDataObserver(chatAdapterObserver)
         }
         controllerStateJob?.cancel()
-        modelDownloadJob?.cancel()
+        modelDownloadStateJob?.cancel()
         modelDialogViews?.dialog?.dismiss()
         super.onDestroy()
-        if (!isChangingConfigurations) {
-            chatController?.close()
-        }
-    }
-
-    override fun onRetainCustomNonConfigurationInstance(): Any? {
-        return if (chatController != null || currentModel != null) {
-            RetainedControllerHolder(
-                chatController = chatController,
-                modelId = currentModel?.id
-            )
-        } else {
-            null
-        }
     }
 
     private fun requireUsableController(): PersistentChatController? {
@@ -279,15 +260,115 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun observeModelDownloadState() {
+        modelDownloadStateJob?.cancel()
+        modelDownloadStateJob = lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                ModelDownloadStateStore.state.collect { state ->
+                    applyModelDownloadState(state)
+                }
+            }
+        }
+    }
+
+    private fun applyModelDownloadState(state: ModelDownloadState) {
+        when (state) {
+            ModelDownloadState.Idle -> {
+                if (isModelOperationInProgress || activeDownloadModelId != null) {
+                    isModelOperationInProgress = false
+                    modelOperationStatusMessage = null
+                    resetDownloadState()
+                    refreshModelSelectionDialog()
+                    chatController?.let { applyChatState(it.state.value) }
+                }
+            }
+
+            is ModelDownloadState.Running -> {
+                isModelOperationInProgress = true
+                activeDownloadModelId = state.modelId
+                activeDownloadModelName = state.modelName
+                activeDownloadFileName = state.fileName
+                activeDownloadBytes = state.bytesDownloaded
+                activeDownloadTotalBytes = state.totalBytes
+                modelOperationStatusMessage = if (state.totalBytes != null && state.totalBytes > 0L) {
+                    getString(
+                        R.string.model_download_progress_status,
+                        state.modelName,
+                        formatFileSize(state.bytesDownloaded),
+                        formatFileSize(state.totalBytes)
+                    )
+                } else {
+                    getString(
+                        R.string.model_download_progress_status_unknown,
+                        state.modelName,
+                        formatFileSize(state.bytesDownloaded)
+                    )
+                }
+
+                refreshModelSelectionDialog()
+                if (chatController != null) {
+                    applyChatState(chatController!!.state.value)
+                } else {
+                    renderNoControllerState(modelOperationStatusMessage.orEmpty(), preserveTranscript = true)
+                }
+            }
+
+            is ModelDownloadState.Completed -> {
+                val descriptor = ModelRegistry.findById(state.modelId)
+                isModelOperationInProgress = false
+                modelOperationStatusMessage = null
+                resetDownloadState()
+                refreshModelSelectionDialog()
+                modelDialogViews?.dialog?.dismiss()
+
+                if (descriptor != null && (currentModel?.id != descriptor.id || chatController == null)) {
+                    switchToController(
+                        descriptor,
+                        PersistentChatController(this, descriptor),
+                        initialize = true,
+                        activeChatSnapshot = chatController?.snapshotActiveChat()
+                    )
+                } else {
+                    chatController?.let { applyChatState(it.state.value) }
+                }
+
+                ModelDownloadStateStore.clearTerminalState(state.modelId)
+            }
+
+            is ModelDownloadState.Failed -> {
+                isModelOperationInProgress = false
+                modelOperationStatusMessage = null
+                resetDownloadState()
+                refreshModelSelectionDialog()
+                if (chatController != null) {
+                    applyChatState(chatController!!.state.value)
+                } else {
+                    renderNoControllerState(getString(R.string.model_required_message), preserveTranscript = false)
+                }
+                showTransientMessage(
+                    getString(
+                        R.string.model_download_failed_message,
+                        state.modelName,
+                        state.message
+                    )
+                )
+                ModelDownloadStateStore.clearTerminalState(state.modelId)
+            }
+        }
+    }
+
     private fun switchToController(
         descriptor: ModelDescriptor,
         controller: PersistentChatController,
-        initialize: Boolean
+        initialize: Boolean,
+        activeChatSnapshot: ActiveChatSnapshot? = null
     ) {
         controllerStateJob?.cancel()
         chatController?.close()
         chatController = controller
         currentModel = descriptor
+        retainedState.chatController = controller
+        retainedState.modelId = descriptor.id
         modelSelectionStore.saveSelectedModel(descriptor.id)
         resetDownloadState()
         isModelOperationInProgress = false
@@ -301,7 +382,7 @@ open class PocketChatActivity : AppCompatActivity() {
         observeController(controller)
         applyChatState(controller.state.value)
         if (initialize) {
-            controller.initialize()
+            controller.initialize(activeChatSnapshot)
         }
     }
 
@@ -371,18 +452,13 @@ open class PocketChatActivity : AppCompatActivity() {
             .inflate(R.layout.dialog_model_selection, null)
 
         val dialog = dialogBuilder
-            .setTitle(getString(R.string.model_picker_title))
             .setView(dialogView)
             .create()
 
         val dialogUi = ModelDialogViews(
             dialog = dialog,
             introView = dialogView.findViewById(R.id.modelPickerIntro),
-            listContainer = dialogView.findViewById(R.id.modelListContainer),
-            progressSection = dialogView.findViewById(R.id.downloadProgressSection),
-            progressTitleView = dialogView.findViewById(R.id.downloadProgressTitle),
-            progressBar = dialogView.findViewById(R.id.downloadProgressBar),
-            progressBytesView = dialogView.findViewById(R.id.downloadProgressBytes)
+            listContainer = dialogView.findViewById(R.id.modelListContainer)
         )
 
         dialog.setOnDismissListener {
@@ -415,65 +491,58 @@ open class PocketChatActivity : AppCompatActivity() {
             val recommendationView: TextView = itemView.findViewById(R.id.modelRecommendation)
             val statusTextView: TextView = itemView.findViewById(R.id.modelStatus)
             val actionButton: Button = itemView.findViewById(R.id.modelActionButton)
+            val itemProgressBar: ProgressBar = itemView.findViewById(R.id.modelItemProgressBar)
+            val itemProgressText: TextView = itemView.findViewById(R.id.modelItemProgressText)
 
             nameView.text = descriptor.displayName
-            metaView.text = getString(
+            val metaText = getString(
                 R.string.model_picker_meta_format,
                 descriptor.backendLabel,
                 descriptor.sizeLabel
             )
-            recommendationView.text = descriptor.deviceRecommendation
-
+            metaView.text = metaText
             val isCurrentModel = currentModel?.id == descriptor.id && chatController != null
             val isDownloadingThisModel = activeDownloadModelId == descriptor.id
             val isDownloaded = modelFileResolver.isModelDownloaded(descriptor)
             val isAvailable = modelFileResolver.isModelAvailable(descriptor)
 
-            statusTextView.text = when {
+            val statusText = when {
                 isDownloadingThisModel -> getString(R.string.model_status_downloading)
                 isCurrentModel -> getString(R.string.model_status_current)
                 isDownloaded -> getString(R.string.model_status_downloaded)
                 isAvailable -> getString(R.string.model_status_bundled)
                 else -> getString(R.string.model_status_not_downloaded)
             }
+            statusTextView.text = statusText
+            recommendationView.text = getString(
+                R.string.model_picker_compact_detail_format,
+                descriptor.backendLabel,
+                descriptor.sizeLabel,
+                descriptor.deviceRecommendation,
+                statusText
+            )
 
             actionButton.text = when {
-                isDownloadingThisModel -> getString(R.string.model_action_downloading)
+                isDownloadingThisModel -> getString(R.string.cancel_download)
                 isCurrentModel -> getString(R.string.model_action_current)
                 isAvailable -> getString(R.string.model_action_use)
                 else -> getString(R.string.model_action_download)
             }
-            actionButton.isEnabled = !isModelOperationInProgress && !isCurrentModel
+            actionButton.isEnabled = isDownloadingThisModel || (!isModelOperationInProgress && !isCurrentModel)
             actionButton.setOnClickListener {
-                handleModelSelection(descriptor)
+                if (isDownloadingThisModel) {
+                    cancelModelDownload()
+                } else {
+                    handleModelSelection(descriptor)
+                }
             }
+
+            itemProgressBar.visibility = if (isDownloadingThisModel) View.VISIBLE else View.GONE
+            updateProgressBar(itemProgressBar, activeDownloadBytes, activeDownloadTotalBytes)
+            itemProgressText.visibility = if (isDownloadingThisModel) View.VISIBLE else View.GONE
+            itemProgressText.text = formatDownloadProgressText(activeDownloadBytes, activeDownloadTotalBytes)
 
             dialogUi.listContainer.addView(itemView)
-        }
-
-        val showProgress = isModelOperationInProgress && activeDownloadModelId != null
-        dialogUi.progressSection.visibility = if (showProgress) View.VISIBLE else View.GONE
-        if (showProgress) {
-            val totalBytes = activeDownloadTotalBytes
-            dialogUi.progressTitleView.text = getString(
-                R.string.model_download_progress_title,
-                activeDownloadModelName ?: ""
-            )
-            if (totalBytes != null && totalBytes > 0L) {
-                dialogUi.progressBar.isIndeterminate = false
-                dialogUi.progressBar.max = 1000
-                dialogUi.progressBar.progress = ((activeDownloadBytes * 1000L) / totalBytes)
-                    .toInt()
-                    .coerceIn(0, 1000)
-                dialogUi.progressBytesView.text = getString(
-                    R.string.model_download_progress_bytes,
-                    formatFileSize(activeDownloadBytes),
-                    formatFileSize(totalBytes)
-                )
-            } else {
-                dialogUi.progressBar.isIndeterminate = true
-                dialogUi.progressBytesView.text = formatFileSize(activeDownloadBytes)
-            }
         }
     }
 
@@ -488,8 +557,14 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         if (modelFileResolver.isModelAvailable(descriptor)) {
+            val activeChatSnapshot = chatController?.snapshotActiveChat()
             modelDialogViews?.dialog?.dismiss()
-            switchToController(descriptor, PersistentChatController(this, descriptor), initialize = true)
+            switchToController(
+                descriptor,
+                PersistentChatController(this, descriptor),
+                initialize = true,
+                activeChatSnapshot = activeChatSnapshot
+            )
             return
         }
 
@@ -512,79 +587,18 @@ open class PocketChatActivity : AppCompatActivity() {
             renderNoControllerState(modelOperationStatusMessage.orEmpty(), preserveTranscript = true)
         }
 
-        var completedBytes = 0L
-        var currentFileName: String? = null
-        var currentFileBytes = 0L
+        ModelDownloadService.start(this, descriptor)
+    }
 
-        modelDownloadJob?.cancel()
-        modelDownloadJob = lifecycleScope.launch {
-            try {
-                modelDownloader.downloadModel(descriptor) { progress ->
-                    if (currentFileName != null && currentFileName != progress.fileName) {
-                        completedBytes += currentFileBytes
-                        currentFileBytes = 0L
-                    }
-
-                    currentFileName = progress.fileName
-                    currentFileBytes = progress.bytesDownloaded
-                    activeDownloadFileName = progress.fileName
-                    activeDownloadBytes = (completedBytes + progress.bytesDownloaded)
-                        .coerceAtMost(descriptor.approxDownloadBytes)
-                    activeDownloadTotalBytes = descriptor.approxDownloadBytes
-                    modelOperationStatusMessage = getString(
-                        R.string.model_download_progress_status,
-                        descriptor.displayName,
-                        formatFileSize(activeDownloadBytes),
-                        formatFileSize(descriptor.approxDownloadBytes)
-                    )
-
-                    runOnUiThread {
-                        refreshModelSelectionDialog()
-                        if (chatController != null) {
-                            applyChatState(chatController!!.state.value)
-                        } else {
-                            renderNoControllerState(modelOperationStatusMessage.orEmpty(), preserveTranscript = true)
-                        }
-                    }
-                }
-
-                runOnUiThread {
-                    modelDialogViews?.dialog?.dismiss()
-                    switchToController(
-                        descriptor,
-                        PersistentChatController(this@PocketChatActivity, descriptor),
-                        initialize = true
-                    )
-                }
-            } catch (_: CancellationException) {
-                isModelOperationInProgress = false
-                modelOperationStatusMessage = null
-                resetDownloadState()
-            } catch (error: Exception) {
-                isModelOperationInProgress = false
-                val errorMessage = error.message ?: getString(R.string.model_download_failed_generic)
-                modelOperationStatusMessage = null
-                resetDownloadState()
-
-                runOnUiThread {
-                    refreshModelSelectionDialog()
-                    if (chatController != null) {
-                        applyChatState(chatController!!.state.value)
-                    } else {
-                        renderNoControllerState(getString(R.string.model_required_message), preserveTranscript = false)
-                    }
-                    showTransientMessage(
-                        getString(
-                            R.string.model_download_failed_message,
-                            descriptor.displayName,
-                            errorMessage
-                        )
-                    )
-                }
-            } finally {
-                modelDownloadJob = null
-            }
+    private fun cancelModelDownload() {
+        modelOperationStatusMessage = getString(R.string.model_download_cancelling)
+        refreshModelSelectionDialog()
+        if (chatController != null) {
+            applyChatState(chatController!!.state.value)
+        } else {
+            renderNoControllerState(modelOperationStatusMessage.orEmpty(), preserveTranscript = true)
         }
+        ModelDownloadService.cancel(this)
     }
 
     private fun resetDownloadState() {
@@ -749,6 +763,38 @@ open class PocketChatActivity : AppCompatActivity() {
             }
         }.getOrNull()?.let { bitmap ->
             toolbarLogoView.setImageBitmap(bitmap)
+        }
+    }
+
+    private fun updateProgressBar(
+        progressBar: ProgressBar,
+        downloadedBytes: Long,
+        totalBytes: Long?
+    ) {
+        if (totalBytes == null || totalBytes <= 0L) {
+            progressBar.isIndeterminate = true
+            return
+        }
+
+        progressBar.isIndeterminate = false
+        progressBar.max = 1000
+        progressBar.progress = ((downloadedBytes * 1000L) / totalBytes)
+            .toInt()
+            .coerceIn(0, 1000)
+    }
+
+    private fun formatDownloadProgressText(downloadedBytes: Long, totalBytes: Long?): String {
+        return if (totalBytes != null && totalBytes > 0L) {
+            getString(
+                R.string.model_download_progress_bytes,
+                formatFileSize(downloadedBytes),
+                formatFileSize(totalBytes)
+            )
+        } else {
+            getString(
+                R.string.download_notification_progress_unknown,
+                formatFileSize(downloadedBytes)
+            )
         }
     }
 

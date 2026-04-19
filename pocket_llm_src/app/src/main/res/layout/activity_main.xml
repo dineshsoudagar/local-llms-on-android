@@ -25,11 +25,12 @@
 
         <LinearLayout
             android:id="@+id/toolbarBranding"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingEnd="52dp">
 
             <ImageView
                 android:id="@+id/toolbarLogo"
@@ -40,21 +41,20 @@
                 tools:ignore="ContentDescription" />
 
             <LinearLayout
-                android:id="@+id/modelSelector"
-                android:layout_width="wrap_content"
+                android:id="@+id/toolbarTitleBlock"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center_vertical"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
                 android:orientation="vertical">
 
                 <TextView
                     android:id="@+id/toolbarTitle"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:ellipsize="end"
                     android:includeFontPadding="false"
+                    android:maxLines="1"
                     android:text="@string/toolbar_app_title"
                     android:textColor="?attr/colorAssistantText"
                     android:textSize="21sp"
@@ -62,12 +62,48 @@
 
                 <TextView
                     android:id="@+id/toolbarSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:ellipsize="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="?attr/colorStatusText"
+                    android:textSize="12sp"
+                    tools:text="Gemma 4 E4B LiteRT" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/modelSelector"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginStart="8dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:contentDescription="@string/change_model_hint"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="8dp">
+
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:includeFontPadding="false"
+                    android:text="@string/change_model_button"
                     android:textColor="?attr/colorStatusText"
                     android:textSize="12sp"
-                    tools:text="Gemma4" />
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:includeFontPadding="false"
+                    android:text="@string/dropdown_arrow"
+                    android:textColor="?attr/colorStatusText"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
     </com.google.android.material.appbar.MaterialToolbar>

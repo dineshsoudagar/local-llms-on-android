@@ -14,6 +14,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
+data class ActiveChatSnapshot(
+    val sessionId: String?,
+    val createdAtMillis: Long,
+    val turns: List<ChatTurn>
+)
+
 class PersistentChatController(
     context: Context,
     private val modelDescriptor: ModelDescriptor
@@ -62,12 +68,22 @@ class PersistentChatController(
         }
     }
 
-    fun initialize() {
+    fun initialize(activeChatSnapshot: ActiveChatSnapshot? = null) {
+        val snapshotToRestore = activeChatSnapshot?.takeIf { it.turns.isNotEmpty() }
+        if (snapshotToRestore != null) {
+            restoreActiveChat(snapshotToRestore)
+            publishState(isLoading = true, isReady = false)
+        }
+
         scope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     backend.initialize()
-                    resetConversationForFreshSession()
+                    if (snapshotToRestore != null) {
+                        backend.resetConversation(snapshotToRestore.turns, thinkingEnabled)
+                    } else {
+                        resetConversationForFreshSession()
+                    }
                 }
 
                 publishState(
@@ -91,6 +107,14 @@ class PersistentChatController(
 
     fun isThinkingEnabled(): Boolean {
         return thinkingEnabled
+    }
+
+    fun snapshotActiveChat(): ActiveChatSnapshot {
+        return ActiveChatSnapshot(
+            sessionId = currentSessionId,
+            createdAtMillis = currentSessionCreatedAtMillis,
+            turns = committedTurns.toList()
+        )
     }
 
     fun sendPrompt(text: String) {
@@ -276,6 +300,18 @@ class PersistentChatController(
     private suspend fun resetConversationForFreshSession() {
         clearActiveChatState()
         backend.resetConversation(emptyList(), thinkingEnabled)
+    }
+
+    private fun restoreActiveChat(snapshot: ActiveChatSnapshot) {
+        currentSessionId = snapshot.sessionId
+        currentSessionCreatedAtMillis = snapshot.createdAtMillis
+        committedTurns.clear()
+        committedTurns += snapshot.turns
+        streamingAssistantTurn = null
+        liveMarkdownEnabled = false
+        currentGenerationId = 0L
+        lastPublishedMarkdownWordCount = 0
+        lastPublishedMarkdownTextLength = 0
     }
 
     private fun clearActiveChatState() {
