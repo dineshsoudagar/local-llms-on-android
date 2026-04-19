@@ -82,11 +82,11 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 The app now ships as a **single smaller base APK**.
 
+#### ➡️ [Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.4.0/pocket_llm_v1.4.0.apk)
+
 Models are **not bundled inside the APK anymore**. After installation, the app prompts the user to select a model and download it directly on device.
 
 Users can download **multiple models** and switch between them later from inside the app, without reinstalling.
-
-#### ➡️ [Download from Releases](https://github.com/dineshsoudagar/local-llms-on-android/releases)
 
 ### Available models
 
