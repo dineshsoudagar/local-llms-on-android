@@ -1,8 +1,10 @@
-# 🤖 Local LLMs on Android (Offline, Private & Fast)
+# 🤖 Pocket LLM for Android (Offline, Private & Fast)
 
-An Android application that brings local LLM chat to your phone, fully offline, private, and fast.
+An Android application that brings local LLM chat to your phone, fully on-device, private, and fast.
 
-It supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 models**, with streaming responses, persistent local chat history, manual reopening of previous chats, markdown-rendered replies, and a cleaner chat-first UI.
+It supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 models**, with streaming responses, persistent local chat history, markdown-rendered replies, downloadable on-device models, and in-app model switching.
+
+Unlike older builds, the app now ships as a **small base APK**. Users choose and download one or more models after installation, then switch between them later from inside the app.
 
 ---
 
@@ -10,17 +12,21 @@ It supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 mod
 
 ---
 
-## 🆕 New in v1.3.0
+## 🆕 New in v1.4.0
 
-- Added support for **Gemma 4 E2B**, **Gemma 4 E4B**, and **Qwen3-0.6B** with the **LiteRT backend**
-- Added **persistent local chat history** with automatic on-device saving
-- Added **Previous Chats** to reopen and continue saved sessions
+- Switched to a **smaller base APK** of around **200 MB**
+- Models are **no longer bundled inside the APK**
+- Added **first-launch model selection** with on-device model downloads
+- Added support for **downloading multiple models** and **switching between them** inside the app
+- Added **persistent local chat history** with reopening of previous chats
 - Added **Thinking Mode** for supported models
+- Retained thinking text in a **collapsible section** for supported models
 - Improved **markdown rendering** for assistant responses
 - Added built-in **themes** and **chat font size** settings
-- Refined the overall **chat UI** and usability
+- Added multiple **UI and usability improvements**
 
 #### ➡️ [See all releases](https://github.com/dineshsoudagar/local-llms-on-android/releases)
+
 ---
 
 ### 🔗 Also Check Out
@@ -33,17 +39,20 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 ## ✨ Features
 
 - 📱 Fully on-device LLM inference for private offline use
+- 📦 Smaller base APK with **on-demand model downloads**
+- 📥 **First-launch model picker** after install
+- 🔁 Download **multiple models** and switch between them inside the app
 - 🧠 Supports **Qwen2.5**, **Qwen3**, **Qwen3 LiteRT**, **Gemma 4 E2B**, and **Gemma 4 E4B**
 - ⚡ Supports **ONNX** and **LiteRT** backends
 - 🚀 Hardware-accelerated **LiteRT** inference on supported devices
 - 🔤 Hugging Face-compatible tokenizer support for ONNX Qwen models
-- 🧩 Configurable prompts, precision, KV cache, and backend setup
-- 🧘‍♂️ **Thinking Mode** for **Qwen3** and **Gemma 4**
-- 💬 Persistent multi-turn chat with local history and Previous Chats
+- 💬 Persistent multi-turn chat with **local history** and **Previous Chats**
 - 📝 Markdown rendering for assistant replies, including table support
+- 🤔 **Thinking Mode** for supported models
+- 🗂️ Retained thinking text in a **collapsible section**
 - 🎨 Built-in themes and adjustable chat font size
 - 🛑 Stop-generation support
-- 🔐 100% offline, with no network calls or telemetry
+- 🔐 Offline after model download, with **no telemetry**
 
 ---
 
@@ -72,15 +81,27 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 ---
 
-## 📦 Download Prebuilt APKs - v1.3.0
+## 📦 Download APK - v1.4.0
 
-Due to release asset size limits, some APKs are hosted on Hugging Face.
+The app now ships as a **single smaller base APK**.
 
-- 🚀 **Gemma 4 E4B LiteRT** - Best for **flagship mobiles** ([Download APK](https://cutt.ly/7tGIHIL1)) - `3.28 GB`
-- ⚖️ **Gemma 4 E2B LiteRT** - Best for **decent to mid-range mobiles** ([Download APK](https://cutt.ly/YtGIL2bS)) - `2.37 GB`
-- 📱 **Qwen3 0.6B LiteRT** - Best for **low-end mobiles** ([Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_litertlm_v1.3.0.apk)) - `654 MB`
-- ⚡ **Qwen3 0.6B Q4FP16 ONNX** - Good for **low to mid-range mobiles** ([Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/1.3.0/pocket_llm_qwen3_0.6b_q4fp16_onnx_v1.3.0.apk)) - `1 GB`
-- 🧠 **Qwen2.5 0.5B ONNX** - Best for **mid to high-end mobiles**, **full precision** ([Download APK](https://cutt.ly/EtGIXuZV)) - `2.44 GB`
+Models are **not bundled inside the APK anymore**. After installation, the app prompts the user to select a model and download it directly on device.
+
+Users can download **multiple models** and switch between them later from inside the app, without reinstalling.
+
+#### ➡️ [Download from Releases](https://github.com/dineshsoudagar/local-llms-on-android/releases)
+
+### Available models
+
+- **Gemma 4 E4B LiteRT** - Best for **flagship mobiles**
+- **Gemma 4 E2B LiteRT** - Best for **decent to mid-range mobiles**
+- **Qwen3 0.6B LiteRT** - Best for **low-end mobiles**
+- **Qwen3 0.6B Q4F16 ONNX** - Good for **low to mid-range mobiles**
+- **Qwen2.5 0.5B ONNX** - Best for **mid to high-end mobiles**, **full precision**
+
+> Note: internet is required only for downloading models. Chat and inference remain fully on-device after the model is installed.
+
+---
 
 ## 🧠 Model Support
 
@@ -90,29 +111,30 @@ This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma
 
 - **Qwen2.5-0.5B**
 - **Qwen3-0.6B**
-- **Gemma 4 E2B** 
+- **Gemma 4 E2B**
 - **Gemma 4 E4B**
 
 ### Backend overview
 
-- **ONNX backend**: supports Qwen2.5 and Qwen3
-- **LiteRT backend**: supports Qwen3 and Gemma 4
-
-### ONNX model files
-
-For ONNX builds, the app expects:
-
-- `model.onnx`
-- `tokenizer.json`
-
-### LiteRT model files
-
-For LiteRT builds, the app expects the matching `.litertlm` model file for the selected model.
+- **ONNX backend**: supports **Qwen2.5** and **Qwen3**
+- **LiteRT backend**: supports **Qwen3** and **Gemma 4**
 
 ### Thinking Mode
 
 - **Qwen3** and **Gemma 4** support **Thinking Mode**
 - The toggle is shown only for models that support it
+
+---
+
+## 🔁 Model downloads and switching
+
+The app no longer requires shipping a model inside the APK for normal use.
+
+On first launch, users can choose a model from the built-in model picker and download it on demand. Downloaded models are stored locally on device and can be reused later without downloading again.
+
+Users can also keep multiple models installed and switch between them from inside the app.
+
+This makes the app easier to install, smaller to distribute, and more flexible across different device classes.
 
 ---
 
@@ -126,8 +148,6 @@ For LiteRT builds, the app expects the matching `.litertlm` model file for the s
 - It expands the range of practical Android model builds beyond a single backend path
 - It fits well with a privacy-first app design focused on fully offline usage
 
-This release uses LiteRT to broaden the app's supported local model lineup while keeping the experience fully on-device.
-
 > Note: model capability and performance still depend on the specific model build and the hardware of the target Android device.
 
 ---
@@ -138,74 +158,10 @@ This release uses LiteRT to broaden the app's supported local model lineup while
 - [ONNX Runtime for Android](https://github.com/microsoft/onnxruntime) for ONNX Qwen builds
 - LiteRT dependencies for LiteRT Qwen and Gemma builds
 - A physical Android device for deployment and testing
-- 4 GB or more RAM for FP16 / Q4 models
-- 6 GB or more RAM for FP32 models
+- 4 GB or more RAM for smaller Q4 or LiteRT models
+- More RAM is recommended for larger models such as **Gemma 4 E2B** and **Gemma 4 E4B**
+- A temporary internet connection for the initial model download
 - Real hardware is preferred; emulators are mainly useful for UI checks
-
----
-
-## 🔁 Choose Which Model to Build With
-
-The active model is selected in:
-
-`Qwen_chat_style_app/app/src/main/java/com/example/local_llm/ModelDescriptor.kt`
-
-Inside `ModelRegistry`, change:
-
-```kotlin
-private const val SELECTED_MODEL_ID = "qwen2_5"
-```
-
-to one of:
-
-```kotlin
-"qwen2_5"      // Qwen2.5
-"qwen3"        // Qwen3
-"qwen3_litert" // Qwen3 LiteRT
-"gemma4_e2b"   // Gemma4-2B
-"gemma4_e4b"   // Gemma4-4B
-```
-
-### Notes
-
-- The app title uses the selected model display name
-- **Thinking Mode** is available for **Qwen3**
-- **Gemma 4** is displayed as **Gemma4** in the UI
-
----
-
-## 🔁 Get or Convert Models
-
-### Option 1: Use pre-converted ONNX Qwen models
-
-Download the ONNX model files from Hugging Face:
-
-- [Qwen2.5](https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct)
-- [Qwen3](https://huggingface.co/onnx-community/Qwen3-0.6B-ONNX)
-
-### Option 2: Use LiteRT model files
-
-Use the LiteRT model file that matches the model you select in `ModelDescriptor.kt`:
-
-- [gemma-4-E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/tree/main)
-- [gemma-4-E4B](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/tree/main)
-- [qwen3-0.6B](https://huggingface.co/litert-community/Qwen3-0.6B/tree/main)
-
-### Option 3: Convert a Qwen model to ONNX yourself
-
-```bash
-pip install optimum[onnxruntime]
-# or
-python -m pip install git+https://github.com/huggingface/optimum.git
-```
-
-Export the model:
-
-```bash
-optimum-cli export onnx --model Qwen/Qwen2.5-0.5B-Instruct qwen2.5-0.5B-onnx/
-```
-
-You can also convert a fine-tuned Qwen variant by pointing Optimum to your model path.
 
 ---
 
@@ -217,21 +173,18 @@ You can also convert a fine-tuned Qwen variant by pointing Optimum to your model
 
    ```text
    pocket_llm_src/
-   ```
-4. Add the required model assets to `app/src/main/assets/` based on your selected build:
-   - **ONNX:** `model.onnx` and `tokenizer.json`
-   - **LiteRT:** the matching `.litertlm` model file
 
-5. In `ModelDescriptor.kt`, set the active model using `SELECTED_MODEL_ID`.
-6. Connect your Android phone using USB or wireless debugging.
-7. Run the app from Android Studio, or generate a signed APK from:
+4. Build and install the app on your Android device.
 
-   **Build → Generate Signed Bundle / APK**
+5. Launch the app.
 
-8. Once installed, look for the **Pocket LLM** icon on your device.
+6. On first launch, choose a model from the built-in model picker.
 
-**Note**: All Kotlin files are declared in the package `com.example.local_llm`, and the Gradle script uses the same `applicationId`.  
-If you rename the app or package, you must also refactor the package declarations, folder structure, and Gradle `applicationId`.
+7. Download the selected model directly inside the app.
+
+8. Start chatting locally on device
+
+**Note**: 
 
 ## Customize Your App Experience
 
