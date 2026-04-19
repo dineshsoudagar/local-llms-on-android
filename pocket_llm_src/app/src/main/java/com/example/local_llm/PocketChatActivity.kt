@@ -59,6 +59,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var toolbarSubtitleView: TextView
     private lateinit var toolbarModelSelector: View
     private lateinit var thinkingToggle: CheckBox
+    private lateinit var newChatButton: View
     private lateinit var sendButton: Button
     private lateinit var stopButton: Button
     private lateinit var statusView: TextView
@@ -97,6 +98,7 @@ open class PocketChatActivity : AppCompatActivity() {
         toolbarModelSelector = findViewById(R.id.modelSelector)
         toolbarSubtitleView = findViewById(R.id.toolbarSubtitle)
         thinkingToggle = findViewById(R.id.thinkingToggle)
+        newChatButton = findViewById(R.id.newChatButton)
         inputEditText = findViewById(R.id.userInput)
         sendButton = findViewById(R.id.sendButton)
         stopButton = findViewById(R.id.stopButton)
@@ -130,6 +132,10 @@ open class PocketChatActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             showModelSelectionDialog(forceSelection = false)
+        }
+
+        newChatButton.setOnClickListener {
+            startNewChatFromUi()
         }
 
         sendButton.setOnClickListener {
@@ -199,14 +205,6 @@ open class PocketChatActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            R.id.menu_new_chat -> {
-                val controller = requireUsableController() ?: return true
-                if (!controller.state.value.isGenerating) {
-                    inputEditText.text.clear()
-                    controller.startNewChat()
-                }
-                true
-            }
             R.id.menu_sessions -> {
                 val controller = requireUsableController() ?: return true
                 showPreviousChats(controller)
@@ -404,6 +402,7 @@ open class PocketChatActivity : AppCompatActivity() {
         thinkingToggle.visibility = if (state.supportsThinking && !isModelOperationInProgress) View.VISIBLE else View.GONE
         sendButton.visibility = if (state.isGenerating && !isModelOperationInProgress) View.GONE else View.VISIBLE
         stopButton.visibility = if (state.isGenerating && !isModelOperationInProgress) View.VISIBLE else View.GONE
+        newChatButton.isEnabled = state.isReady && !state.isGenerating && !isModelOperationInProgress
         sendButton.isEnabled = state.isReady && !state.isGenerating && !isModelOperationInProgress
         stopButton.isEnabled = state.isGenerating && !isModelOperationInProgress
 
@@ -425,6 +424,7 @@ open class PocketChatActivity : AppCompatActivity() {
         title = getString(R.string.toolbar_app_title)
         toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
         thinkingToggle.visibility = View.GONE
+        newChatButton.isEnabled = false
         sendButton.visibility = View.VISIBLE
         stopButton.visibility = View.GONE
         sendButton.isEnabled = false
@@ -611,6 +611,16 @@ open class PocketChatActivity : AppCompatActivity() {
         activeDownloadTotalBytes = null
     }
 
+    private fun startNewChatFromUi() {
+        val controller = requireUsableController() ?: return
+        if (controller.state.value.isGenerating) {
+            return
+        }
+
+        inputEditText.text.clear()
+        controller.startNewChat()
+    }
+
     private fun showPreviousChats(controller: PersistentChatController) {
         val sessions = controller.listSavedSessions()
         if (sessions.isEmpty()) {
@@ -744,7 +754,7 @@ open class PocketChatActivity : AppCompatActivity() {
         stopButton: Button
     ) {
         inputEditText.textSize = currentSettings.chatFontSizeSp
-        statusView.textSize = (currentSettings.chatFontSizeSp - 2f).coerceAtLeast(12f)
+        statusView.textSize = currentSettings.chatFontSizeSp
         sendButton.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
         stopButton.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
     }

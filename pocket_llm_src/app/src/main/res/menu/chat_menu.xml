@@ -3,12 +3,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/menu_new_chat"
-        android:title="@string/new_chat"
-        android:icon="@android:drawable/ic_menu_add"
-        app:showAsAction="always" />
-
-    <item
         android:id="@+id/menu_sessions"
         android:title="@string/previous_chats"
         android:icon="@android:drawable/ic_menu_recent_history"

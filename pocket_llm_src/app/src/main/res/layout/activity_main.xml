@@ -72,39 +72,6 @@
                     android:textSize="12sp"
                     tools:text="Gemma 4 E4B LiteRT" />
             </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/modelSelector"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:layout_marginStart="8dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:contentDescription="@string/change_model_hint"
-                android:focusable="true"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="8dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:includeFontPadding="false"
-                    android:text="@string/change_model_button"
-                    android:textColor="?attr/colorStatusText"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:includeFontPadding="false"
-                    android:text="@string/dropdown_arrow"
-                    android:textColor="?attr/colorStatusText"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
         </LinearLayout>
     </com.google.android.material.appbar.MaterialToolbar>
 
@@ -114,7 +81,7 @@
         android:layout_height="0dp"
         android:layout_marginTop="10dp"
         android:background="@drawable/bg_chat_surface"
-        app:layout_constraintBottom_toTopOf="@id/thinkingToggle"
+        app:layout_constraintBottom_toTopOf="@id/chatControlsRow"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/topToolbar">
@@ -136,30 +103,114 @@
             android:paddingHorizontal="20dp"
             android:paddingVertical="8dp"
             android:textColor="@color/white"
-            android:textSize="14sp"
+            android:textSize="16sp"
+            android:textStyle="bold"
             android:visibility="gone"
             tools:text="Model is ready" />
     </FrameLayout>
 
-    <CheckBox
-        android:id="@+id/thinkingToggle"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/chatControlsRow"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:checked="false"
-        android:minHeight="0dp"
-        android:minWidth="0dp"
-        android:paddingTop="0dp"
-        android:paddingBottom="0dp"
-        android:paddingHorizontal="6dp"
-        android:text="@string/enable_thinking_mode"
-        android:textColor="?attr/colorStatusText"
-        android:textSize="12sp"
-        android:visibility="gone"
+        android:layout_marginTop="4dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="0dp"
+        android:paddingVertical="2dp"
+        android:weightSum="3"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.03"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/chatFrame" />
+        app:layout_constraintTop_toBottomOf="@id/chatFrame">
+
+        <LinearLayout
+            android:id="@+id/newChatButton"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/new_chat"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp">
+
+            <TextView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:background="@drawable/bg_new_chat_plus"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:text="+"
+                android:textColor="@color/white"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:includeFontPadding="false"
+                android:text="@string/new_chat"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/modelSelector"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_marginHorizontal="6dp"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/change_model_hint"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:text="@string/change_model_button"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:includeFontPadding="false"
+                android:text="@string/dropdown_arrow"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <CheckBox
+            android:id="@+id/thinkingToggle"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:checked="false"
+            android:gravity="center"
+            android:buttonTint="?attr/colorStatusText"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="4dp"
+            android:text="@string/enable_thinking_mode"
+            android:textColor="?attr/colorStatusText"
+            android:textSize="14sp"
+            android:visibility="gone" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/inputRow"
@@ -174,7 +225,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/thinkingToggle">
+        app:layout_constraintTop_toBottomOf="@id/chatControlsRow">
 
         <EditText
             android:id="@+id/userInput"

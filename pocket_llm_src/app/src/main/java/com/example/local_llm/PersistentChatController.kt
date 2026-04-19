@@ -84,7 +84,7 @@ class PersistentChatController(
                 withContext(Dispatchers.IO) {
                     backend.initialize()
                     if (snapshotToRestore != null) {
-                        backend.resetConversation(snapshotToRestore.turns, thinkingEnabled)
+                        backend.resetConversation(snapshotToRestore.turns.asModelMemoryTurns(), thinkingEnabled)
                     } else {
                         resetConversationForFreshSession()
                     }
@@ -144,7 +144,7 @@ class PersistentChatController(
             try {
                 val response = withContext(Dispatchers.IO) {
                     backend.streamReply(
-                        committedTurns.toList(),
+                        committedTurns.asModelMemoryTurns(),
                         thinkingEnabled,
                         partialCallback@{ partial ->
                             if (generationId != currentGenerationId) {
@@ -160,13 +160,15 @@ class PersistentChatController(
                                     return@launch
                                 }
 
+                                updateThinkingTimer(partial)
                                 streamingAssistantTurn = (streamingAssistantTurn
                                     ?: ChatTurn(role = ChatRole.ASSISTANT, text = "")).copy(
                                     text = partial.text,
                                     thinkingText = partial.thinkingText,
+                                    thinkingDurationMillis = thinkingDurationMillis(partial.thinkingText)
+                                        .takeIf { partial.text.isNotBlank() },
                                     renderAsMarkdown = liveMarkdownEnabled
                                 )
-                                updateThinkingTimer(partial)
                                 publishState(isGenerating = true)
                             }
                         }
@@ -296,7 +298,7 @@ class PersistentChatController(
 
             try {
                 withContext(Dispatchers.IO) {
-                    backend.resetConversation(committedTurns.toList(), thinkingEnabled)
+                    backend.resetConversation(committedTurns.asModelMemoryTurns(), thinkingEnabled)
                 }
                 publishState(statusMessage = "Loaded ${session.title}.")
             } catch (e: Exception) {

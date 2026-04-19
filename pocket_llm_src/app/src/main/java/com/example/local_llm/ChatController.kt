@@ -91,14 +91,16 @@ class ChatController(
         generationJob = scope.launch {
             try {
                 val response = withContext(Dispatchers.IO) {
-                    backend.streamReply(committedTurns.toList(), thinkingEnabled) { partial ->
+                    backend.streamReply(committedTurns.asModelMemoryTurns(), thinkingEnabled) { partial ->
                         scope.launch {
+                            updateThinkingTimer(partial)
                             streamingAssistantTurn = ChatTurn(
                                 role = ChatRole.ASSISTANT,
                                 text = partial.text,
-                                thinkingText = partial.thinkingText
+                                thinkingText = partial.thinkingText,
+                                thinkingDurationMillis = thinkingDurationMillis(partial.thinkingText)
+                                    .takeIf { partial.text.isNotBlank() }
                             )
-                            updateThinkingTimer(partial)
                             publishState(isGenerating = true)
                         }
                     }
@@ -122,7 +124,7 @@ class ChatController(
             } catch (_: CancellationException) {
                 commitStoppedAssistantTurn()
                 withContext(NonCancellable + Dispatchers.IO) {
-                    backend.resetConversation(committedTurns.toList(), thinkingEnabled)
+                    backend.resetConversation(committedTurns.asModelMemoryTurns(), thinkingEnabled)
                 }
                 resetGenerationTimer()
                 publishState(statusMessage = "⛔ Generation stopped.", isGenerating = false)

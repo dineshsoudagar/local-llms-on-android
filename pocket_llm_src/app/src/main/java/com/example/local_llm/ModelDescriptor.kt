@@ -163,9 +163,9 @@ object ModelRegistry {
         defaultSystemInstruction = "You are Qwen. a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
         displayNameOverride = "Qwen3 0.6B LiteRT",
         thinkingModeAvailable = true,
-        downloadSizeLabel = "592 MB",
+        downloadSizeLabel = "614 MB",
         recommendationLabel = "Best for low-end mobiles",
-        estimatedDownloadBytes = 592_000_000L,
+        estimatedDownloadBytes = 614_000_000L,
         downloadArtifacts = listOf(
             ModelDownloadFile(
                 localFileName = QWEN_LITERT_MODEL_ASSET,

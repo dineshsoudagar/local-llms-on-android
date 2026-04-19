@@ -26,7 +26,8 @@
             android:paddingHorizontal="12dp"
             android:paddingVertical="7dp"
             android:textColor="?attr/colorStatusText"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/thoughtView"

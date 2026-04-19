@@ -23,6 +23,8 @@ class ChatAdapter(
 
     companion object {
         private const val USER_BUBBLE_LEFT_SPACE_FRACTION = 0.15f
+        private const val THOUGHT_COLLAPSED_ICON = "\u25B8"
+        private const val THOUGHT_EXPANDED_ICON = "\u25BE"
     }
 
     fun submitTurns(turns: List<ChatTurn>) {
@@ -70,7 +72,8 @@ class ChatAdapter(
 
         val thoughtText = buildThoughtText(turn)
         val hasThought = !thoughtText.isNullOrBlank()
-        val isThoughtExpanded = hasThought && expandedThoughtIds.contains(turn.id)
+        val isLiveThought = hasThought && turn.thinkingDurationMillis == null && turn.text.isBlank()
+        val isThoughtExpanded = hasThought && (isLiveThought || expandedThoughtIds.contains(turn.id))
         holder.thoughtContainer.visibility = if (hasThought) View.VISIBLE else View.GONE
         holder.thoughtHeaderView.text = buildThoughtHeader(turn, isThoughtExpanded)
         holder.thoughtHeaderView.setOnClickListener {
@@ -117,15 +120,15 @@ class ChatAdapter(
     }
 
     private fun buildThoughtHeader(turn: ChatTurn, isExpanded: Boolean): String {
-        val state = if (isExpanded) "-" else "+"
+        val state = if (isExpanded) THOUGHT_EXPANDED_ICON else THOUGHT_COLLAPSED_ICON
         val durationMillis = turn.thinkingDurationMillis
         if (durationMillis == null) {
-            return "Thinking... $state"
+            return "$state Thinking..."
         }
 
         val seconds = ((durationMillis + 999L) / 1000L).coerceAtLeast(1L)
-        val unit = if (seconds == 1L) "sec" else "secs"
-        return "Thought for $seconds $unit $state"
+        val unit = if (seconds == 1L) "second" else "seconds"
+        return "$state Thought for $seconds $unit"
     }
 
     private fun buildBubbleText(turn: ChatTurn): String {
