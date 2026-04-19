@@ -14,7 +14,7 @@ Unlike older builds, the app now ships as a **small base APK**. Users choose and
 
 ## 🆕 New in v1.4.0
 
-- Switched to a **smaller base APK** of around **200 MB**
+- Switched to a **smaller base APK**
 - Models are **no longer bundled inside the APK**
 - Added **first-launch model selection** with on-device model downloads
 - Added support for **downloading multiple models**
