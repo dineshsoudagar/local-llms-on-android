@@ -26,7 +26,7 @@ class QwenLiteRtBackend(
     private var conversation: Conversation? = null
 
     override suspend fun initialize() = withContext(Dispatchers.IO) {
-        val modelFile = modelFileResolver.resolveAssetToFile(spec.modelAssetName)
+        val modelFile = modelFileResolver.resolveModelFile(spec)
 
         val gpuResult = runCatching {
             Engine(

@@ -1,5 +1,5 @@
 [versions]
-agp = "9.1.0"
+agp = "9.1.1"
 appcompat = "1.7.0"
 jsonJson = "20240303"
 kotlin = "2.2.21"
@@ -34,4 +34,3 @@ onnxruntime-android = { module = "com.microsoft.onnxruntime:onnxruntime-android"
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-

@@ -1,9 +1,19 @@
 package com.example.local_llm
 
+data class ModelDownloadFile(
+    val localFileName: String,
+    val downloadUrl: String
+)
+
 sealed class ModelDescriptor(
     val id: String,
     val displayName: String,
-    val supportsThinking: Boolean
+    val supportsThinking: Boolean,
+    val backendLabel: String,
+    val sizeLabel: String,
+    val deviceRecommendation: String,
+    val approxDownloadBytes: Long,
+    val downloadFiles: List<ModelDownloadFile>
 )
 
 data class OnnxQwenSpec(
@@ -21,11 +31,20 @@ data class OnnxQwenSpec(
     val defaultSystemPrompt: String,
     val scalarPosId: Boolean = false,
     val dtype: String = "float32",
-    val thinkingModeAvailable: Boolean = false
+    val thinkingModeAvailable: Boolean = false,
+    val downloadSizeLabel: String,
+    val recommendationLabel: String,
+    val estimatedDownloadBytes: Long,
+    val downloadArtifacts: List<ModelDownloadFile>
 ) : ModelDescriptor(
     id = modelName.lowercase(),
     displayName = displayNameOverride,
-    supportsThinking = thinkingModeAvailable
+    supportsThinking = thinkingModeAvailable,
+    backendLabel = "ONNX",
+    sizeLabel = downloadSizeLabel,
+    deviceRecommendation = recommendationLabel,
+    approxDownloadBytes = estimatedDownloadBytes,
+    downloadFiles = downloadArtifacts
 )
 
 data class GemmaLiteRtSpec(
@@ -33,11 +52,20 @@ data class GemmaLiteRtSpec(
     val modelAssetName: String,
     val defaultSystemInstruction: String,
     val displayNameOverride: String = modelName,
-    val thinkingModeAvailable: Boolean = false
+    val thinkingModeAvailable: Boolean = false,
+    val downloadSizeLabel: String,
+    val recommendationLabel: String,
+    val estimatedDownloadBytes: Long,
+    val downloadArtifacts: List<ModelDownloadFile>
 ) : ModelDescriptor(
     id = modelName.lowercase(),
     displayName = displayNameOverride,
-    supportsThinking = thinkingModeAvailable
+    supportsThinking = thinkingModeAvailable,
+    backendLabel = "LiteRT",
+    sizeLabel = downloadSizeLabel,
+    deviceRecommendation = recommendationLabel,
+    approxDownloadBytes = estimatedDownloadBytes,
+    downloadFiles = downloadArtifacts
 )
 
 data class QwenLiteRtSpec(
@@ -45,11 +73,20 @@ data class QwenLiteRtSpec(
     val modelAssetName: String,
     val defaultSystemInstruction: String,
     val displayNameOverride: String = modelName,
-    val thinkingModeAvailable: Boolean = false
+    val thinkingModeAvailable: Boolean = false,
+    val downloadSizeLabel: String,
+    val recommendationLabel: String,
+    val estimatedDownloadBytes: Long,
+    val downloadArtifacts: List<ModelDownloadFile>
 ) : ModelDescriptor(
     id = modelName.lowercase(),
     displayName = displayNameOverride,
-    supportsThinking = thinkingModeAvailable
+    supportsThinking = thinkingModeAvailable,
+    backendLabel = "LiteRT",
+    sizeLabel = downloadSizeLabel,
+    deviceRecommendation = recommendationLabel,
+    approxDownloadBytes = estimatedDownloadBytes,
+    downloadFiles = downloadArtifacts
 )
 
 object ModelRegistry {
@@ -59,9 +96,11 @@ object ModelRegistry {
     private const val QWEN_LITERT_MODEL_ASSET = "Qwen3-0.6B.litertlm"
     private const val GEMMA_MODEL_ASSET = "gemma-4-E2B-it.litertlm"
     private const val GEMMA_E4B_MODEL_ASSET = "gemma-4-E4B-it.litertlm"
+    private const val HF_BASE = "https://huggingface.co"
 
     val qwen25 = OnnxQwenSpec(
         modelName = "Qwen2_5",
+        displayNameOverride = "Qwen2.5 0.5B ONNX",
         promptStyle = PromptStyle.QWEN2_5,
         modelAssetName = QWEN_MODEL_ASSET,
         tokenizerAssetName = TOKENIZER_ASSET,
@@ -71,11 +110,25 @@ object ModelRegistry {
         numKvHeads = 2,
         headDim = 64,
         batchSize = 1,
-        defaultSystemPrompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant."
+        defaultSystemPrompt = "You are Qwen, created by Alibaba Cloud. You are a helpful assistant.",
+        downloadSizeLabel = "2.0 GB",
+        recommendationLabel = "Best for mid to high-end mobiles, full precision",
+        estimatedDownloadBytes = 1_997_000_000L,
+        downloadArtifacts = listOf(
+            ModelDownloadFile(
+                localFileName = QWEN_MODEL_ASSET,
+                downloadUrl = "$HF_BASE/onnx-community/Qwen2.5-0.5B-Instruct/resolve/main/onnx/model.onnx?download=true"
+            ),
+            ModelDownloadFile(
+                localFileName = TOKENIZER_ASSET,
+                downloadUrl = "$HF_BASE/onnx-community/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer.json?download=true"
+            )
+        )
     )
 
     val qwen3 = OnnxQwenSpec(
         modelName = "Qwen3",
+        displayNameOverride = "Qwen3 0.6B Q4F16 ONNX",
         promptStyle = PromptStyle.QWEN3,
         modelAssetName = QWEN_MODEL_ASSET,
         tokenizerAssetName = TOKENIZER_ASSET,
@@ -88,36 +141,87 @@ object ModelRegistry {
         defaultSystemPrompt = "You are Qwen. a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
         scalarPosId = true,
         dtype = "float16",
-        thinkingModeAvailable = true
+        thinkingModeAvailable = true,
+        downloadSizeLabel = "581 MB",
+        recommendationLabel = "Good for low to mid-range mobiles",
+        estimatedDownloadBytes = 592_000_000L,
+        downloadArtifacts = listOf(
+            ModelDownloadFile(
+                localFileName = QWEN_MODEL_ASSET,
+                downloadUrl = "$HF_BASE/onnx-community/Qwen3-0.6B-ONNX/resolve/main/onnx/model_q4f16.onnx?download=true"
+            ),
+            ModelDownloadFile(
+                localFileName = TOKENIZER_ASSET,
+                downloadUrl = "$HF_BASE/onnx-community/Qwen3-0.6B-ONNX/resolve/main/tokenizer.json?download=true"
+            )
+        )
     )
 
     val qwen3LiteRt = QwenLiteRtSpec(
         modelName = "Qwen3_LiteRT",
         modelAssetName = QWEN_LITERT_MODEL_ASSET,
         defaultSystemInstruction = "You are Qwen. a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
-        displayNameOverride = "Qwen3 LiteRT",
-        thinkingModeAvailable = true
+        displayNameOverride = "Qwen3 0.6B LiteRT",
+        thinkingModeAvailable = true,
+        downloadSizeLabel = "614 MB",
+        recommendationLabel = "Best for low-end mobiles",
+        estimatedDownloadBytes = 614_000_000L,
+        downloadArtifacts = listOf(
+            ModelDownloadFile(
+                localFileName = QWEN_LITERT_MODEL_ASSET,
+                downloadUrl = "$HF_BASE/litert-community/Qwen3-0.6B/resolve/main/Qwen3-0.6B.litertlm?download=true"
+            )
+        )
     )
 
     val gemma4E2B = GemmaLiteRtSpec(
         modelName = "Gemma4_E2B",
         modelAssetName = GEMMA_MODEL_ASSET,
         defaultSystemInstruction = "You are Gemma, a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
-        displayNameOverride = "Gemma4-2B",
-        thinkingModeAvailable = true
+        displayNameOverride = "Gemma 4 E2B LiteRT",
+        thinkingModeAvailable = true,
+        downloadSizeLabel = "2.58 GB",
+        recommendationLabel = "Best for decent to mid-range mobiles",
+        estimatedDownloadBytes = 2_580_000_000L,
+        downloadArtifacts = listOf(
+            ModelDownloadFile(
+                localFileName = GEMMA_MODEL_ASSET,
+                downloadUrl = "$HF_BASE/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm?download=true"
+            )
+        )
     )
 
     val gemma4E4B = GemmaLiteRtSpec(
         modelName = "Gemma4_E4B",
         modelAssetName = GEMMA_E4B_MODEL_ASSET,
         defaultSystemInstruction = "You are Gemma, a helpful personal assistant. Answer clearly, naturally, and in a friendly way. Stay focused on the user's question and avoid unnecessary details. Keep replies concise but useful. Be conversational when appropriate, and ask a follow-up question only when needed.",
-        displayNameOverride = "Gemma4-4B",
-        thinkingModeAvailable = true
+        displayNameOverride = "Gemma 4 E4B LiteRT",
+        thinkingModeAvailable = true,
+        downloadSizeLabel = "3.65 GB",
+        recommendationLabel = "Best for flagship mobiles",
+        estimatedDownloadBytes = 3_650_000_000L,
+        downloadArtifacts = listOf(
+            ModelDownloadFile(
+                localFileName = GEMMA_E4B_MODEL_ASSET,
+                downloadUrl = "$HF_BASE/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it.litertlm?download=true"
+            )
+        )
     )
 
-    private val models = listOf(qwen25, qwen3, qwen3LiteRt, gemma4E2B, gemma4E4B)
+    val all = listOf(gemma4E4B, gemma4E2B, qwen3LiteRt, qwen3, qwen25)
 
-    private const val SELECTED_MODEL_ID = "qwen2_5"
+    fun findById(id: String?): ModelDescriptor? {
+        if (id.isNullOrBlank()) {
+            return null
+        }
 
-    val selected: ModelDescriptor = models.first { it.id == SELECTED_MODEL_ID }
+        return all.firstOrNull { it.id == id }
+    }
 }
+
+val ModelDescriptor.primaryModelFileName: String
+    get() = when (this) {
+        is OnnxQwenSpec -> modelAssetName
+        is GemmaLiteRtSpec -> modelAssetName
+        is QwenLiteRtSpec -> modelAssetName
+    }

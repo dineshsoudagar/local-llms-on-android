@@ -62,3 +62,7 @@ dependencies {
     implementation ("com.google.android.material:material:1.12.0")
     implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
 }
+
+// Android Studio may request this legacy Kotlin model task during sync. AGP 9
+// provides Kotlin support directly, so keep this as a no-op compatibility task.
+tasks.register("prepareKotlinBuildScriptModel")

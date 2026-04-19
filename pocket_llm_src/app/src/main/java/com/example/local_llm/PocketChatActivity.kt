@@ -2,6 +2,7 @@ package com.example.local_llm
 
 import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.text.format.Formatter
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
@@ -10,15 +11,21 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 open class PocketChatActivity : AppCompatActivity() {
@@ -28,19 +35,50 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private data class RetainedControllerHolder(
-        val chatController: PersistentChatController
+        val chatController: PersistentChatController?,
+        val modelId: String?
+    )
+
+    private data class ModelDialogViews(
+        val dialog: AlertDialog,
+        val introView: TextView,
+        val listContainer: LinearLayout,
+        val progressSection: View,
+        val progressTitleView: TextView,
+        val progressBar: ProgressBar,
+        val progressBytesView: TextView
     )
 
     private lateinit var settingsStore: AppSettingsStore
     private lateinit var currentSettings: AppSettings
-    private lateinit var chatController: PersistentChatController
+    private lateinit var modelSelectionStore: ModelSelectionStore
+    private lateinit var modelFileResolver: ModelFileResolver
+    private lateinit var modelDownloader: ModelDownloader
+    private var currentModel: ModelDescriptor? = null
+    private var chatController: PersistentChatController? = null
+    private var controllerStateJob: Job? = null
+    private var modelDownloadJob: Job? = null
+    private var modelDialogViews: ModelDialogViews? = null
+    private var modelDialogForceSelection = false
     private lateinit var chatAdapter: ChatAdapter
     private lateinit var chatRecyclerView: RecyclerView
     private lateinit var inputEditText: EditText
     private lateinit var toolbarSubtitleView: TextView
+    private lateinit var toolbarModelSelector: View
+    private lateinit var thinkingToggle: CheckBox
+    private lateinit var sendButton: Button
+    private lateinit var stopButton: Button
+    private lateinit var statusView: TextView
     private var autoScrollDuringGeneration = false
     private var autoScrollPendingFinalUpdate = false
     private var wasGenerating = false
+    private var isModelOperationInProgress = false
+    private var modelOperationStatusMessage: String? = null
+    private var activeDownloadModelId: String? = null
+    private var activeDownloadModelName: String? = null
+    private var activeDownloadFileName: String? = null
+    private var activeDownloadBytes: Long = 0L
+    private var activeDownloadTotalBytes: Long? = null
     private val chatAdapterObserver = object : RecyclerView.AdapterDataObserver() {
         override fun onChanged() = scrollChatToBottomIfNeeded()
 
@@ -54,23 +92,27 @@ open class PocketChatActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         settingsStore = AppSettingsStore(this)
         currentSettings = settingsStore.load()
+        modelSelectionStore = ModelSelectionStore(this)
+        modelFileResolver = ModelFileResolver(this)
+        modelDownloader = ModelDownloader(modelFileResolver)
         setTheme(currentSettings.theme.styleRes)
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         val toolbar: MaterialToolbar = findViewById(R.id.topToolbar)
         val toolbarLogoView: ImageView = findViewById(R.id.toolbarLogo)
+        toolbarModelSelector = findViewById(R.id.modelSelector)
         toolbarSubtitleView = findViewById(R.id.toolbarSubtitle)
-        val thinkingToggle: CheckBox = findViewById(R.id.thinkingToggle)
+        thinkingToggle = findViewById(R.id.thinkingToggle)
         inputEditText = findViewById(R.id.userInput)
-        val sendButton: Button = findViewById(R.id.sendButton)
-        val stopButton: Button = findViewById(R.id.stopButton)
-        val statusView: TextView = findViewById(R.id.statusView)
+        sendButton = findViewById(R.id.sendButton)
+        stopButton = findViewById(R.id.stopButton)
+        statusView = findViewById(R.id.statusView)
         chatRecyclerView = findViewById(R.id.chatRecyclerView)
 
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
-        toolbarSubtitleView.text = ModelRegistry.selected.displayName
+        toolbarSubtitleView.text = getString(R.string.model_picker_empty_subtitle)
         loadToolbarLogo(toolbarLogoView)
 
         chatAdapter = ChatAdapter(currentSettings.chatFontSizeSp)
@@ -79,74 +121,79 @@ open class PocketChatActivity : AppCompatActivity() {
         chatRecyclerView.itemAnimator = null
         chatAdapter.registerAdapterDataObserver(chatAdapterObserver)
         applyTypography(statusView, sendButton, stopButton)
-
-        val retainedHolder = lastCustomNonConfigurationInstance as? RetainedControllerHolder
-        chatController = retainedHolder?.chatController
-            ?: PersistentChatController(this, ModelRegistry.selected)
         chatRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 super.onScrollStateChanged(recyclerView, newState)
-                if (newState == RecyclerView.SCROLL_STATE_DRAGGING && chatController.state.value.isGenerating) {
+                if (newState == RecyclerView.SCROLL_STATE_DRAGGING && chatController?.state?.value?.isGenerating == true) {
                     autoScrollDuringGeneration = false
                     autoScrollPendingFinalUpdate = false
                 }
             }
         })
 
-        thinkingToggle.isChecked = chatController.isThinkingEnabled()
-
-        lifecycleScope.launch {
-            chatController.state.collect { state ->
-                val generationStarted = state.isGenerating && !wasGenerating
-                val generationFinished = !state.isGenerating && wasGenerating
-
-                if (generationStarted) {
-                    autoScrollDuringGeneration = true
-                    autoScrollPendingFinalUpdate = false
-                }
-                if (generationFinished) {
-                    autoScrollPendingFinalUpdate = autoScrollDuringGeneration
-                    autoScrollDuringGeneration = false
-                }
-
-                title = state.title
-                toolbarSubtitleView.text = state.title.substringAfter("Pocket LLM - ", ModelRegistry.selected.displayName)
-                thinkingToggle.visibility = if (state.supportsThinking) View.VISIBLE else View.GONE
-                sendButton.visibility = if (state.isGenerating) View.GONE else View.VISIBLE
-                stopButton.visibility = if (state.isGenerating) View.VISIBLE else View.GONE
-                sendButton.isEnabled = state.isReady && !state.isGenerating
-                stopButton.isEnabled = state.isGenerating
-
-                statusView.text = state.statusMessage
-                val showInlineStatus = state.statusMessage.isNotBlank() &&
-                    (state.transcript.isEmpty() || !state.isReady)
-                statusView.visibility = if (showInlineStatus) View.VISIBLE else View.GONE
-
-                chatAdapter.submitTurns(state.transcript)
-                wasGenerating = state.isGenerating
+        toolbarModelSelector.setOnClickListener {
+            if (chatController?.state?.value?.isGenerating == true) {
+                showTransientMessage(getString(R.string.model_switch_generation_blocked))
+                return@setOnClickListener
             }
+            showModelSelectionDialog(forceSelection = false)
         }
 
         sendButton.setOnClickListener {
+            val controller = chatController ?: return@setOnClickListener
             val prompt = inputEditText.text.toString()
-            if (prompt.isBlank()) {
+            if (prompt.isBlank() || isModelOperationInProgress) {
                 return@setOnClickListener
             }
 
-            chatController.sendPrompt(prompt)
+            controller.sendPrompt(prompt)
             inputEditText.text.clear()
         }
 
         stopButton.setOnClickListener {
-            chatController.cancelGeneration()
+            chatController?.cancelGeneration()
         }
 
         thinkingToggle.setOnCheckedChangeListener { _, isChecked ->
-            chatController.setThinkingEnabled(isChecked)
+            chatController?.setThinkingEnabled(isChecked)
         }
 
-        if (retainedHolder == null) {
-            chatController.initialize()
+        val retainedHolder = lastCustomNonConfigurationInstance as? RetainedControllerHolder
+        val restoredModel = retainedHolder?.modelId?.let(ModelRegistry::findById)
+        currentModel = restoredModel ?: modelSelectionStore.loadSelectedModel()
+
+        val retainedController = retainedHolder?.chatController
+        if (retainedController != null && currentModel != null) {
+            chatController = retainedController
+            toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
+            thinkingToggle.isChecked = retainedController.isThinkingEnabled()
+            observeController(retainedController)
+            applyChatState(retainedController.state.value)
+        } else {
+            val startupModel = currentModel
+            if (startupModel != null && modelFileResolver.isModelAvailable(startupModel)) {
+                switchToController(startupModel, PersistentChatController(this, startupModel), initialize = true)
+            } else {
+                if (startupModel != null) {
+                    toolbarSubtitleView.text = startupModel.displayName
+                    renderNoControllerState(
+                        getString(R.string.model_missing_message, startupModel.displayName),
+                        preserveTranscript = false
+                    )
+                } else {
+                    renderNoControllerState(
+                        getString(R.string.model_required_message),
+                        preserveTranscript = false
+                    )
+                }
+                thinkingToggle.isChecked = false
+            }
+        }
+
+        if (chatController == null) {
+            chatRecyclerView.post {
+                showModelSelectionDialog(forceSelection = true)
+            }
         }
     }
 
@@ -158,14 +205,16 @@ open class PocketChatActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.menu_new_chat -> {
-                if (!chatController.state.value.isGenerating) {
+                val controller = requireUsableController() ?: return true
+                if (!controller.state.value.isGenerating) {
                     inputEditText.text.clear()
-                    chatController.startNewChat()
+                    controller.startNewChat()
                 }
                 true
             }
             R.id.menu_sessions -> {
-                showPreviousChats()
+                val controller = requireUsableController() ?: return true
+                showPreviousChats(controller)
                 true
             }
             R.id.menu_settings -> {
@@ -180,22 +229,374 @@ open class PocketChatActivity : AppCompatActivity() {
         if (::chatAdapter.isInitialized) {
             chatAdapter.unregisterAdapterDataObserver(chatAdapterObserver)
         }
+        controllerStateJob?.cancel()
+        modelDownloadJob?.cancel()
+        modelDialogViews?.dialog?.dismiss()
         super.onDestroy()
-        if (::chatController.isInitialized && !isChangingConfigurations) {
-            chatController.close()
+        if (!isChangingConfigurations) {
+            chatController?.close()
         }
     }
 
     override fun onRetainCustomNonConfigurationInstance(): Any? {
-        return if (::chatController.isInitialized) {
-            RetainedControllerHolder(chatController)
+        return if (chatController != null || currentModel != null) {
+            RetainedControllerHolder(
+                chatController = chatController,
+                modelId = currentModel?.id
+            )
         } else {
             null
         }
     }
 
-    private fun showPreviousChats() {
-        val sessions = chatController.listSavedSessions()
+    private fun requireUsableController(): PersistentChatController? {
+        val controller = chatController
+        if (controller == null) {
+            showTransientMessage(getString(R.string.model_required_message))
+            showModelSelectionDialog(forceSelection = true)
+            return null
+        }
+
+        if (isModelOperationInProgress) {
+            showTransientMessage(getString(R.string.model_operation_in_progress))
+            return null
+        }
+
+        if (!controller.state.value.isReady) {
+            showTransientMessage(getString(R.string.model_loading_message))
+            return null
+        }
+
+        return controller
+    }
+
+    private fun observeController(controller: PersistentChatController) {
+        controllerStateJob?.cancel()
+        controllerStateJob = lifecycleScope.launch {
+            controller.state.collect { state ->
+                applyChatState(state)
+            }
+        }
+    }
+
+    private fun switchToController(
+        descriptor: ModelDescriptor,
+        controller: PersistentChatController,
+        initialize: Boolean
+    ) {
+        controllerStateJob?.cancel()
+        chatController?.close()
+        chatController = controller
+        currentModel = descriptor
+        modelSelectionStore.saveSelectedModel(descriptor.id)
+        resetDownloadState()
+        isModelOperationInProgress = false
+        modelOperationStatusMessage = null
+        autoScrollDuringGeneration = false
+        autoScrollPendingFinalUpdate = false
+        wasGenerating = false
+        toolbarSubtitleView.text = descriptor.displayName
+        inputEditText.text.clear()
+        thinkingToggle.isChecked = false
+        observeController(controller)
+        applyChatState(controller.state.value)
+        if (initialize) {
+            controller.initialize()
+        }
+    }
+
+    private fun applyChatState(state: ChatUiState) {
+        val generationStarted = state.isGenerating && !wasGenerating
+        val generationFinished = !state.isGenerating && wasGenerating
+
+        if (generationStarted) {
+            autoScrollDuringGeneration = true
+            autoScrollPendingFinalUpdate = false
+        }
+        if (generationFinished) {
+            autoScrollPendingFinalUpdate = autoScrollDuringGeneration
+            autoScrollDuringGeneration = false
+        }
+
+        title = state.title
+        toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
+        thinkingToggle.visibility = if (state.supportsThinking && !isModelOperationInProgress) View.VISIBLE else View.GONE
+        sendButton.visibility = if (state.isGenerating && !isModelOperationInProgress) View.GONE else View.VISIBLE
+        stopButton.visibility = if (state.isGenerating && !isModelOperationInProgress) View.VISIBLE else View.GONE
+        sendButton.isEnabled = state.isReady && !state.isGenerating && !isModelOperationInProgress
+        stopButton.isEnabled = state.isGenerating && !isModelOperationInProgress
+
+        val effectiveStatus = modelOperationStatusMessage ?: state.statusMessage
+        statusView.text = effectiveStatus
+        val showInlineStatus = effectiveStatus.isNotBlank() &&
+            ((state.transcript.isEmpty() || !state.isReady) || isModelOperationInProgress)
+        statusView.visibility = if (showInlineStatus) View.VISIBLE else View.GONE
+
+        chatAdapter.submitTurns(state.transcript)
+        wasGenerating = state.isGenerating
+    }
+
+    private fun renderNoControllerState(
+        message: String,
+        preserveTranscript: Boolean
+    ) {
+        title = getString(R.string.toolbar_app_title)
+        toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
+        thinkingToggle.visibility = View.GONE
+        sendButton.visibility = View.VISIBLE
+        stopButton.visibility = View.GONE
+        sendButton.isEnabled = false
+        stopButton.isEnabled = false
+        statusView.text = message
+        statusView.visibility = if (message.isBlank()) View.GONE else View.VISIBLE
+        if (!preserveTranscript) {
+            chatAdapter.submitTurns(emptyList())
+        }
+        autoScrollDuringGeneration = false
+        autoScrollPendingFinalUpdate = false
+        wasGenerating = false
+    }
+
+    private fun showModelSelectionDialog(forceSelection: Boolean) {
+        val existingDialog = modelDialogViews?.dialog
+        if (existingDialog != null && existingDialog.isShowing) {
+            modelDialogForceSelection = forceSelection || modelDialogForceSelection
+            refreshModelSelectionDialog()
+            return
+        }
+
+        modelDialogForceSelection = forceSelection
+        val dialogBuilder = MaterialAlertDialogBuilder(this)
+        val dialogView = LayoutInflater.from(dialogBuilder.context)
+            .inflate(R.layout.dialog_model_selection, null)
+
+        val dialog = dialogBuilder
+            .setTitle(getString(R.string.model_picker_title))
+            .setView(dialogView)
+            .create()
+
+        val dialogUi = ModelDialogViews(
+            dialog = dialog,
+            introView = dialogView.findViewById(R.id.modelPickerIntro),
+            listContainer = dialogView.findViewById(R.id.modelListContainer),
+            progressSection = dialogView.findViewById(R.id.downloadProgressSection),
+            progressTitleView = dialogView.findViewById(R.id.downloadProgressTitle),
+            progressBar = dialogView.findViewById(R.id.downloadProgressBar),
+            progressBytesView = dialogView.findViewById(R.id.downloadProgressBytes)
+        )
+
+        dialog.setOnDismissListener {
+            modelDialogViews = null
+            modelDialogForceSelection = false
+        }
+
+        modelDialogViews = dialogUi
+        refreshModelSelectionDialog()
+        dialog.show()
+    }
+
+    private fun refreshModelSelectionDialog() {
+        val dialogUi = modelDialogViews ?: return
+        val canCancel = !modelDialogForceSelection && !isModelOperationInProgress
+        dialogUi.dialog.setCancelable(canCancel)
+        dialogUi.dialog.setCanceledOnTouchOutside(canCancel)
+        dialogUi.introView.text = if (modelDialogForceSelection) {
+            getString(R.string.model_picker_required_intro)
+        } else {
+            getString(R.string.model_picker_optional_intro)
+        }
+
+        dialogUi.listContainer.removeAllViews()
+        val inflater = LayoutInflater.from(this)
+        ModelRegistry.all.forEach { descriptor ->
+            val itemView = inflater.inflate(R.layout.item_model_option, dialogUi.listContainer, false)
+            val nameView: TextView = itemView.findViewById(R.id.modelName)
+            val metaView: TextView = itemView.findViewById(R.id.modelMeta)
+            val recommendationView: TextView = itemView.findViewById(R.id.modelRecommendation)
+            val statusTextView: TextView = itemView.findViewById(R.id.modelStatus)
+            val actionButton: Button = itemView.findViewById(R.id.modelActionButton)
+
+            nameView.text = descriptor.displayName
+            metaView.text = getString(
+                R.string.model_picker_meta_format,
+                descriptor.backendLabel,
+                descriptor.sizeLabel
+            )
+            recommendationView.text = descriptor.deviceRecommendation
+
+            val isCurrentModel = currentModel?.id == descriptor.id && chatController != null
+            val isDownloadingThisModel = activeDownloadModelId == descriptor.id
+            val isDownloaded = modelFileResolver.isModelDownloaded(descriptor)
+            val isAvailable = modelFileResolver.isModelAvailable(descriptor)
+
+            statusTextView.text = when {
+                isDownloadingThisModel -> getString(R.string.model_status_downloading)
+                isCurrentModel -> getString(R.string.model_status_current)
+                isDownloaded -> getString(R.string.model_status_downloaded)
+                isAvailable -> getString(R.string.model_status_bundled)
+                else -> getString(R.string.model_status_not_downloaded)
+            }
+
+            actionButton.text = when {
+                isDownloadingThisModel -> getString(R.string.model_action_downloading)
+                isCurrentModel -> getString(R.string.model_action_current)
+                isAvailable -> getString(R.string.model_action_use)
+                else -> getString(R.string.model_action_download)
+            }
+            actionButton.isEnabled = !isModelOperationInProgress && !isCurrentModel
+            actionButton.setOnClickListener {
+                handleModelSelection(descriptor)
+            }
+
+            dialogUi.listContainer.addView(itemView)
+        }
+
+        val showProgress = isModelOperationInProgress && activeDownloadModelId != null
+        dialogUi.progressSection.visibility = if (showProgress) View.VISIBLE else View.GONE
+        if (showProgress) {
+            val totalBytes = activeDownloadTotalBytes
+            dialogUi.progressTitleView.text = getString(
+                R.string.model_download_progress_title,
+                activeDownloadModelName ?: ""
+            )
+            if (totalBytes != null && totalBytes > 0L) {
+                dialogUi.progressBar.isIndeterminate = false
+                dialogUi.progressBar.max = 1000
+                dialogUi.progressBar.progress = ((activeDownloadBytes * 1000L) / totalBytes)
+                    .toInt()
+                    .coerceIn(0, 1000)
+                dialogUi.progressBytesView.text = getString(
+                    R.string.model_download_progress_bytes,
+                    formatFileSize(activeDownloadBytes),
+                    formatFileSize(totalBytes)
+                )
+            } else {
+                dialogUi.progressBar.isIndeterminate = true
+                dialogUi.progressBytesView.text = formatFileSize(activeDownloadBytes)
+            }
+        }
+    }
+
+    private fun handleModelSelection(descriptor: ModelDescriptor) {
+        if (isModelOperationInProgress) {
+            return
+        }
+
+        if (descriptor.id == currentModel?.id && chatController != null) {
+            modelDialogViews?.dialog?.dismiss()
+            return
+        }
+
+        if (modelFileResolver.isModelAvailable(descriptor)) {
+            modelDialogViews?.dialog?.dismiss()
+            switchToController(descriptor, PersistentChatController(this, descriptor), initialize = true)
+            return
+        }
+
+        startModelDownload(descriptor)
+    }
+
+    private fun startModelDownload(descriptor: ModelDescriptor) {
+        isModelOperationInProgress = true
+        activeDownloadModelId = descriptor.id
+        activeDownloadModelName = descriptor.displayName
+        activeDownloadFileName = null
+        activeDownloadBytes = 0L
+        activeDownloadTotalBytes = descriptor.approxDownloadBytes
+        modelOperationStatusMessage = getString(R.string.model_download_preparing, descriptor.displayName)
+
+        refreshModelSelectionDialog()
+        if (chatController != null) {
+            applyChatState(chatController!!.state.value)
+        } else {
+            renderNoControllerState(modelOperationStatusMessage.orEmpty(), preserveTranscript = true)
+        }
+
+        var completedBytes = 0L
+        var currentFileName: String? = null
+        var currentFileBytes = 0L
+
+        modelDownloadJob?.cancel()
+        modelDownloadJob = lifecycleScope.launch {
+            try {
+                modelDownloader.downloadModel(descriptor) { progress ->
+                    if (currentFileName != null && currentFileName != progress.fileName) {
+                        completedBytes += currentFileBytes
+                        currentFileBytes = 0L
+                    }
+
+                    currentFileName = progress.fileName
+                    currentFileBytes = progress.bytesDownloaded
+                    activeDownloadFileName = progress.fileName
+                    activeDownloadBytes = (completedBytes + progress.bytesDownloaded)
+                        .coerceAtMost(descriptor.approxDownloadBytes)
+                    activeDownloadTotalBytes = descriptor.approxDownloadBytes
+                    modelOperationStatusMessage = getString(
+                        R.string.model_download_progress_status,
+                        descriptor.displayName,
+                        formatFileSize(activeDownloadBytes),
+                        formatFileSize(descriptor.approxDownloadBytes)
+                    )
+
+                    runOnUiThread {
+                        refreshModelSelectionDialog()
+                        if (chatController != null) {
+                            applyChatState(chatController!!.state.value)
+                        } else {
+                            renderNoControllerState(modelOperationStatusMessage.orEmpty(), preserveTranscript = true)
+                        }
+                    }
+                }
+
+                runOnUiThread {
+                    modelDialogViews?.dialog?.dismiss()
+                    switchToController(
+                        descriptor,
+                        PersistentChatController(this@PocketChatActivity, descriptor),
+                        initialize = true
+                    )
+                }
+            } catch (_: CancellationException) {
+                isModelOperationInProgress = false
+                modelOperationStatusMessage = null
+                resetDownloadState()
+            } catch (error: Exception) {
+                isModelOperationInProgress = false
+                val errorMessage = error.message ?: getString(R.string.model_download_failed_generic)
+                modelOperationStatusMessage = null
+                resetDownloadState()
+
+                runOnUiThread {
+                    refreshModelSelectionDialog()
+                    if (chatController != null) {
+                        applyChatState(chatController!!.state.value)
+                    } else {
+                        renderNoControllerState(getString(R.string.model_required_message), preserveTranscript = false)
+                    }
+                    showTransientMessage(
+                        getString(
+                            R.string.model_download_failed_message,
+                            descriptor.displayName,
+                            errorMessage
+                        )
+                    )
+                }
+            } finally {
+                modelDownloadJob = null
+            }
+        }
+    }
+
+    private fun resetDownloadState() {
+        activeDownloadModelId = null
+        activeDownloadModelName = null
+        activeDownloadFileName = null
+        activeDownloadBytes = 0L
+        activeDownloadTotalBytes = null
+    }
+
+    private fun showPreviousChats(controller: PersistentChatController) {
+        val sessions = controller.listSavedSessions()
         if (sessions.isEmpty()) {
             MaterialAlertDialogBuilder(this)
                 .setMessage(getString(R.string.no_saved_chats))
@@ -220,7 +621,7 @@ open class PocketChatActivity : AppCompatActivity() {
             fontSizeSp = currentSettings.chatFontSizeSp,
             onSessionSelected = { session ->
                 dialog.dismiss()
-                chatController.loadSession(session.sessionId)
+                controller.loadSession(session.sessionId)
             },
             onDeleteRequested = { session ->
                 MaterialAlertDialogBuilder(this)
@@ -228,8 +629,8 @@ open class PocketChatActivity : AppCompatActivity() {
                     .setMessage(getString(R.string.delete_chat_confirmation))
                     .setNegativeButton(android.R.string.cancel, null)
                     .setPositiveButton(getString(R.string.delete)) { _, _ ->
-                        if (chatController.deleteSession(session.sessionId)) {
-                            val remainingSessions = chatController.listSavedSessions()
+                        if (controller.deleteSession(session.sessionId)) {
+                            val remainingSessions = controller.listSavedSessions()
                             adapter.submitList(remainingSessions)
                             if (remainingSessions.isEmpty()) {
                                 dialog.dismiss()
@@ -349,6 +750,14 @@ open class PocketChatActivity : AppCompatActivity() {
         }.getOrNull()?.let { bitmap ->
             toolbarLogoView.setImageBitmap(bitmap)
         }
+    }
+
+    private fun formatFileSize(sizeBytes: Long): String {
+        return Formatter.formatFileSize(this, sizeBytes)
+    }
+
+    private fun showTransientMessage(message: String) {
+        Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG).show()
     }
 
     private fun scrollChatToBottomIfNeeded() {

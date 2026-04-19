@@ -19,11 +19,11 @@ class OnnxChatBackend(
     private val cancelRequested = AtomicBoolean(false)
 
     override suspend fun initialize() = withContext(Dispatchers.IO) {
-        tokenizer = BpeTokenizer(context, spec.tokenizerAssetName)
+        tokenizer = BpeTokenizer(context, spec, modelFileResolver)
         config = spec.toModelConfig(tokenizer)
         promptBuilder = PromptBuilder(tokenizer, config)
 
-        val modelFile = modelFileResolver.resolveAssetToFile(spec.modelAssetName)
+        val modelFile = modelFileResolver.resolveModelFile(spec)
         onnxModel = OnnxModel(modelFile, config)
     }
 

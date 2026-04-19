@@ -8,7 +8,8 @@ import java.text.Normalizer
 
 class BpeTokenizer(
     private val context: Context,
-    private val assetFilename: String
+    private val modelDescriptor: OnnxQwenSpec,
+    private val modelFileResolver: ModelFileResolver
 ) {
 
     private val vocab: Map<String, Int>
@@ -225,9 +226,9 @@ class BpeTokenizer(
 
     // Loads the tokenizer.json file from the app's assets folder
     private fun loadTokenizerJson(): JSONObject {
-        val resolvedAssetPath = AssetLocator.resolvePath(context, assetFilename)
-        Log.d(TAG, "Loading tokenizer from assets/$resolvedAssetPath")
-        val inputStream: InputStream = context.assets.open(resolvedAssetPath)
+        val tokenizerFile = modelFileResolver.resolveFile(modelDescriptor, modelDescriptor.tokenizerAssetName)
+        Log.d(TAG, "Loading tokenizer from ${tokenizerFile.absolutePath}")
+        val inputStream: InputStream = tokenizerFile.inputStream()
         val jsonStr = inputStream.bufferedReader().use { it.readText() }
         return JSONObject(jsonStr)
     }

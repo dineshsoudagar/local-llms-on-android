@@ -40,9 +40,13 @@
                 tools:ignore="ContentDescription" />
 
             <LinearLayout
+                android:id="@+id/modelSelector"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="vertical">
 
