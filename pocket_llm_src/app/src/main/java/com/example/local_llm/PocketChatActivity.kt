@@ -58,6 +58,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var inputEditText: EditText
     private lateinit var toolbarSubtitleView: TextView
     private lateinit var toolbarModelSelector: View
+    private lateinit var thinkingToggleContainer: View
     private lateinit var thinkingToggle: CheckBox
     private lateinit var newChatButton: View
     private lateinit var sendButton: Button
@@ -97,6 +98,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val toolbarLogoView: ImageView = findViewById(R.id.toolbarLogo)
         toolbarModelSelector = findViewById(R.id.modelSelector)
         toolbarSubtitleView = findViewById(R.id.toolbarSubtitle)
+        thinkingToggleContainer = findViewById(R.id.thinkingToggleContainer)
         thinkingToggle = findViewById(R.id.thinkingToggle)
         newChatButton = findViewById(R.id.newChatButton)
         inputEditText = findViewById(R.id.userInput)
@@ -151,6 +153,10 @@ open class PocketChatActivity : AppCompatActivity() {
 
         stopButton.setOnClickListener {
             chatController?.cancelGeneration()
+        }
+
+        thinkingToggleContainer.setOnClickListener {
+            thinkingToggle.isChecked = !thinkingToggle.isChecked
         }
 
         thinkingToggle.setOnCheckedChangeListener { _, isChecked ->
@@ -399,7 +405,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
         title = state.title
         toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
-        thinkingToggle.visibility = if (state.supportsThinking && !isModelOperationInProgress) View.VISIBLE else View.GONE
+        thinkingToggleContainer.visibility = if (state.supportsThinking && !isModelOperationInProgress) View.VISIBLE else View.GONE
         sendButton.visibility = if (state.isGenerating && !isModelOperationInProgress) View.GONE else View.VISIBLE
         stopButton.visibility = if (state.isGenerating && !isModelOperationInProgress) View.VISIBLE else View.GONE
         newChatButton.isEnabled = state.isReady && !state.isGenerating && !isModelOperationInProgress
@@ -423,7 +429,7 @@ open class PocketChatActivity : AppCompatActivity() {
     ) {
         title = getString(R.string.toolbar_app_title)
         toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
-        thinkingToggle.visibility = View.GONE
+        thinkingToggleContainer.visibility = View.GONE
         newChatButton.isEnabled = false
         sendButton.visibility = View.VISIBLE
         stopButton.visibility = View.GONE

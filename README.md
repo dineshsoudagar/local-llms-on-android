@@ -17,13 +17,10 @@ Unlike older builds, the app now ships as a **small base APK**. Users choose and
 - Switched to a **smaller base APK** of around **200 MB**
 - Models are **no longer bundled inside the APK**
 - Added **first-launch model selection** with on-device model downloads
-- Added support for **downloading multiple models** and **switching between them** inside the app
-- Added **persistent local chat history** with reopening of previous chats
-- Added **Thinking Mode** for supported models
+- Added support for **downloading multiple models**
+- Added support for **switching between downloaded models** inside the app
 - Retained thinking text in a **collapsible section** for supported models
-- Improved **markdown rendering** for assistant responses
-- Added built-in **themes** and **chat font size** settings
-- Added multiple **UI and usability improvements**
+- Added **basic UI and usability improvements**
 
 #### ➡️ [See all releases](https://github.com/dineshsoudagar/local-llms-on-android/releases)
 
@@ -103,16 +100,9 @@ Users can download **multiple models** and switch between them later from inside
 
 ---
 
-## 🧠 Model Support
+## 🧠 Backend Support
 
 This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 models**.
-
-### Supported models
-
-- **Qwen2.5-0.5B**
-- **Qwen3-0.6B**
-- **Gemma 4 E2B**
-- **Gemma 4 E4B**
 
 ### Backend overview
 
@@ -123,18 +113,6 @@ This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma
 
 - **Qwen3** and **Gemma 4** support **Thinking Mode**
 - The toggle is shown only for models that support it
-
----
-
-## 🔁 Model downloads and switching
-
-The app no longer requires shipping a model inside the APK for normal use.
-
-On first launch, users can choose a model from the built-in model picker and download it on demand. Downloaded models are stored locally on device and can be reused later without downloading again.
-
-Users can also keep multiple models installed and switch between them from inside the app.
-
-This makes the app easier to install, smaller to distribute, and more flexible across different device classes.
 
 ---
 
@@ -155,12 +133,10 @@ This makes the app easier to install, smaller to distribute, and more flexible a
 ## ⚙️ Requirements
 
 - [Android Studio](https://developer.android.com/studio)
-- [ONNX Runtime for Android](https://github.com/microsoft/onnxruntime) for ONNX Qwen builds
-- LiteRT dependencies for LiteRT Qwen and Gemma builds
 - A physical Android device for deployment and testing
-- 4 GB or more RAM for smaller Q4 or LiteRT models
+- 4 GB or more RAM for smaller models
 - More RAM is recommended for larger models such as **Gemma 4 E2B** and **Gemma 4 E4B**
-- A temporary internet connection for the initial model download
+- A temporary internet connection for downloading models inside the app
 - Real hardware is preferred; emulators are mainly useful for UI checks
 
 ---
@@ -171,29 +147,14 @@ This makes the app easier to install, smaller to distribute, and more flexible a
 2. Install the latest **Android Studio**.
 3. Open the Android project folder in Android Studio:
 
-   ```text
-   pocket_llm_src/
-
+    ```text
+    pocket_llm_src/
+    ```
 4. Build and install the app on your Android device.
-
 5. Launch the app.
-
 6. On first launch, choose a model from the built-in model picker.
-
 7. Download the selected model directly inside the app.
-
 8. Start chatting locally on device
-
-**Note**: 
-
-## Customize Your App Experience
-
-- Define the assistant's tone and role using the model's default system prompt
-- Adjust `TEMPERATURE` to control response randomness
-- Adjust `REPETITION_PENALTY` to reduce repetitive output
-- Change `MAX_TOKENS` to control reply length
-- Use built-in themes for a different look and feel
-- Adjust chat font size from the Settings screen
 
 ---
 
