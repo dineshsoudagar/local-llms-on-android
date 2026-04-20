@@ -61,7 +61,13 @@ dependencies {
     implementation("io.noties.markwon:core:4.6.2")
     implementation("io.noties.markwon:ext-tables:4.6.2")
     implementation("androidx.recyclerview:recyclerview:1.4.0")
+    implementation("androidx.activity:activity-ktx:1.10.1")
     implementation ("com.google.android.material:material:1.12.0")
+    implementation("androidx.camera:camera-core:1.4.2")
+    implementation("androidx.camera:camera-camera2:1.4.2")
+    implementation("androidx.camera:camera-lifecycle:1.4.2")
+    implementation("androidx.camera:camera-view:1.4.2")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
 }
 

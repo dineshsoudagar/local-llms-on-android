@@ -1,5 +1,7 @@
 package com.example.local_llm
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -20,8 +22,15 @@ import android.widget.ProgressBar
 import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.TextView
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
@@ -37,6 +46,8 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.max
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 open class PocketChatActivity : AppCompatActivity() {
 
@@ -77,7 +88,21 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var newChatButton: View
     private lateinit var sendButton: Button
     private lateinit var stopButton: Button
+    private lateinit var micInputButton: Button
+    private lateinit var galleryOcrButton: Button
+    private lateinit var cameraOcrButton: Button
     private lateinit var statusView: TextView
+    private var speechInput: SpeechInput? = null
+    private var ocrInput: OcrInput? = null
+    private var speechBasePromptText: String = ""
+    private var pendingSpeechStart = false
+    private var pendingCameraOcrStart = false
+    private var cameraProvider: ProcessCameraProvider? = null
+    private var cameraOcrDialog: AlertDialog? = null
+    private var cameraOcrTextInput: EditText? = null
+    private var cameraOcrStatusView: TextView? = null
+    private var cameraOcrUserReviewing = false
+    private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var autoScrollDuringGeneration = false
     private var autoScrollPendingFinalUpdate = false
     private var wasGenerating = false
@@ -96,6 +121,38 @@ open class PocketChatActivity : AppCompatActivity() {
         override fun onItemRangeChanged(positionStart: Int, itemCount: Int) = scrollChatToBottomIfNeeded()
 
         override fun onItemRangeChanged(positionStart: Int, itemCount: Int, payload: Any?) = scrollChatToBottomIfNeeded()
+    }
+
+    private val speechPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val shouldStart = pendingSpeechStart
+        pendingSpeechStart = false
+        if (granted && shouldStart) {
+            startSpeechInput()
+        } else if (!granted) {
+            showTransientMessage(getString(R.string.speech_permission_denied))
+        }
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val shouldStart = pendingCameraOcrStart
+        pendingCameraOcrStart = false
+        if (granted && shouldStart) {
+            showCameraOcrDialog()
+        } else if (!granted) {
+            showTransientMessage(getString(R.string.camera_permission_denied))
+        }
+    }
+
+    private val galleryImagePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let { selectedImage ->
+            ocrInput?.recognizeImageUri(selectedImage)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -124,8 +181,13 @@ open class PocketChatActivity : AppCompatActivity() {
         inputEditText = findViewById(R.id.userInput)
         sendButton = findViewById(R.id.sendButton)
         stopButton = findViewById(R.id.stopButton)
+        micInputButton = findViewById(R.id.micInputButton)
+        galleryOcrButton = findViewById(R.id.galleryOcrButton)
+        cameraOcrButton = findViewById(R.id.cameraOcrButton)
         statusView = findViewById(R.id.statusView)
         chatRecyclerView = findViewById(R.id.chatRecyclerView)
+        speechInput = createSpeechInput()
+        ocrInput = createOcrInput()
 
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
@@ -165,9 +227,23 @@ open class PocketChatActivity : AppCompatActivity() {
             startNewChatFromUi()
         }
 
+        micInputButton.setOnClickListener {
+            handleSpeechInputClick()
+        }
+
+        galleryOcrButton.setOnClickListener {
+            galleryImagePickerLauncher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        }
+
+        cameraOcrButton.setOnClickListener {
+            handleCameraOcrClick()
+        }
+
         sendButton.setOnClickListener {
             val controller = chatController ?: return@setOnClickListener
-            val prompt = inputEditText.text.toString()
+            val prompt = PromptPreprocessor.normalize(inputEditText.text.toString())
             if (prompt.isBlank() || isModelOperationInProgress) {
                 return@setOnClickListener
             }
@@ -237,6 +313,11 @@ open class PocketChatActivity : AppCompatActivity() {
         }
         controllerStateJob?.cancel()
         modelDownloadStateJob?.cancel()
+        stopCameraOcr()
+        cameraOcrDialog?.dismiss()
+        speechInput?.destroy()
+        ocrInput?.close()
+        cameraExecutor.shutdown()
         modelDialogViews?.dialog?.dismiss()
         super.onDestroy()
     }
@@ -260,6 +341,270 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         return controller
+    }
+
+    private fun createSpeechInput(): SpeechInput {
+        return SpeechInput(
+            this,
+            object : SpeechInput.Listener {
+                override fun onSpeechStarted() {
+                    runOnUiThread {
+                        showTransientMessage(getString(R.string.speech_listening))
+                    }
+                }
+
+                override fun onSpeechPartial(text: String) {
+                    runOnUiThread {
+                        setPromptInputText(
+                            PromptPreprocessor.mergeTypedAndRecognized(
+                                speechBasePromptText,
+                                text
+                            )
+                        )
+                    }
+                }
+
+                override fun onSpeechFinal(text: String, confidenceScores: FloatArray?) {
+                    runOnUiThread {
+                        setPromptInputText(
+                            PromptPreprocessor.mergeTypedAndRecognized(
+                                speechBasePromptText,
+                                text
+                            )
+                        )
+                        showTransientMessage(getString(R.string.speech_text_added))
+                    }
+                }
+
+                override fun onSpeechError(message: String) {
+                    runOnUiThread {
+                        showTransientMessage(message)
+                    }
+                }
+
+                override fun onSpeechEnded() = Unit
+            }
+        )
+    }
+
+    private fun createOcrInput(): OcrInput {
+        return OcrInput(
+            this,
+            object : OcrInput.Listener {
+                override fun onOcrStarted(source: OcrInput.Source) {
+                    if (source == OcrInput.Source.GALLERY) {
+                        runOnUiThread {
+                            showTransientMessage(getString(R.string.ocr_reading_image))
+                        }
+                    }
+                }
+
+                override fun onOcrTextRecognized(text: String, source: OcrInput.Source) {
+                    runOnUiThread {
+                        when (source) {
+                            OcrInput.Source.GALLERY -> handleGalleryOcrText(text)
+                            OcrInput.Source.CAMERA -> handleCameraOcrText(text)
+                        }
+                    }
+                }
+
+                override fun onOcrFailed(message: String, source: OcrInput.Source) {
+                    runOnUiThread {
+                        if (source == OcrInput.Source.CAMERA) {
+                            cameraOcrStatusView?.text = message
+                        } else {
+                            showTransientMessage(message)
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    private fun handleSpeechInputClick() {
+        val speech = speechInput ?: return
+        if (speech.isListening) {
+            speech.stop()
+            return
+        }
+
+        if (!hasPermission(Manifest.permission.RECORD_AUDIO)) {
+            pendingSpeechStart = true
+            speechPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+
+        startSpeechInput()
+    }
+
+    private fun startSpeechInput() {
+        speechBasePromptText = inputEditText.text.toString()
+        speechInput?.start()
+    }
+
+    private fun handleCameraOcrClick() {
+        if (!hasPermission(Manifest.permission.CAMERA)) {
+            pendingCameraOcrStart = true
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            return
+        }
+
+        showCameraOcrDialog()
+    }
+
+    private fun showCameraOcrDialog() {
+        if (cameraOcrDialog?.isShowing == true) {
+            return
+        }
+
+        val dialogBuilder = MaterialAlertDialogBuilder(this)
+        val dialogView = LayoutInflater.from(dialogBuilder.context)
+            .inflate(R.layout.dialog_camera_ocr, null)
+        val previewView: PreviewView = dialogView.findViewById(R.id.cameraPreviewView)
+        val reviewInput: EditText = dialogView.findViewById(R.id.cameraOcrTextInput)
+        val statusText: TextView = dialogView.findViewById(R.id.cameraOcrStatus)
+        val cancelButton: Button = dialogView.findViewById(R.id.cameraOcrCancelButton)
+        val useButton: Button = dialogView.findViewById(R.id.cameraOcrUseButton)
+
+        val dialog = dialogBuilder
+            .setView(dialogView)
+            .create()
+
+        cameraOcrDialog = dialog
+        cameraOcrTextInput = reviewInput
+        cameraOcrStatusView = statusText
+        cameraOcrUserReviewing = false
+
+        cancelButton.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        useButton.setOnClickListener {
+            val recognizedText = PromptPreprocessor.normalize(reviewInput.text.toString())
+            if (recognizedText.isBlank()) {
+                showTransientMessage(getString(R.string.ocr_no_text))
+                return@setOnClickListener
+            }
+
+            mergeRecognizedTextIntoPrompt(recognizedText)
+            showTransientMessage(getString(R.string.ocr_text_added))
+            dialog.dismiss()
+        }
+
+        reviewInput.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                cameraOcrUserReviewing = true
+                cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_reviewing)
+                stopCameraOcr()
+            }
+        }
+
+        dialog.setOnDismissListener {
+            stopCameraOcr()
+            cameraOcrDialog = null
+            cameraOcrTextInput = null
+            cameraOcrStatusView = null
+            cameraOcrUserReviewing = false
+        }
+
+        showPanelDialog(dialog)
+        startCameraOcr(previewView)
+    }
+
+    private fun startCameraOcr(previewView: PreviewView) {
+        cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_starting)
+        val providerFuture = ProcessCameraProvider.getInstance(this)
+        providerFuture.addListener(
+            Runnable {
+                val provider = runCatching { providerFuture.get() }.getOrElse { error ->
+                    cameraOcrStatusView?.text = error.message ?: "Camera could not start."
+                    return@Runnable
+                }
+
+                if (cameraOcrDialog?.isShowing != true) {
+                    provider.unbindAll()
+                    return@Runnable
+                }
+
+                val preview = Preview.Builder()
+                    .build()
+                    .also { cameraPreview ->
+                        cameraPreview.setSurfaceProvider(previewView.surfaceProvider)
+                    }
+
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                    .also { imageAnalysis ->
+                        imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                            ocrInput?.recognizeImageProxy(imageProxy) ?: imageProxy.close()
+                        }
+                    }
+
+                runCatching {
+                    provider.unbindAll()
+                    provider.bindToLifecycle(
+                        this,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
+                        preview,
+                        analysis
+                    )
+                    cameraProvider = provider
+                    cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_scanning)
+                }.onFailure { error ->
+                    cameraOcrStatusView?.text = error.message ?: "Camera OCR could not start."
+                }
+            },
+            ContextCompat.getMainExecutor(this)
+        )
+    }
+
+    private fun stopCameraOcr() {
+        cameraProvider?.unbindAll()
+        cameraProvider = null
+    }
+
+    private fun handleGalleryOcrText(text: String) {
+        val recognizedText = PromptPreprocessor.normalize(text)
+        if (recognizedText.isBlank()) {
+            showTransientMessage(getString(R.string.ocr_no_text))
+            return
+        }
+
+        mergeRecognizedTextIntoPrompt(recognizedText)
+        showTransientMessage(getString(R.string.ocr_text_added))
+    }
+
+    private fun handleCameraOcrText(text: String) {
+        val recognizedText = PromptPreprocessor.normalize(text)
+        if (recognizedText.isBlank() || cameraOcrUserReviewing) {
+            return
+        }
+
+        val reviewInput = cameraOcrTextInput ?: return
+        if (reviewInput.text.toString() != recognizedText) {
+            reviewInput.setText(recognizedText)
+            reviewInput.setSelection(reviewInput.text.length)
+        }
+        cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_found)
+    }
+
+    private fun mergeRecognizedTextIntoPrompt(recognizedText: String) {
+        setPromptInputText(
+            PromptPreprocessor.mergeTypedAndRecognized(
+                inputEditText.text.toString(),
+                recognizedText
+            )
+        )
+    }
+
+    private fun setPromptInputText(text: String) {
+        inputEditText.setText(text)
+        inputEditText.setSelection(inputEditText.text.length)
+    }
+
+    private fun hasPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun observeController(controller: PersistentChatController) {

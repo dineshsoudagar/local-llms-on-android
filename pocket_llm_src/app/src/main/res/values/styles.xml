@@ -32,6 +32,19 @@
         <item name="android:textColor">#FFFFFF</item>
     </style>
 
+    <style name="InputToolButton" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:padding">10dp</item>
+        <item name="cornerRadius">14dp</item>
+        <item name="elevation">0dp</item>
+        <item name="backgroundTint">?attr/colorFrameBackground</item>
+        <item name="strokeColor">?attr/colorSendStroke</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="rippleColor">?attr/colorSendStroke</item>
+        <item name="iconTint">?attr/colorAssistantText</item>
+    </style>
+
     <style name="DialogPrimaryButton" parent="SendButton">
         <item name="android:minWidth">0dp</item>
         <item name="android:minHeight">48dp</item>
