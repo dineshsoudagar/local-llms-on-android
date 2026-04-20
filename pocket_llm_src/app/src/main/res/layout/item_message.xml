@@ -61,14 +61,14 @@
 
         <ImageButton
             android:id="@+id/copyResponseButton"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:layout_gravity="end|bottom"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="end|top"
             android:layout_marginEnd="4dp"
-            android:layout_marginBottom="4dp"
+            android:layout_marginTop="4dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/copy_response"
-            android:padding="6dp"
+            android:padding="5dp"
             android:src="@drawable/ic_copy_20"
             android:tint="?attr/colorStatusText"
             android:visibility="gone" />

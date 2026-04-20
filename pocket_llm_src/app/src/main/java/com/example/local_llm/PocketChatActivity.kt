@@ -1,10 +1,13 @@
 package com.example.local_llm
 
 import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.text.method.LinkMovementMethod
-import android.text.util.Linkify
 import android.text.format.Formatter
+import android.text.util.Linkify
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
@@ -19,6 +22,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.Lifecycle
@@ -385,7 +389,6 @@ open class PocketChatActivity : AppCompatActivity() {
         wasGenerating = false
         toolbarSubtitleView.text = descriptor.displayName
         refreshDrawerSessions()
-        inputEditText.text.clear()
         thinkingToggle.isChecked = false
         observeController(controller)
         applyChatState(controller.state.value)
@@ -621,7 +624,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun confirmDeleteSession(session: ChatSessionSummary) {
-        MaterialAlertDialogBuilder(this)
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.delete_chat))
             .setMessage(getString(R.string.delete_chat_confirmation))
             .setNegativeButton(android.R.string.cancel, null)
@@ -633,7 +636,12 @@ open class PocketChatActivity : AppCompatActivity() {
                     showTransientMessage(getString(R.string.chat_deleted))
                 }
             }
-            .show()
+            .create()
+
+        dialog.setOnShowListener {
+            applyDeleteConfirmationButtonColors(dialog)
+        }
+        dialog.show()
     }
 
     private fun confirmDeleteModel(descriptor: ModelDescriptor) {
@@ -646,7 +654,7 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
-        MaterialAlertDialogBuilder(this)
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.delete_model))
             .setMessage(getString(R.string.delete_model_confirmation, descriptor.displayName))
             .setNegativeButton(android.R.string.cancel, null)
@@ -658,7 +666,19 @@ open class PocketChatActivity : AppCompatActivity() {
                     showTransientMessage(getString(R.string.delete_model_failed, descriptor.displayName))
                 }
             }
-            .show()
+            .create()
+
+        dialog.setOnShowListener {
+            applyDeleteConfirmationButtonColors(dialog)
+        }
+        dialog.show()
+    }
+
+    private fun applyDeleteConfirmationButtonColors(dialog: AlertDialog) {
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+            ?.setTextColor(resolveThemeColor(R.attr.colorStatusText))
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            ?.setTextColor(ContextCompat.getColor(this, R.color.delete_red))
     }
 
     private fun handleModelSelection(descriptor: ModelDescriptor) {
@@ -768,7 +788,6 @@ open class PocketChatActivity : AppCompatActivity() {
         })
 
         val dialog = dialogBuilder
-            .setTitle(getString(R.string.settings_title))
             .setView(dialogView)
             .create()
 
@@ -805,7 +824,7 @@ open class PocketChatActivity : AppCompatActivity() {
             }
         }
 
-        dialog.show()
+        showPanelDialog(dialog)
     }
 
     private fun showAboutDialog() {
@@ -814,16 +833,21 @@ open class PocketChatActivity : AppCompatActivity() {
             .inflate(R.layout.dialog_about, null)
         val versionView: TextView = dialogView.findViewById(R.id.aboutVersion)
         val githubLinkView: TextView = dialogView.findViewById(R.id.aboutGithubLink)
+        val okButton: Button = dialogView.findViewById(R.id.aboutOkButton)
 
         versionView.text = getString(R.string.about_version_format, currentVersionName())
         githubLinkView.movementMethod = LinkMovementMethod.getInstance()
         Linkify.addLinks(githubLinkView, Linkify.WEB_URLS)
 
-        dialogBuilder
-            .setTitle(getString(R.string.about_title))
+        val dialog = dialogBuilder
             .setView(dialogView)
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
+            .create()
+
+        okButton.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        showPanelDialog(dialog)
     }
 
     @Suppress("DEPRECATION")
@@ -867,7 +891,6 @@ open class PocketChatActivity : AppCompatActivity() {
         instructionInput.setSelection(currentInstruction.length)
 
         val dialog = dialogBuilder
-            .setTitle(getString(R.string.model_settings_title))
             .setView(dialogView)
             .create()
 
@@ -887,7 +910,18 @@ open class PocketChatActivity : AppCompatActivity() {
             showTransientMessage(getString(R.string.model_instruction_saved))
         }
 
+        showPanelDialog(dialog)
+    }
+
+    private fun showPanelDialog(dialog: AlertDialog) {
         dialog.show()
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+    }
+
+    private fun resolveThemeColor(attrId: Int): Int {
+        val typedValue = TypedValue()
+        theme.resolveAttribute(attrId, typedValue, true)
+        return typedValue.data
     }
 
     private fun applyTypography(

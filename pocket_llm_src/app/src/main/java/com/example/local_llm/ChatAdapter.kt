@@ -31,7 +31,7 @@ class ChatAdapter(
         private const val USER_BUBBLE_LEFT_SPACE_FRACTION = 0.15f
         private const val BUBBLE_HORIZONTAL_PADDING_DP = 16
         private const val BUBBLE_VERTICAL_PADDING_DP = 12
-        private const val COPY_BUTTON_RESERVED_END_PADDING_DP = 42
+        private const val COPY_BUTTON_RESERVED_END_PADDING_DP = 36
         private const val THOUGHT_COLLAPSED_ICON = "\u25B8"
         private const val THOUGHT_EXPANDED_ICON = "\u25BE"
     }

@@ -7,9 +7,19 @@
     android:padding="20dp">
 
     <TextView
+        android:id="@+id/settingsDialogTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_title"
+        android:textColor="?attr/colorAssistantText"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
         android:id="@+id/themeLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
         android:text="@string/theme_label"
         android:textColor="?attr/colorAssistantText"
         android:textStyle="bold"

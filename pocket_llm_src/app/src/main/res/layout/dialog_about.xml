@@ -30,7 +30,15 @@
         android:layout_marginTop="14dp"
         android:autoLink="web"
         android:linksClickable="true"
-        android:text="@string/about_github_url"
+        android:text="@string/about_github_link"
         android:textColor="?attr/colorAssistantText"
         android:textSize="15sp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/aboutOkButton"
+        style="@style/DialogPrimaryButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:text="@android:string/ok" />
 </LinearLayout>

@@ -7,9 +7,19 @@
     android:padding="20dp">
 
     <TextView
+        android:id="@+id/modelSettingsDialogTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/model_settings_title"
+        android:textColor="?attr/colorAssistantText"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
         android:id="@+id/modelSettingsModelName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
         android:textColor="?attr/colorStatusText"
         android:textSize="14sp"
         android:textStyle="bold" />

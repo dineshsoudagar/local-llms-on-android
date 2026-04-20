@@ -2,18 +2,17 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
-    android:background="@drawable/bg_drawer_chat_item"
+    android:layout_marginBottom="2dp"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground"
     android:gravity="center_vertical"
-    android:minHeight="54dp"
+    android:minHeight="44dp"
     android:orientation="horizontal"
     android:paddingStart="14dp"
-    android:paddingTop="6dp"
     android:paddingEnd="10dp"
-    android:paddingBottom="6dp">
+    android:paddingTop="0dp"
+    android:paddingBottom="0dp">
 
     <TextView
         android:id="@+id/drawerSessionTitle"
@@ -28,8 +27,8 @@
 
     <ImageButton
         android:id="@+id/drawerSessionDeleteButton"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:layout_marginStart="8dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="@string/delete_chat"
