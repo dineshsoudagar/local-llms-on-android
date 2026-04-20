@@ -20,7 +20,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_chat_surface"
-            android:minHeight="66dp"
+            android:minHeight="56dp"
             app:contentInsetEnd="0dp"
             app:contentInsetLeft="0dp"
             app:contentInsetRight="0dp"
@@ -35,9 +35,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:minHeight="66dp"
+                android:minHeight="56dp"
                 android:paddingHorizontal="8dp"
-                android:paddingVertical="6dp">
+                android:paddingVertical="3dp">
 
                 <ImageButton
                     android:id="@+id/toolbarMenuButton"
@@ -92,8 +92,8 @@
 
                 <ImageView
                     android:id="@+id/toolbarLogo"
-                    android:layout_width="52dp"
-                    android:layout_height="52dp"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
                     android:adjustViewBounds="true"
                     android:contentDescription="@string/toolbar_app_title"
                     android:scaleType="fitCenter"

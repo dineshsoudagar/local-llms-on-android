@@ -12,6 +12,8 @@
     <string name="delete_chat">Delete chat</string>
     <string name="delete_chat_confirmation">Delete this saved chat? This cannot be undone.</string>
     <string name="chat_deleted">Chat deleted.</string>
+    <string name="copy_response">Copy response</string>
+    <string name="response_copied">Response copied.</string>
     <string name="enable_thinking_mode">Thinking Mode</string>
     <string name="new_chat">New Chat</string>
     <string name="previous_chats">Previous Chats</string>
