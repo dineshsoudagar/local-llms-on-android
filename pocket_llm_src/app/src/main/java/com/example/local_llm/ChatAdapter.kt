@@ -166,7 +166,7 @@ class ChatAdapter(
 
     private fun buildBubbleText(turn: ChatTurn): String {
         if (turn.isUser) {
-            return turn.text
+            return turn.displayText ?: turn.text
         }
 
         return buildString {

@@ -5,16 +5,20 @@ import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.text.method.LinkMovementMethod
 import android.text.format.Formatter
 import android.text.util.Linkify
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -27,7 +31,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -42,12 +47,10 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.max
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
+import java.io.File
 
 open class PocketChatActivity : AppCompatActivity() {
 
@@ -59,6 +62,27 @@ open class PocketChatActivity : AppCompatActivity() {
         val dialog: AlertDialog,
         val introView: TextView,
         val listContainer: LinearLayout
+    )
+
+    private data class ComposerPrompt(
+        val modelText: String,
+        val displayText: String
+    )
+
+    private enum class PendingImageStatus {
+        READING,
+        READY,
+        FAILED
+    }
+
+    private data class PendingImageInput(
+        val id: Long,
+        val uri: Uri,
+        val source: OcrInput.Source,
+        val status: PendingImageStatus = PendingImageStatus.READING,
+        val recognizedText: String? = null,
+        val errorMessage: String? = null,
+        val tempFilePath: String? = null
     )
 
     private lateinit var settingsStore: AppSettingsStore
@@ -91,18 +115,24 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var micInputButton: Button
     private lateinit var galleryOcrButton: Button
     private lateinit var cameraOcrButton: Button
+    private lateinit var pendingImageInputsScroll: HorizontalScrollView
+    private lateinit var pendingImageInputsContainer: LinearLayout
     private lateinit var statusView: TextView
+    private lateinit var transientMessageView: TextView
     private var speechInput: SpeechInput? = null
     private var ocrInput: OcrInput? = null
     private var speechBasePromptText: String = ""
+    private var speechRecognizedText: String = ""
+    private var speechCommittedText: String = ""
+    private var speechPartialText: String = ""
     private var pendingSpeechStart = false
     private var pendingCameraOcrStart = false
     private var cameraProvider: ProcessCameraProvider? = null
+    private var cameraImageCapture: ImageCapture? = null
     private var cameraOcrDialog: AlertDialog? = null
-    private var cameraOcrTextInput: EditText? = null
     private var cameraOcrStatusView: TextView? = null
-    private var cameraOcrUserReviewing = false
-    private val cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val pendingImageInputs = mutableListOf<PendingImageInput>()
+    private var nextPendingImageInputId = 1L
     private var autoScrollDuringGeneration = false
     private var autoScrollPendingFinalUpdate = false
     private var wasGenerating = false
@@ -113,6 +143,11 @@ open class PocketChatActivity : AppCompatActivity() {
     private var activeDownloadFileName: String? = null
     private var activeDownloadBytes: Long = 0L
     private var activeDownloadTotalBytes: Long? = null
+    private val hideTransientMessageRunnable = Runnable {
+        if (::transientMessageView.isInitialized) {
+            transientMessageView.visibility = View.GONE
+        }
+    }
     private val chatAdapterObserver = object : RecyclerView.AdapterDataObserver() {
         override fun onChanged() = scrollChatToBottomIfNeeded()
 
@@ -151,7 +186,7 @@ open class PocketChatActivity : AppCompatActivity() {
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         uri?.let { selectedImage ->
-            ocrInput?.recognizeImageUri(selectedImage)
+            addPendingImageInput(selectedImage, OcrInput.Source.GALLERY)
         }
     }
 
@@ -184,7 +219,10 @@ open class PocketChatActivity : AppCompatActivity() {
         micInputButton = findViewById(R.id.micInputButton)
         galleryOcrButton = findViewById(R.id.galleryOcrButton)
         cameraOcrButton = findViewById(R.id.cameraOcrButton)
+        pendingImageInputsScroll = findViewById(R.id.pendingImageInputsScroll)
+        pendingImageInputsContainer = findViewById(R.id.pendingImageInputsContainer)
         statusView = findViewById(R.id.statusView)
+        transientMessageView = findViewById(R.id.transientMessageView)
         chatRecyclerView = findViewById(R.id.chatRecyclerView)
         speechInput = createSpeechInput()
         ocrInput = createOcrInput()
@@ -243,13 +281,15 @@ open class PocketChatActivity : AppCompatActivity() {
 
         sendButton.setOnClickListener {
             val controller = chatController ?: return@setOnClickListener
-            val prompt = PromptPreprocessor.normalize(inputEditText.text.toString())
-            if (prompt.isBlank() || isModelOperationInProgress) {
+            val prompt = buildComposerPrompt() ?: return@setOnClickListener
+            if (prompt.modelText.isBlank() || isModelOperationInProgress) {
                 return@setOnClickListener
             }
 
-            controller.sendPrompt(prompt)
+            controller.sendPrompt(prompt.modelText, prompt.displayText)
             inputEditText.text.clear()
+            clearSpeechInputState()
+            clearPendingImageInputs()
             refreshDrawerSessions()
         }
 
@@ -311,13 +351,16 @@ open class PocketChatActivity : AppCompatActivity() {
         if (::chatAdapter.isInitialized) {
             chatAdapter.unregisterAdapterDataObserver(chatAdapterObserver)
         }
+        if (::transientMessageView.isInitialized) {
+            transientMessageView.removeCallbacks(hideTransientMessageRunnable)
+        }
         controllerStateJob?.cancel()
         modelDownloadStateJob?.cancel()
         stopCameraOcr()
         cameraOcrDialog?.dismiss()
         speechInput?.destroy()
         ocrInput?.close()
-        cameraExecutor.shutdown()
+        clearPendingImageInputs()
         modelDialogViews?.dialog?.dismiss()
         super.onDestroy()
     }
@@ -355,24 +398,13 @@ open class PocketChatActivity : AppCompatActivity() {
 
                 override fun onSpeechPartial(text: String) {
                     runOnUiThread {
-                        setPromptInputText(
-                            PromptPreprocessor.mergeTypedAndRecognized(
-                                speechBasePromptText,
-                                text
-                            )
-                        )
+                        handleSpeechRecognizedText(text, final = false)
                     }
                 }
 
                 override fun onSpeechFinal(text: String, confidenceScores: FloatArray?) {
                     runOnUiThread {
-                        setPromptInputText(
-                            PromptPreprocessor.mergeTypedAndRecognized(
-                                speechBasePromptText,
-                                text
-                            )
-                        )
-                        showTransientMessage(getString(R.string.speech_text_added))
+                        handleSpeechRecognizedText(text, final = true)
                     }
                 }
 
@@ -391,30 +423,26 @@ open class PocketChatActivity : AppCompatActivity() {
         return OcrInput(
             this,
             object : OcrInput.Listener {
-                override fun onOcrStarted(source: OcrInput.Source) {
-                    if (source == OcrInput.Source.GALLERY) {
-                        runOnUiThread {
-                            showTransientMessage(getString(R.string.ocr_reading_image))
-                        }
+                override fun onOcrStarted(source: OcrInput.Source, requestId: Long) = Unit
+
+                override fun onOcrTextRecognized(
+                    text: String,
+                    source: OcrInput.Source,
+                    requestId: Long
+                ) {
+                    runOnUiThread {
+                        handlePendingImageOcrText(text, requestId)
                     }
                 }
 
-                override fun onOcrTextRecognized(text: String, source: OcrInput.Source) {
+                override fun onOcrFailed(
+                    message: String,
+                    source: OcrInput.Source,
+                    requestId: Long
+                ) {
                     runOnUiThread {
-                        when (source) {
-                            OcrInput.Source.GALLERY -> handleGalleryOcrText(text)
-                            OcrInput.Source.CAMERA -> handleCameraOcrText(text)
-                        }
-                    }
-                }
-
-                override fun onOcrFailed(message: String, source: OcrInput.Source) {
-                    runOnUiThread {
-                        if (source == OcrInput.Source.CAMERA) {
-                            cameraOcrStatusView?.text = message
-                        } else {
-                            showTransientMessage(message)
-                        }
+                        markPendingImageInputFailed(requestId, message)
+                        showTransientMessage(message)
                     }
                 }
             }
@@ -423,7 +451,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun handleSpeechInputClick() {
         val speech = speechInput ?: return
-        if (speech.isListening) {
+        if (speech.isRecording) {
             speech.stop()
             return
         }
@@ -439,7 +467,38 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun startSpeechInput() {
         speechBasePromptText = inputEditText.text.toString()
+        speechRecognizedText = ""
+        speechCommittedText = ""
+        speechPartialText = ""
         speechInput?.start()
+    }
+
+    private fun handleSpeechRecognizedText(text: String, final: Boolean) {
+        val recognizedText = PromptPreprocessor.normalize(text)
+        if (recognizedText.isBlank()) {
+            return
+        }
+
+        if (final) {
+            speechCommittedText = PromptPreprocessor.mergeTypedAndRecognized(
+                speechCommittedText,
+                recognizedText
+            )
+            speechPartialText = ""
+        } else {
+            speechPartialText = recognizedText
+        }
+
+        speechRecognizedText = PromptPreprocessor.mergeTypedAndRecognized(
+            speechCommittedText,
+            speechPartialText
+        )
+        setPromptInputText(
+            PromptPreprocessor.mergeTypedAndRecognized(
+                speechBasePromptText,
+                recognizedText
+            )
+        )
     }
 
     private fun handleCameraOcrClick() {
@@ -461,57 +520,40 @@ open class PocketChatActivity : AppCompatActivity() {
         val dialogView = LayoutInflater.from(dialogBuilder.context)
             .inflate(R.layout.dialog_camera_ocr, null)
         val previewView: PreviewView = dialogView.findViewById(R.id.cameraPreviewView)
-        val reviewInput: EditText = dialogView.findViewById(R.id.cameraOcrTextInput)
         val statusText: TextView = dialogView.findViewById(R.id.cameraOcrStatus)
         val cancelButton: Button = dialogView.findViewById(R.id.cameraOcrCancelButton)
-        val useButton: Button = dialogView.findViewById(R.id.cameraOcrUseButton)
+        val captureButton: Button = dialogView.findViewById(R.id.cameraOcrCaptureButton)
 
         val dialog = dialogBuilder
             .setView(dialogView)
             .create()
 
         cameraOcrDialog = dialog
-        cameraOcrTextInput = reviewInput
         cameraOcrStatusView = statusText
-        cameraOcrUserReviewing = false
 
         cancelButton.setOnClickListener {
             dialog.dismiss()
         }
 
-        useButton.setOnClickListener {
-            val recognizedText = PromptPreprocessor.normalize(reviewInput.text.toString())
-            if (recognizedText.isBlank()) {
-                showTransientMessage(getString(R.string.ocr_no_text))
-                return@setOnClickListener
-            }
-
-            mergeRecognizedTextIntoPrompt(recognizedText)
-            showTransientMessage(getString(R.string.ocr_text_added))
-            dialog.dismiss()
-        }
-
-        reviewInput.setOnFocusChangeListener { _, hasFocus ->
-            if (hasFocus) {
-                cameraOcrUserReviewing = true
-                cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_reviewing)
-                stopCameraOcr()
-            }
+        captureButton.setOnClickListener {
+            captureCameraOcrPhoto(dialog)
         }
 
         dialog.setOnDismissListener {
             stopCameraOcr()
             cameraOcrDialog = null
-            cameraOcrTextInput = null
             cameraOcrStatusView = null
-            cameraOcrUserReviewing = false
         }
 
         showPanelDialog(dialog)
-        startCameraOcr(previewView)
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        startCameraPreview(previewView)
     }
 
-    private fun startCameraOcr(previewView: PreviewView) {
+    private fun startCameraPreview(previewView: PreviewView) {
         cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_starting)
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener(
@@ -532,14 +574,9 @@ open class PocketChatActivity : AppCompatActivity() {
                         cameraPreview.setSurfaceProvider(previewView.surfaceProvider)
                     }
 
-                val analysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                val imageCapture = ImageCapture.Builder()
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                     .build()
-                    .also { imageAnalysis ->
-                        imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                            ocrInput?.recognizeImageProxy(imageProxy) ?: imageProxy.close()
-                        }
-                    }
 
                 runCatching {
                     provider.unbindAll()
@@ -547,10 +584,16 @@ open class PocketChatActivity : AppCompatActivity() {
                         this,
                         CameraSelector.DEFAULT_BACK_CAMERA,
                         preview,
-                        analysis
+                        imageCapture
                     )
                     cameraProvider = provider
-                    cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_scanning)
+                    cameraImageCapture = imageCapture
+                    previewView.post {
+                        previewView.display?.rotation?.let { rotation ->
+                            cameraImageCapture?.targetRotation = rotation
+                        }
+                    }
+                    cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_ready)
                 }.onFailure { error ->
                     cameraOcrStatusView?.text = error.message ?: "Camera OCR could not start."
                 }
@@ -559,48 +602,374 @@ open class PocketChatActivity : AppCompatActivity() {
         )
     }
 
+    private fun captureCameraOcrPhoto(dialog: AlertDialog) {
+        val imageCapture = cameraImageCapture ?: run {
+            showTransientMessage(getString(R.string.camera_ocr_status_starting))
+            return
+        }
+        val outputFile = createCameraOcrOutputFile()
+        val outputOptions = ImageCapture.OutputFileOptions.Builder(outputFile).build()
+        cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_capturing)
+
+        imageCapture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    addPendingImageInput(
+                        uri = Uri.fromFile(outputFile),
+                        source = OcrInput.Source.CAMERA,
+                        tempFilePath = outputFile.absolutePath
+                    )
+                    dialog.dismiss()
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    runCatching { outputFile.delete() }
+                    val message = exception.message ?: "Could not capture photo."
+                    cameraOcrStatusView?.text = message
+                    showTransientMessage(message)
+                }
+            }
+        )
+    }
+
+    private fun createCameraOcrOutputFile(): File {
+        val directory = File(cacheDir, "ocr_images").apply { mkdirs() }
+        return File.createTempFile("camera_ocr_", ".jpg", directory)
+    }
+
     private fun stopCameraOcr() {
         cameraProvider?.unbindAll()
         cameraProvider = null
+        cameraImageCapture = null
     }
 
-    private fun handleGalleryOcrText(text: String) {
+    private fun addPendingImageInput(
+        uri: Uri,
+        source: OcrInput.Source,
+        tempFilePath: String? = null
+    ) {
+        val requestId = nextPendingImageInputId++
+        pendingImageInputs += PendingImageInput(
+            id = requestId,
+            uri = uri,
+            source = source,
+            tempFilePath = tempFilePath
+        )
+        renderPendingImageInputs()
+        ocrInput?.recognizeImageUri(uri, source, requestId)
+            ?: markPendingImageInputFailed(requestId, "OCR is not available.")
+    }
+
+    private fun handlePendingImageOcrText(text: String, requestId: Long) {
         val recognizedText = PromptPreprocessor.normalize(text)
         if (recognizedText.isBlank()) {
+            markPendingImageInputFailed(requestId, getString(R.string.ocr_no_text))
             showTransientMessage(getString(R.string.ocr_no_text))
             return
         }
 
-        mergeRecognizedTextIntoPrompt(recognizedText)
-        showTransientMessage(getString(R.string.ocr_text_added))
+        updatePendingImageInput(
+            requestId = requestId,
+            status = PendingImageStatus.READY,
+            recognizedText = recognizedText,
+            errorMessage = null
+        )
     }
 
-    private fun handleCameraOcrText(text: String) {
-        val recognizedText = PromptPreprocessor.normalize(text)
-        if (recognizedText.isBlank() || cameraOcrUserReviewing) {
+    private fun markPendingImageInputFailed(requestId: Long, message: String) {
+        updatePendingImageInput(
+            requestId = requestId,
+            status = PendingImageStatus.FAILED,
+            recognizedText = null,
+            errorMessage = message
+        )
+    }
+
+    private fun updatePendingImageInput(
+        requestId: Long,
+        status: PendingImageStatus,
+        recognizedText: String?,
+        errorMessage: String?
+    ) {
+        val index = pendingImageInputs.indexOfFirst { it.id == requestId }
+        if (index == -1) {
             return
         }
 
-        val reviewInput = cameraOcrTextInput ?: return
-        if (reviewInput.text.toString() != recognizedText) {
-            reviewInput.setText(recognizedText)
-            reviewInput.setSelection(reviewInput.text.length)
-        }
-        cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_found)
+        pendingImageInputs[index] = pendingImageInputs[index].copy(
+            status = status,
+            recognizedText = recognizedText,
+            errorMessage = errorMessage
+        )
+        renderPendingImageInputs()
     }
 
-    private fun mergeRecognizedTextIntoPrompt(recognizedText: String) {
-        setPromptInputText(
-            PromptPreprocessor.mergeTypedAndRecognized(
-                inputEditText.text.toString(),
-                recognizedText
-            )
+    private fun removePendingImageInput(requestId: Long) {
+        val index = pendingImageInputs.indexOfFirst { it.id == requestId }
+        if (index == -1) {
+            return
+        }
+
+        deletePendingImageTempFile(pendingImageInputs.removeAt(index))
+        renderPendingImageInputs()
+    }
+
+    private fun clearPendingImageInputs() {
+        if (pendingImageInputs.isEmpty()) {
+            renderPendingImageInputs()
+            return
+        }
+
+        pendingImageInputs.forEach(::deletePendingImageTempFile)
+        pendingImageInputs.clear()
+        renderPendingImageInputs()
+    }
+
+    private fun deletePendingImageTempFile(input: PendingImageInput) {
+        input.tempFilePath?.let { path ->
+            runCatching { File(path).delete() }
+        }
+    }
+
+    private fun renderPendingImageInputs() {
+        if (!::pendingImageInputsContainer.isInitialized || !::pendingImageInputsScroll.isInitialized) {
+            return
+        }
+
+        pendingImageInputsScroll.visibility = if (pendingImageInputs.isEmpty()) View.GONE else View.VISIBLE
+        pendingImageInputsContainer.removeAllViews()
+        pendingImageInputs.forEach { input ->
+            pendingImageInputsContainer.addView(createPendingImageChip(input))
+        }
+    }
+
+    private fun createPendingImageChip(input: PendingImageInput): View {
+        val chip = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = ContextCompat.getDrawable(this@PocketChatActivity, R.drawable.bg_image_input_chip)
+            setPadding(dp(6), dp(5), dp(5), dp(5))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                dp(58)
+            ).apply {
+                marginEnd = dp(8)
+            }
+        }
+
+        chip.addView(
+            ImageView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44))
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                setBackgroundColor(Color.BLACK)
+                setImageURI(input.uri)
+            }
         )
+
+        chip.addView(
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    marginStart = dp(8)
+                }
+
+                addView(
+                    TextView(this@PocketChatActivity).apply {
+                        text = if (input.source == OcrInput.Source.CAMERA) {
+                            getString(R.string.photo_input_label)
+                        } else {
+                            getString(R.string.image_input_label)
+                        }
+                        setTextColor(resolveThemeColor(R.attr.colorAssistantText))
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        maxLines = 1
+                    }
+                )
+
+                addView(
+                    TextView(this@PocketChatActivity).apply {
+                        text = pendingImageStatusText(input)
+                        setTextColor(pendingImageStatusColor(input))
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                        maxLines = 1
+                    }
+                )
+            }
+        )
+
+        chip.addView(
+            ImageButton(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(34), dp(34))
+                background = null
+                contentDescription = getString(R.string.remove_image_input)
+                setImageResource(R.drawable.ic_delete_20)
+                setColorFilter(resolveThemeColor(R.attr.colorStatusText))
+                setPadding(dp(7), dp(7), dp(7), dp(7))
+                setOnClickListener { removePendingImageInput(input.id) }
+            }
+        )
+
+        return chip
+    }
+
+    private fun pendingImageStatusText(input: PendingImageInput): String {
+        return when (input.status) {
+            PendingImageStatus.READING -> getString(R.string.image_input_reading)
+            PendingImageStatus.READY -> getString(R.string.image_input_ready)
+            PendingImageStatus.FAILED -> getString(R.string.image_input_failed)
+        }
+    }
+
+    private fun pendingImageStatusColor(input: PendingImageInput): Int {
+        return when (input.status) {
+            PendingImageStatus.FAILED -> ContextCompat.getColor(this, R.color.delete_red)
+            else -> resolveThemeColor(R.attr.colorStatusText)
+        }
+    }
+
+    private fun buildComposerPrompt(): ComposerPrompt? {
+        val typedText = PromptPreprocessor.normalize(inputEditText.text.toString())
+        val voiceText = currentVoiceTranscriptForPrompt(typedText)
+        val typedTextWithoutVoice = if (voiceText != null) {
+            PromptPreprocessor.normalize(speechBasePromptText)
+        } else {
+            typedText
+        }
+        if (pendingImageInputs.any { it.status == PendingImageStatus.READING }) {
+            showTransientMessage(getString(R.string.image_input_processing))
+            return null
+        }
+        if (pendingImageInputs.any { it.status == PendingImageStatus.FAILED }) {
+            showTransientMessage(getString(R.string.image_input_remove_failed))
+            return null
+        }
+
+        val readyImages = pendingImageInputs.filter {
+            it.status == PendingImageStatus.READY && !it.recognizedText.isNullOrBlank()
+        }
+        val modelText = buildSourceAwareModelText(
+            typedText = typedTextWithoutVoice,
+            voiceText = voiceText,
+            images = readyImages
+        )
+        if (modelText.isBlank()) {
+            return null
+        }
+
+        return ComposerPrompt(
+            modelText = modelText,
+            displayText = buildComposerDisplayText(typedText, readyImages.size)
+        )
+    }
+
+    private fun currentVoiceTranscriptForPrompt(currentPromptText: String): String? {
+        val voiceText = PromptPreprocessor.normalize(speechRecognizedText)
+        if (voiceText.isBlank()) {
+            return null
+        }
+
+        val expectedPrompt = PromptPreprocessor.mergeTypedAndRecognized(
+            speechBasePromptText,
+            voiceText
+        )
+        return voiceText.takeIf { currentPromptText == expectedPrompt }
+    }
+
+    private fun buildSourceAwareModelText(
+        typedText: String,
+        voiceText: String?,
+        images: List<PendingImageInput>
+    ): String {
+        val hasTypedText = typedText.isNotBlank()
+        val hasVoiceText = !voiceText.isNullOrBlank()
+        val hasImageText = images.any { !it.recognizedText.isNullOrBlank() }
+
+        if (!hasVoiceText && !hasImageText) {
+            return typedText
+        }
+
+        return buildString {
+            append("The following user input contains labeled sources. Use each section according to its label.")
+
+            if (hasTypedText) {
+                append("\n\n[Typed user message]\n")
+                append(typedText)
+            }
+
+            if (hasVoiceText) {
+                append("\n\n[Voice input transcription]\n")
+                append("This text was transcribed from the user's speech. Treat it as user-provided context or request text.\n")
+                append(voiceText)
+            }
+
+            val imageText = buildImageContextText(images)
+            if (imageText.isNotBlank()) {
+                append("\n\n")
+                append(imageText)
+            }
+        }.trim()
+    }
+
+    private fun buildImageContextText(images: List<PendingImageInput>): String {
+        if (images.isEmpty()) {
+            return ""
+        }
+
+        return buildString {
+            append("[Image OCR context]\n")
+            append("The following text was extracted from attached image input using OCR. Use it as context from the image; it was not typed directly by the user.")
+            images.forEachIndexed { index, input ->
+                val sourceLabel = if (input.source == OcrInput.Source.CAMERA) {
+                    "camera photo"
+                } else {
+                    "gallery image"
+                }
+                append("\n\n[Image ")
+                append(index + 1)
+                append(" - ")
+                append(sourceLabel)
+                append("]\n")
+                append(input.recognizedText.orEmpty().trim())
+            }
+        }
+    }
+
+    private fun buildComposerDisplayText(typedText: String, imageCount: Int): String {
+        if (imageCount <= 0) {
+            return typedText
+        }
+
+        val imageSummary = if (imageCount == 1) {
+            getString(R.string.image_input_display_one)
+        } else {
+            getString(R.string.image_input_display_many, imageCount)
+        }
+
+        return when {
+            typedText.isBlank() -> imageSummary
+            else -> "$typedText\n\n$imageSummary"
+        }
     }
 
     private fun setPromptInputText(text: String) {
         inputEditText.setText(text)
         inputEditText.setSelection(inputEditText.text.length)
+    }
+
+    private fun clearSpeechInputState() {
+        speechInput?.cancel()
+        speechBasePromptText = ""
+        speechRecognizedText = ""
+        speechCommittedText = ""
+        speechPartialText = ""
+    }
+
+    private fun dp(value: Int): Int {
+        return (value * resources.displayMetrics.density).toInt()
     }
 
     private fun hasPermission(permission: String): Boolean {
@@ -1096,6 +1465,8 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         inputEditText.text.clear()
+        clearSpeechInputState()
+        clearPendingImageInputs()
         controller.startNewChat()
         refreshDrawerSessions()
     }
@@ -1276,6 +1647,7 @@ open class PocketChatActivity : AppCompatActivity() {
     ) {
         inputEditText.textSize = currentSettings.chatFontSizeSp
         statusView.textSize = currentSettings.chatFontSizeSp
+        transientMessageView.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
         sendButton.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
         stopButton.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
     }
@@ -1393,7 +1765,15 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun showTransientMessage(message: String) {
-        Snackbar.make(findViewById(android.R.id.content), message, Snackbar.LENGTH_LONG).show()
+        if (message.isBlank() || !::transientMessageView.isInitialized || isDestroyed) {
+            return
+        }
+
+        transientMessageView.removeCallbacks(hideTransientMessageRunnable)
+        transientMessageView.text = message
+        transientMessageView.visibility = View.VISIBLE
+        transientMessageView.bringToFront()
+        transientMessageView.postDelayed(hideTransientMessageRunnable, 1300L)
     }
 
     private fun scrollChatToBottomIfNeeded() {

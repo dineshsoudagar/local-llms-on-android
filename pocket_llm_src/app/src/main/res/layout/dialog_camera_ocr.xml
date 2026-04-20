@@ -2,59 +2,58 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:background="@drawable/bg_dialog_panel"
+    android:fitsSystemWindows="true"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:paddingHorizontal="14dp"
+    android:paddingTop="18dp"
+    android:paddingBottom="14dp">
 
     <TextView
         android:id="@+id/cameraOcrDialogTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:gravity="center"
         android:text="@string/camera_ocr_title"
         android:textColor="?attr/colorAssistantText"
         android:textSize="20sp"
         android:textStyle="bold" />
 
-    <androidx.camera.view.PreviewView
-        android:id="@+id/cameraPreviewView"
+    <FrameLayout
+        android:id="@+id/cameraPreviewFrame"
         android:layout_width="match_parent"
-        android:layout_height="280dp"
-        android:layout_marginTop="16dp"
-        android:background="@color/black"
-        app:implementationMode="performance" />
+        android:layout_height="0dp"
+        android:layout_marginTop="14dp"
+        android:layout_weight="1"
+        android:background="@drawable/bg_camera_preview_frame"
+        android:padding="1dp">
+
+        <androidx.camera.view.PreviewView
+            android:id="@+id/cameraPreviewView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/black"
+            app:implementationMode="performance"
+            app:scaleType="fillCenter" />
+    </FrameLayout>
 
     <TextView
         android:id="@+id/cameraOcrStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
+        android:gravity="center"
         android:text="@string/camera_ocr_status_starting"
         android:textColor="?attr/colorStatusText"
         android:textSize="14sp"
         android:textStyle="bold" />
 
-    <EditText
-        android:id="@+id/cameraOcrTextInput"
-        android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_marginTop="10dp"
-        android:background="@drawable/rounded_edittext"
-        android:gravity="top|start"
-        android:hint="@string/recognized_text_hint"
-        android:inputType="textMultiLine"
-        android:maxLines="6"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="12dp"
-        android:textColor="?attr/colorInputText"
-        android:textColorHint="?attr/colorInputHint"
-        android:textSize="15sp" />
-
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:gravity="end"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
@@ -65,11 +64,11 @@
             android:text="@string/cancel" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/cameraOcrUseButton"
+            android:id="@+id/cameraOcrCaptureButton"
             style="@style/DialogPrimaryButton"
             android:layout_width="wrap_content"
             android:layout_height="48dp"
             android:layout_marginStart="10dp"
-            android:text="@string/use_text" />
+            android:text="@string/take_photo" />
     </LinearLayout>
 </LinearLayout>

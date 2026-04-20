@@ -2,7 +2,6 @@ package com.example.local_llm
 
 import android.content.Context
 import android.net.Uri
-import androidx.camera.core.ImageProxy
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
@@ -18,62 +17,33 @@ class OcrInput(
     }
 
     interface Listener {
-        fun onOcrStarted(source: Source)
-        fun onOcrTextRecognized(text: String, source: Source)
-        fun onOcrFailed(message: String, source: Source)
+        fun onOcrStarted(source: Source, requestId: Long)
+        fun onOcrTextRecognized(text: String, source: Source, requestId: Long)
+        fun onOcrFailed(message: String, source: Source, requestId: Long)
     }
 
     private val appContext = context.applicationContext
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-    @Volatile
-    private var cameraFrameInFlight = false
 
-    fun recognizeImageUri(uri: Uri) {
-        listener.onOcrStarted(Source.GALLERY)
+    fun recognizeImageUri(
+        uri: Uri,
+        source: Source = Source.GALLERY,
+        requestId: Long = 0L
+    ) {
+        listener.onOcrStarted(source, requestId)
         val image = runCatching {
             InputImage.fromFilePath(appContext, uri)
         }.getOrElse { error ->
-            listener.onOcrFailed(error.message ?: "Could not read that image.", Source.GALLERY)
+            listener.onOcrFailed(error.message ?: "Could not read that image.", source, requestId)
             return
         }
 
         recognizer.process(image)
             .addOnSuccessListener { result ->
-                listener.onOcrTextRecognized(extractPlainText(result), Source.GALLERY)
+                listener.onOcrTextRecognized(extractPlainText(result), source, requestId)
             }
             .addOnFailureListener { error ->
-                listener.onOcrFailed(error.message ?: "Could not read text from that image.", Source.GALLERY)
-            }
-    }
-
-    fun recognizeImageProxy(imageProxy: ImageProxy) {
-        if (cameraFrameInFlight) {
-            imageProxy.close()
-            return
-        }
-
-        val mediaImage = imageProxy.image
-        if (mediaImage == null) {
-            imageProxy.close()
-            return
-        }
-
-        cameraFrameInFlight = true
-        val image = InputImage.fromMediaImage(
-            mediaImage,
-            imageProxy.imageInfo.rotationDegrees
-        )
-
-        recognizer.process(image)
-            .addOnSuccessListener { result ->
-                listener.onOcrTextRecognized(extractPlainText(result), Source.CAMERA)
-            }
-            .addOnFailureListener { error ->
-                listener.onOcrFailed(error.message ?: "Camera OCR failed.", Source.CAMERA)
-            }
-            .addOnCompleteListener {
-                cameraFrameInFlight = false
-                imageProxy.close()
+                listener.onOcrFailed(error.message ?: "Could not read text from that image.", source, requestId)
             }
     }
 

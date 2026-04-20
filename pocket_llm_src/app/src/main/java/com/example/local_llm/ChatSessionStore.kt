@@ -94,6 +94,7 @@ class ChatSessionStore(context: Context) {
                                 put("id", turn.id)
                                 put("role", turn.role.name)
                                 put("text", turn.text)
+                                turn.displayText?.let { put("displayText", it) }
                                 turn.thinkingText?.let { put("thinkingText", it) }
                                 turn.thinkingDurationMillis?.let { put("thinkingDurationMillis", it) }
                                 put("stopped", turn.stopped)
@@ -117,6 +118,7 @@ class ChatSessionStore(context: Context) {
                         id = turnJson.optString("id").ifBlank { java.util.UUID.randomUUID().toString() },
                         role = ChatRole.valueOf(turnJson.getString("role")),
                         text = turnJson.optString("text"),
+                        displayText = turnJson.optString("displayText").takeIf { it.isNotBlank() },
                         thinkingText = turnJson.optString("thinkingText").takeIf { it.isNotBlank() },
                         thinkingDurationMillis = turnJson.optLong("thinkingDurationMillis")
                             .takeIf { turnJson.has("thinkingDurationMillis") },
@@ -141,14 +143,15 @@ class ChatSessionStore(context: Context) {
 
     private fun buildPreview(turns: List<ChatTurn>): String {
         return turns.lastOrNull { !it.isUser && it.text.isNotBlank() }?.text
-            ?: turns.firstOrNull { it.text.isNotBlank() }?.text
+            ?: turns.firstOrNull { it.text.isNotBlank() }
+                ?.let { it.displayText ?: it.text }
             ?: ""
     }
 }
 
 fun buildChatSessionTitle(turns: List<ChatTurn>): String {
     val compactPrompt = turns.lastOrNull { it.isUser }
-        ?.text
+        ?.let { it.displayText ?: it.text }
         .orEmpty()
         .lineSequence()
         .joinToString(" ")

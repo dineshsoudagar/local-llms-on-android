@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -22,12 +24,16 @@ class SpeechInput(
     }
 
     private val appContext = context.applicationContext
+    private val restartHandler = Handler(Looper.getMainLooper())
     private var recognizer: SpeechRecognizer? = null
+    private var suppressNextTerminalError = false
+    var isRecording: Boolean = false
+        private set
     var isListening: Boolean = false
         private set
 
     fun start() {
-        if (isListening) {
+        if (isRecording) {
             return
         }
         if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
@@ -35,34 +41,66 @@ class SpeechInput(
             return
         }
 
+        isRecording = true
+        listener.onSpeechStarted()
+        startRecognizer()
+    }
+
+    fun stop() {
+        if (!isRecording) {
+            return
+        }
+
+        isRecording = false
+        restartHandler.removeCallbacksAndMessages(null)
+        suppressNextTerminalError = true
+        if (isListening) {
+            recognizer?.stopListening()
+        } else {
+            destroyRecognizer()
+            suppressNextTerminalError = false
+            listener.onSpeechEnded()
+        }
+    }
+
+    fun cancel() {
+        isRecording = false
+        restartHandler.removeCallbacksAndMessages(null)
+        suppressNextTerminalError = true
+        recognizer?.cancel()
+        finishListening()
         destroyRecognizer()
+        suppressNextTerminalError = false
+    }
+
+    fun destroy() {
+        isRecording = false
+        restartHandler.removeCallbacksAndMessages(null)
+        destroyRecognizer()
+        isListening = false
+    }
+
+    private fun startRecognizer() {
+        if (!isRecording) {
+            return
+        }
+
+        destroyRecognizer()
+        suppressNextTerminalError = false
         val nextRecognizer = SpeechRecognizer.createSpeechRecognizer(appContext)
         recognizer = nextRecognizer
         nextRecognizer.setRecognitionListener(createRecognitionListener())
 
         runCatching {
             isListening = true
-            listener.onSpeechStarted()
             nextRecognizer.startListening(createRecognizerIntent())
         }.onFailure { error ->
+            isRecording = false
             isListening = false
             listener.onSpeechError(error.message ?: "Could not start speech recognition.")
+            listener.onSpeechEnded()
             destroyRecognizer()
         }
-    }
-
-    fun stop() {
-        recognizer?.stopListening()
-    }
-
-    fun cancel() {
-        recognizer?.cancel()
-        finishListening()
-    }
-
-    fun destroy() {
-        destroyRecognizer()
-        isListening = false
     }
 
     private fun createRecognizerIntent(): Intent {
@@ -75,6 +113,9 @@ class SpeechInput(
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 60_000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 60_000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 60_000L)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 putExtra(
@@ -99,18 +140,37 @@ class SpeechInput(
 
             override fun onBufferReceived(buffer: ByteArray?) = Unit
 
-            override fun onEndOfSpeech() {
-                finishListening()
-            }
+            override fun onEndOfSpeech() = Unit
 
             override fun onError(error: Int) {
                 finishListening()
-                listener.onSpeechError(messageForError(error))
+                destroyRecognizer()
+
+                if (isRecording && shouldRestartAfterError(error)) {
+                    scheduleRestart()
+                    return
+                }
+
+                val shouldSuppressError = suppressNextTerminalError || !isRecording
+                if (!shouldSuppressError) {
+                    listener.onSpeechError(messageForError(error))
+                }
+                isRecording = false
+                suppressNextTerminalError = false
+                listener.onSpeechEnded()
             }
 
             override fun onResults(results: Bundle?) {
                 publishResults(results, final = true)
                 finishListening()
+                destroyRecognizer()
+
+                if (isRecording) {
+                    scheduleRestart()
+                } else {
+                    suppressNextTerminalError = false
+                    listener.onSpeechEnded()
+                }
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
@@ -141,12 +201,33 @@ class SpeechInput(
         }
     }
 
+    private fun scheduleRestart() {
+        restartHandler.removeCallbacksAndMessages(null)
+        restartHandler.postDelayed(
+            {
+                if (isRecording && !isListening) {
+                    startRecognizer()
+                }
+            },
+            250L
+        )
+    }
+
+    private fun shouldRestartAfterError(error: Int): Boolean {
+        return when (error) {
+            SpeechRecognizer.ERROR_NO_MATCH,
+            SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
+            SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> true
+            else -> false
+        }
+    }
+
     private fun finishListening() {
         if (!isListening) {
             return
         }
         isListening = false
-        listener.onSpeechEnded()
     }
 
     private fun destroyRecognizer() {

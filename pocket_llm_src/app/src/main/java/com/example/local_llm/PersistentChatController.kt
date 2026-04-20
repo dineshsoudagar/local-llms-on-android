@@ -126,14 +126,20 @@ class PersistentChatController(
         )
     }
 
-    fun sendPrompt(text: String) {
+    fun sendPrompt(text: String, displayText: String = text) {
         val prompt = text.trim()
         if (prompt.isEmpty() || generationJob != null || !_state.value.isReady) {
             return
         }
 
         ensureActiveSession()
-        committedTurns += ChatTurn(role = ChatRole.USER, text = prompt)
+        val displayPrompt = PromptPreprocessor.normalize(displayText)
+            .takeIf { it.isNotBlank() && it != prompt }
+        committedTurns += ChatTurn(
+            role = ChatRole.USER,
+            text = prompt,
+            displayText = displayPrompt
+        )
         persistCurrentSession()
 
         val generationId = currentGenerationId + 1L

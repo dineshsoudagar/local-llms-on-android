@@ -137,6 +137,23 @@
                 android:textStyle="bold"
                 android:visibility="gone"
                 tools:text="Model is ready" />
+
+            <TextView
+                android:id="@+id/transientMessageView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_status_chip"
+                android:elevation="8dp"
+                android:gravity="center"
+                android:maxWidth="260dp"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="8dp"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:text="Listening" />
         </FrameLayout>
 
         <LinearLayout
@@ -268,138 +285,173 @@
             android:background="@drawable/bg_input_panel"
             android:gravity="center_vertical"
             android:orientation="vertical"
-            android:padding="10dp"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="7dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/chatControlsRow">
 
-            <EditText
-                android:id="@+id/userInput"
+            <LinearLayout
+                android:id="@+id/inputComposer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/rounded_edittext"
-                android:gravity="top|start"
-                android:hint="@string/enter_your_prompt"
-                android:imeOptions="actionSend"
-                android:inputType="textMultiLine"
-                android:maxLines="8"
-                android:minLines="3"
-                android:paddingHorizontal="14dp"
-                android:paddingVertical="12dp"
-                android:textColor="?attr/colorInputText"
-                android:textColorHint="?attr/colorInputHint"
-                android:textSize="16sp" />
+                android:orientation="vertical"
+                android:paddingHorizontal="8dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="6dp">
 
-            <LinearLayout
-                android:id="@+id/inputActionRow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                <EditText
+                    android:id="@+id/userInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@android:color/transparent"
+                    android:gravity="top|start"
+                    android:hint="@string/enter_your_prompt"
+                    android:imeOptions="actionSend"
+                    android:inputType="textMultiLine"
+                    android:maxLines="8"
+                    android:minLines="2"
+                    android:paddingHorizontal="0dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"
+                    android:textColor="?attr/colorInputText"
+                    android:textColorHint="?attr/colorInputHint"
+                    android:textSize="16sp" />
+
+                <HorizontalScrollView
+                    android:id="@+id/pendingImageInputsScroll"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:clipToPadding="false"
+                    android:fillViewport="false"
+                    android:overScrollMode="never"
+                    android:scrollbars="none"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:id="@+id/pendingImageInputsContainer"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal" />
+                </HorizontalScrollView>
 
                 <LinearLayout
-                    android:id="@+id/inputToolsRow"
-                    android:layout_width="0dp"
+                    android:id="@+id/inputActionRow"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:gravity="start|center_vertical"
+                    android:layout_marginTop="2dp"
+                    android:gravity="center_vertical"
                     android:orientation="horizontal">
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/micInputButton"
-                        style="@style/InputToolButton"
-                        android:layout_width="42dp"
-                        android:layout_height="42dp"
-                        android:contentDescription="@string/voice_input"
-                        android:insetLeft="0dp"
-                        android:insetTop="0dp"
-                        android:insetRight="0dp"
-                        android:insetBottom="0dp"
-                        android:text=""
-                        app:icon="@drawable/ic_mic_24"
-                        app:iconGravity="textStart"
-                        app:iconPadding="0dp" />
+                    <LinearLayout
+                        android:id="@+id/inputToolsRow"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:gravity="start|center_vertical"
+                        android:orientation="horizontal">
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/galleryOcrButton"
-                        style="@style/InputToolButton"
-                        android:layout_width="42dp"
-                        android:layout_height="42dp"
-                        android:layout_marginStart="8dp"
-                        android:contentDescription="@string/gallery_ocr_input"
-                        android:insetLeft="0dp"
-                        android:insetTop="0dp"
-                        android:insetRight="0dp"
-                        android:insetBottom="0dp"
-                        android:text=""
-                        app:icon="@drawable/ic_image_24"
-                        app:iconGravity="textStart"
-                        app:iconPadding="0dp" />
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/micInputButton"
+                            style="@style/InputToolButton"
+                            android:layout_width="34dp"
+                            android:layout_height="34dp"
+                            android:contentDescription="@string/voice_input"
+                            android:insetLeft="0dp"
+                            android:insetTop="0dp"
+                            android:insetRight="0dp"
+                            android:insetBottom="0dp"
+                            android:text=""
+                            app:icon="@drawable/ic_mic_24"
+                            app:iconGravity="textStart"
+                            app:iconPadding="0dp"
+                            app:iconSize="18dp" />
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/cameraOcrButton"
-                        style="@style/InputToolButton"
-                        android:layout_width="42dp"
-                        android:layout_height="42dp"
-                        android:layout_marginStart="8dp"
-                        android:contentDescription="@string/camera_ocr_input"
-                        android:insetLeft="0dp"
-                        android:insetTop="0dp"
-                        android:insetRight="0dp"
-                        android:insetBottom="0dp"
-                        android:text=""
-                        app:icon="@drawable/ic_camera_24"
-                        app:iconGravity="textStart"
-                        app:iconPadding="0dp" />
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/galleryOcrButton"
+                            style="@style/InputToolButton"
+                            android:layout_width="34dp"
+                            android:layout_height="34dp"
+                            android:layout_marginStart="5dp"
+                            android:contentDescription="@string/gallery_ocr_input"
+                            android:insetLeft="0dp"
+                            android:insetTop="0dp"
+                            android:insetRight="0dp"
+                            android:insetBottom="0dp"
+                            android:text=""
+                            app:icon="@drawable/ic_image_24"
+                            app:iconGravity="textStart"
+                            app:iconPadding="0dp"
+                            app:iconSize="18dp" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/cameraOcrButton"
+                            style="@style/InputToolButton"
+                            android:layout_width="34dp"
+                            android:layout_height="34dp"
+                            android:layout_marginStart="5dp"
+                            android:contentDescription="@string/camera_ocr_input"
+                            android:insetLeft="0dp"
+                            android:insetTop="0dp"
+                            android:insetRight="0dp"
+                            android:insetBottom="0dp"
+                            android:text=""
+                            app:icon="@drawable/ic_camera_24"
+                            app:iconGravity="textStart"
+                            app:iconPadding="0dp"
+                            app:iconSize="18dp" />
+                    </LinearLayout>
+
+                    <FrameLayout
+                        android:id="@+id/sendStopSwitcher"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/sendButton"
+                            style="@style/SendButton"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:contentDescription="@string/send"
+                            android:insetLeft="0dp"
+                            android:insetTop="0dp"
+                            android:insetRight="0dp"
+                            android:insetBottom="0dp"
+                            android:minWidth="0dp"
+                            android:minHeight="0dp"
+                            android:padding="12dp"
+                            android:text=""
+                            app:icon="@drawable/ic_send_24"
+                            app:iconGravity="textStart"
+                            app:iconPadding="0dp"
+                            app:iconTint="@color/white" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/stopButton"
+                            style="@style/StopButton"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:contentDescription="@string/stop"
+                            android:insetLeft="0dp"
+                            android:insetTop="0dp"
+                            android:insetRight="0dp"
+                            android:insetBottom="0dp"
+                            android:minWidth="0dp"
+                            android:minHeight="0dp"
+                            android:padding="12dp"
+                            android:text=""
+                            android:visibility="gone"
+                            app:icon="@drawable/ic_stop_24"
+                            app:iconGravity="textStart"
+                            app:iconPadding="0dp"
+                            app:iconTint="@color/white" />
+                    </FrameLayout>
                 </LinearLayout>
-
-                <FrameLayout
-                    android:id="@+id/sendStopSwitcher"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center_vertical">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/sendButton"
-                        style="@style/SendButton"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:contentDescription="@string/send"
-                        android:insetLeft="0dp"
-                        android:insetTop="0dp"
-                        android:insetRight="0dp"
-                        android:insetBottom="0dp"
-                        android:minWidth="0dp"
-                        android:minHeight="0dp"
-                        android:padding="12dp"
-                        android:text=""
-                        app:icon="@drawable/ic_send_24"
-                        app:iconGravity="textStart"
-                        app:iconPadding="0dp"
-                        app:iconTint="@color/white" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/stopButton"
-                        style="@style/StopButton"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:contentDescription="@string/stop"
-                        android:insetLeft="0dp"
-                        android:insetTop="0dp"
-                        android:insetRight="0dp"
-                        android:insetBottom="0dp"
-                        android:minWidth="0dp"
-                        android:minHeight="0dp"
-                        android:padding="12dp"
-                        android:text=""
-                        android:visibility="gone"
-                        app:icon="@drawable/ic_stop_24"
-                        app:iconGravity="textStart"
-                        app:iconPadding="0dp"
-                        app:iconTint="@color/white" />
-                </FrameLayout>
             </LinearLayout>
         </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>

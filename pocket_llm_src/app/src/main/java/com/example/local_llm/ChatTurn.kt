@@ -11,6 +11,7 @@ data class ChatTurn(
     val id: String = UUID.randomUUID().toString(),
     val role: ChatRole,
     val text: String,
+    val displayText: String? = null,
     val thinkingText: String? = null,
     val thinkingDurationMillis: Long? = null,
     val stopped: Boolean = false,
@@ -23,6 +24,7 @@ data class ChatTurn(
 
 fun ChatTurn.asModelMemoryTurn(): ChatTurn {
     return copy(
+        displayText = null,
         thinkingText = null,
         thinkingDurationMillis = null,
         stopped = false,
