@@ -56,13 +56,18 @@ class QwenLiteRtBackend(
         }
     }
 
-    override suspend fun resetConversation(history: List<ChatTurn>, thinkingEnabled: Boolean) {
-        recreateConversation(history, thinkingEnabled)
+    override suspend fun resetConversation(
+        history: List<ChatTurn>,
+        thinkingEnabled: Boolean,
+        modelInstruction: String
+    ) {
+        recreateConversation(history, thinkingEnabled, modelInstruction)
     }
 
     override suspend fun streamReply(
         history: List<ChatTurn>,
         thinkingEnabled: Boolean,
+        modelInstruction: String,
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse = withContext(Dispatchers.IO) {
         require(history.isNotEmpty() && history.last().role == ChatRole.USER) {
@@ -71,7 +76,7 @@ class QwenLiteRtBackend(
 
         val initialHistory = history.dropLast(1)
         val userTurn = history.last()
-        recreateConversation(initialHistory, thinkingEnabled)
+        recreateConversation(initialHistory, thinkingEnabled, modelInstruction)
 
         val activeConversation = conversation
             ?: throw IllegalStateException("Conversation was not created.")
@@ -115,11 +120,15 @@ class QwenLiteRtBackend(
         }
     }
 
-    private fun recreateConversation(history: List<ChatTurn>, thinkingEnabled: Boolean) {
+    private fun recreateConversation(
+        history: List<ChatTurn>,
+        thinkingEnabled: Boolean,
+        modelInstruction: String
+    ) {
         closeConversation()
         conversation = engine.createConversation(
             ConversationConfig(
-                systemInstruction = Contents.of(buildSystemInstruction(thinkingEnabled)),
+                systemInstruction = Contents.of(buildSystemInstruction(thinkingEnabled, modelInstruction)),
                 initialMessages = history.map { turn ->
                     when (turn.role) {
                         ChatRole.USER -> Message.user(turn.text)
@@ -131,9 +140,9 @@ class QwenLiteRtBackend(
         )
     }
 
-    private fun buildSystemInstruction(thinkingEnabled: Boolean): String {
+    private fun buildSystemInstruction(thinkingEnabled: Boolean, modelInstruction: String): String {
         val thinkingDirective = if (thinkingEnabled) "/think" else "/no_think"
-        return "${spec.defaultSystemInstruction} $thinkingDirective".trim()
+        return "$modelInstruction $thinkingDirective".trim()
     }
 
     private fun closeConversation() {

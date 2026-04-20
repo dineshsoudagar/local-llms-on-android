@@ -37,6 +37,7 @@ class PersistentChatController(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val appContext = context.applicationContext
     private val sessionStore = ChatSessionStore(appContext)
+    private val modelInstructionStore = ModelInstructionStore(appContext)
     private val backend: ChatBackend
     private val committedTurns = mutableListOf<ChatTurn>()
     private val _state = MutableStateFlow(
@@ -84,7 +85,11 @@ class PersistentChatController(
                 withContext(Dispatchers.IO) {
                     backend.initialize()
                     if (snapshotToRestore != null) {
-                        backend.resetConversation(snapshotToRestore.turns.asModelMemoryTurns(), thinkingEnabled)
+                        backend.resetConversation(
+                            snapshotToRestore.turns.asModelMemoryTurns(),
+                            thinkingEnabled,
+                            currentModelInstruction()
+                        )
                     } else {
                         resetConversationForFreshSession()
                     }
@@ -146,6 +151,7 @@ class PersistentChatController(
                     backend.streamReply(
                         committedTurns.asModelMemoryTurns(),
                         thinkingEnabled,
+                        currentModelInstruction(),
                         partialCallback@{ partial ->
                             if (generationId != currentGenerationId) {
                                 return@partialCallback
@@ -250,7 +256,7 @@ class PersistentChatController(
         scope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    backend.resetConversation(emptyList(), thinkingEnabled)
+                    backend.resetConversation(emptyList(), thinkingEnabled, currentModelInstruction())
                 }
                 publishState(statusMessage = "Started a new chat.")
             } catch (e: Exception) {
@@ -300,7 +306,11 @@ class PersistentChatController(
 
             try {
                 withContext(Dispatchers.IO) {
-                    backend.resetConversation(committedTurns.asModelMemoryTurns(), thinkingEnabled)
+                    backend.resetConversation(
+                        committedTurns.asModelMemoryTurns(),
+                        thinkingEnabled,
+                        currentModelInstruction()
+                    )
                 }
                 publishState(statusMessage = "Loaded ${session.title}.")
             } catch (e: Exception) {
@@ -317,7 +327,7 @@ class PersistentChatController(
 
     private suspend fun resetConversationForFreshSession() {
         clearActiveChatState()
-        backend.resetConversation(emptyList(), thinkingEnabled)
+        backend.resetConversation(emptyList(), thinkingEnabled, currentModelInstruction())
     }
 
     private fun restoreActiveChat(snapshot: ActiveChatSnapshot) {
@@ -362,7 +372,7 @@ class PersistentChatController(
 
         val session = PersistedChatSession(
             sessionId = sessionId,
-            title = buildSessionTitle(),
+            title = buildChatSessionTitle(committedTurns),
             modelId = modelDescriptor.id,
             modelDisplayName = modelDescriptor.displayName,
             createdAtMillis = currentSessionCreatedAtMillis.takeIf { it > 0 } ?: System.currentTimeMillis(),
@@ -370,21 +380,6 @@ class PersistentChatController(
             turns = committedTurns.toList()
         )
         sessionStore.save(session)
-    }
-
-    private fun buildSessionTitle(): String {
-        val firstUserPrompt = committedTurns.firstOrNull { it.isUser }?.text.orEmpty()
-        val compactPrompt = firstUserPrompt
-            .lineSequence()
-            .joinToString(" ")
-            .trim()
-            .replace(Regex("\\s+"), " ")
-
-        return when {
-            compactPrompt.isBlank() -> "Untitled chat"
-            compactPrompt.length <= 42 -> compactPrompt
-            else -> compactPrompt.take(42).trimEnd() + "..."
-        }
     }
 
     private fun commitStoppedAssistantTurn() {
@@ -437,6 +432,10 @@ class PersistentChatController(
         currentGenerationStartedAtMillis = null
         currentThinkingStartedAtMillis = null
         currentThinkingFinishedAtMillis = null
+    }
+
+    private fun currentModelInstruction(): String {
+        return modelInstructionStore.loadInstruction(modelDescriptor)
     }
 
     private fun shouldEnableLiveMarkdown(partial: BackendResponse): Boolean {

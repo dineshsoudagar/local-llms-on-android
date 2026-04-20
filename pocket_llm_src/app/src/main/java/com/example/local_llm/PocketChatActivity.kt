@@ -2,6 +2,8 @@ package com.example.local_llm
 
 import android.graphics.BitmapFactory
 import android.os.Bundle
+import android.text.method.LinkMovementMethod
+import android.text.util.Linkify
 import android.text.format.Formatter
 import android.view.LayoutInflater
 import android.view.View
@@ -46,6 +48,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private lateinit var settingsStore: AppSettingsStore
     private lateinit var currentSettings: AppSettings
+    private lateinit var modelInstructionStore: ModelInstructionStore
     private lateinit var modelSelectionStore: ModelSelectionStore
     private lateinit var modelFileResolver: ModelFileResolver
     private lateinit var chatSessionStore: ChatSessionStore
@@ -94,6 +97,7 @@ open class PocketChatActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         settingsStore = AppSettingsStore(this)
         currentSettings = settingsStore.load()
+        modelInstructionStore = ModelInstructionStore(this)
         modelSelectionStore = ModelSelectionStore(this)
         modelFileResolver = ModelFileResolver(this)
         chatSessionStore = ChatSessionStore(this)
@@ -590,6 +594,20 @@ open class PocketChatActivity : AppCompatActivity() {
                 showSettingsDialog()
             }
         }
+
+        findViewById<View>(R.id.drawerModelSettingsRow).setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            drawerLayout.post {
+                showModelSettingsDialog()
+            }
+        }
+
+        findViewById<View>(R.id.drawerAboutRow).setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            drawerLayout.post {
+                showAboutDialog()
+            }
+        }
     }
 
     private fun refreshDrawerSessions() {
@@ -785,6 +803,88 @@ open class PocketChatActivity : AppCompatActivity() {
                     findViewById(R.id.stopButton)
                 )
             }
+        }
+
+        dialog.show()
+    }
+
+    private fun showAboutDialog() {
+        val dialogBuilder = MaterialAlertDialogBuilder(this)
+        val dialogView = LayoutInflater.from(dialogBuilder.context)
+            .inflate(R.layout.dialog_about, null)
+        val versionView: TextView = dialogView.findViewById(R.id.aboutVersion)
+        val githubLinkView: TextView = dialogView.findViewById(R.id.aboutGithubLink)
+
+        versionView.text = getString(R.string.about_version_format, currentVersionName())
+        githubLinkView.movementMethod = LinkMovementMethod.getInstance()
+        Linkify.addLinks(githubLinkView, Linkify.WEB_URLS)
+
+        dialogBuilder
+            .setTitle(getString(R.string.about_title))
+            .setView(dialogView)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun currentVersionName(): String {
+        return runCatching {
+            packageManager.getPackageInfo(packageName, 0).versionName
+                ?.takeIf { it.isNotBlank() }
+                ?: "unknown"
+        }.getOrDefault("unknown")
+    }
+
+    private fun showModelSettingsDialog() {
+        val descriptor = currentModel
+        if (descriptor == null || chatController == null) {
+            showTransientMessage(getString(R.string.model_required_message))
+            showModelSelectionDialog(forceSelection = true)
+            return
+        }
+
+        if (chatController?.state?.value?.isGenerating == true) {
+            showTransientMessage(getString(R.string.model_settings_generation_blocked))
+            return
+        }
+
+        if (!modelFileResolver.isModelDownloaded(descriptor)) {
+            showTransientMessage(getString(R.string.model_settings_download_required))
+            return
+        }
+
+        val dialogBuilder = MaterialAlertDialogBuilder(this)
+        val dialogView = LayoutInflater.from(dialogBuilder.context)
+            .inflate(R.layout.dialog_model_settings, null)
+        val modelNameView: TextView = dialogView.findViewById(R.id.modelSettingsModelName)
+        val instructionInput: EditText = dialogView.findViewById(R.id.modelInstructionInput)
+        val cancelButton: Button = dialogView.findViewById(R.id.modelSettingsCancelButton)
+        val saveButton: Button = dialogView.findViewById(R.id.modelSettingsSaveButton)
+
+        modelNameView.text = descriptor.displayName
+        val currentInstruction = modelInstructionStore.loadInstruction(descriptor)
+        instructionInput.setText(currentInstruction)
+        instructionInput.setSelection(currentInstruction.length)
+
+        val dialog = dialogBuilder
+            .setTitle(getString(R.string.model_settings_title))
+            .setView(dialogView)
+            .create()
+
+        cancelButton.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        saveButton.setOnClickListener {
+            val instruction = instructionInput.text.toString().trim()
+            if (instruction.isBlank()) {
+                showTransientMessage(getString(R.string.model_instruction_empty))
+                return@setOnClickListener
+            }
+
+            modelInstructionStore.saveInstruction(descriptor, instruction)
+            dialog.dismiss()
+            showTransientMessage(getString(R.string.model_instruction_saved))
         }
 
         dialog.show()

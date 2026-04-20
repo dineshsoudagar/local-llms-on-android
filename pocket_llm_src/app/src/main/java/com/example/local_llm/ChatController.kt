@@ -22,6 +22,7 @@ class ChatController(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val backend: ChatBackend
+    private val modelInstructionStore: ModelInstructionStore
     private val committedTurns = mutableListOf<ChatTurn>()
     private val _state = MutableStateFlow(
         ChatUiState(
@@ -43,6 +44,7 @@ class ChatController(
 
     init {
         val appContext = context.applicationContext
+        modelInstructionStore = ModelInstructionStore(appContext)
         val modelFileResolver = ModelFileResolver(appContext)
         backend = when (modelDescriptor) {
             is OnnxQwenSpec -> OnnxChatBackend(appContext, modelDescriptor, modelFileResolver)
@@ -56,7 +58,7 @@ class ChatController(
             try {
                 withContext(Dispatchers.IO) {
                     backend.initialize()
-                    backend.resetConversation(emptyList(), thinkingEnabled)
+                    backend.resetConversation(emptyList(), thinkingEnabled, currentModelInstruction())
                 }
                 publishState(
                     statusMessage = MODEL_READY_STATUS_MESSAGE,
@@ -91,7 +93,11 @@ class ChatController(
         generationJob = scope.launch {
             try {
                 val response = withContext(Dispatchers.IO) {
-                    backend.streamReply(committedTurns.asModelMemoryTurns(), thinkingEnabled) { partial ->
+                    backend.streamReply(
+                        committedTurns.asModelMemoryTurns(),
+                        thinkingEnabled,
+                        currentModelInstruction()
+                    ) { partial ->
                         scope.launch {
                             updateThinkingTimer(partial)
                             streamingAssistantTurn = ChatTurn(
@@ -126,7 +132,11 @@ class ChatController(
             } catch (_: CancellationException) {
                 commitStoppedAssistantTurn()
                 withContext(NonCancellable + Dispatchers.IO) {
-                    backend.resetConversation(committedTurns.asModelMemoryTurns(), thinkingEnabled)
+                    backend.resetConversation(
+                        committedTurns.asModelMemoryTurns(),
+                        thinkingEnabled,
+                        currentModelInstruction()
+                    )
                 }
                 resetGenerationTimer()
                 publishState(statusMessage = "⛔ Generation stopped.", isGenerating = false)
@@ -159,7 +169,7 @@ class ChatController(
         scope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    backend.resetConversation(emptyList(), thinkingEnabled)
+                    backend.resetConversation(emptyList(), thinkingEnabled, currentModelInstruction())
                 }
                 publishState(statusMessage = if (_state.value.isReady) MODEL_READY_STATUS_MESSAGE else "")
             } catch (e: Exception) {
@@ -218,6 +228,10 @@ class ChatController(
         currentGenerationStartedAtMillis = null
         currentThinkingStartedAtMillis = null
         currentThinkingFinishedAtMillis = null
+    }
+
+    private fun currentModelInstruction(): String {
+        return modelInstructionStore.loadInstruction(modelDescriptor)
     }
 
     private fun publishState(

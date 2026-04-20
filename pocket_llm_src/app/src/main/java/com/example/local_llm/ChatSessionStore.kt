@@ -5,6 +5,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
+private const val CHAT_SESSION_TITLE_MAX_CHARS = 42
+private const val UNTITLED_CHAT_TITLE = "Untitled chat"
+
 data class PersistedChatSession(
     val sessionId: String,
     val title: String,
@@ -58,7 +61,7 @@ class ChatSessionStore(context: Context) {
                     val session = deserializeSession(JSONObject(file.readText()))
                     ChatSessionSummary(
                         sessionId = session.sessionId,
-                        title = session.title,
+                        title = buildChatSessionTitle(session.turns),
                         modelId = session.modelId,
                         modelDisplayName = session.modelDisplayName,
                         updatedAtMillis = session.updatedAtMillis,
@@ -127,7 +130,7 @@ class ChatSessionStore(context: Context) {
 
         return PersistedChatSession(
             sessionId = json.getString("sessionId"),
-            title = json.optString("title").ifBlank { "Untitled chat" },
+            title = json.optString("title").ifBlank { UNTITLED_CHAT_TITLE },
             modelId = json.optString("modelId"),
             modelDisplayName = json.optString("modelDisplayName"),
             createdAtMillis = json.optLong("createdAtMillis"),
@@ -140,5 +143,21 @@ class ChatSessionStore(context: Context) {
         return turns.lastOrNull { !it.isUser && it.text.isNotBlank() }?.text
             ?: turns.firstOrNull { it.text.isNotBlank() }?.text
             ?: ""
+    }
+}
+
+fun buildChatSessionTitle(turns: List<ChatTurn>): String {
+    val compactPrompt = turns.lastOrNull { it.isUser }
+        ?.text
+        .orEmpty()
+        .lineSequence()
+        .joinToString(" ")
+        .trim()
+        .replace(Regex("\\s+"), " ")
+
+    return when {
+        compactPrompt.isBlank() -> UNTITLED_CHAT_TITLE
+        compactPrompt.length <= CHAT_SESSION_TITLE_MAX_CHARS -> compactPrompt
+        else -> compactPrompt.take(CHAT_SESSION_TITLE_MAX_CHARS).trimEnd() + "..."
     }
 }

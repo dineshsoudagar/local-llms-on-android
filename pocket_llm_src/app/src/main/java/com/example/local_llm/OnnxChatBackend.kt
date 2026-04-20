@@ -27,20 +27,25 @@ class OnnxChatBackend(
         onnxModel = OnnxModel(modelFile, config)
     }
 
-    override suspend fun resetConversation(history: List<ChatTurn>, thinkingEnabled: Boolean) {
+    override suspend fun resetConversation(
+        history: List<ChatTurn>,
+        thinkingEnabled: Boolean,
+        modelInstruction: String
+    ) {
         cancelRequested.set(false)
     }
 
     override suspend fun streamReply(
         history: List<ChatTurn>,
         thinkingEnabled: Boolean,
+        modelInstruction: String,
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse = withContext(Dispatchers.IO) {
         cancelRequested.set(false)
         val coroutineIsActive = { isActive }
         val isQwen3 = spec.modelName.equals("qwen3", ignoreCase = true)
 
-        val systemPrompt = buildSystemPrompt(thinkingEnabled)
+        val systemPrompt = buildSystemPrompt(thinkingEnabled, modelInstruction)
         val promptTokens = promptBuilder.buildPromptTokens(history, PromptIntent.QA(systemPrompt))
         val responseBuilder = StringBuilder()
         val streamDecoder = tokenizer.createStreamDecoder()
@@ -81,13 +86,13 @@ class OnnxChatBackend(
         }
     }
 
-    private fun buildSystemPrompt(thinkingEnabled: Boolean): String {
+    private fun buildSystemPrompt(thinkingEnabled: Boolean, modelInstruction: String): String {
         if (!spec.modelName.equals("qwen3", ignoreCase = true) || !spec.thinkingModeAvailable) {
-            return spec.defaultSystemPrompt
+            return modelInstruction
         }
 
         val thinkingDirective = if (thinkingEnabled) "/think" else "/no_think"
-        return "${spec.defaultSystemPrompt} $thinkingDirective".trim()
+        return "$modelInstruction $thinkingDirective".trim()
     }
 
     private fun parseBackendResponse(rawOutput: String, isQwen3: Boolean): BackendResponse {

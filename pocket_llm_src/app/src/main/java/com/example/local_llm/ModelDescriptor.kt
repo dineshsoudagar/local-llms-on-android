@@ -225,3 +225,10 @@ val ModelDescriptor.primaryModelFileName: String
         is GemmaLiteRtSpec -> modelAssetName
         is QwenLiteRtSpec -> modelAssetName
     }
+
+val ModelDescriptor.defaultInstruction: String
+    get() = when (this) {
+        is OnnxQwenSpec -> defaultSystemPrompt
+        is GemmaLiteRtSpec -> defaultSystemInstruction
+        is QwenLiteRtSpec -> defaultSystemInstruction
+    }
