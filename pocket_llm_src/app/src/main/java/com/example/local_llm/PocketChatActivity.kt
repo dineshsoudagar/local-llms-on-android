@@ -4,12 +4,11 @@ import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.text.format.Formatter
 import android.view.LayoutInflater
-import android.view.Menu
-import android.view.MenuItem
 import android.view.View
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -18,6 +17,8 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
@@ -29,6 +30,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlin.math.max
 
 open class PocketChatActivity : AppCompatActivity() {
 
@@ -46,6 +48,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var currentSettings: AppSettings
     private lateinit var modelSelectionStore: ModelSelectionStore
     private lateinit var modelFileResolver: ModelFileResolver
+    private lateinit var chatSessionStore: ChatSessionStore
     private lateinit var retainedState: PocketChatViewModel
     private var currentModel: ModelDescriptor? = null
     private var chatController: PersistentChatController? = null
@@ -54,6 +57,10 @@ open class PocketChatActivity : AppCompatActivity() {
     private var modelDialogViews: ModelDialogViews? = null
     private var modelDialogForceSelection = false
     private lateinit var chatAdapter: ChatAdapter
+    private lateinit var drawerLayout: DrawerLayout
+    private lateinit var drawerChatsRecyclerView: RecyclerView
+    private lateinit var drawerChatsEmptyView: TextView
+    private lateinit var drawerSessionsAdapter: DrawerSessionsAdapter
     private lateinit var chatRecyclerView: RecyclerView
     private lateinit var inputEditText: EditText
     private lateinit var toolbarSubtitleView: TextView
@@ -89,13 +96,18 @@ open class PocketChatActivity : AppCompatActivity() {
         currentSettings = settingsStore.load()
         modelSelectionStore = ModelSelectionStore(this)
         modelFileResolver = ModelFileResolver(this)
+        chatSessionStore = ChatSessionStore(this)
         setTheme(currentSettings.theme.styleRes)
         super.onCreate(savedInstanceState)
         retainedState = ViewModelProvider(this)[PocketChatViewModel::class.java]
         setContentView(R.layout.activity_main)
 
         val toolbar: MaterialToolbar = findViewById(R.id.topToolbar)
+        val toolbarMenuButton: View = findViewById(R.id.toolbarMenuButton)
         val toolbarLogoView: ImageView = findViewById(R.id.toolbarLogo)
+        drawerLayout = findViewById(R.id.drawerLayout)
+        drawerChatsRecyclerView = findViewById(R.id.drawerChatsRecyclerView)
+        drawerChatsEmptyView = findViewById(R.id.drawerChatsEmpty)
         toolbarModelSelector = findViewById(R.id.modelSelector)
         toolbarSubtitleView = findViewById(R.id.toolbarSubtitle)
         thinkingToggleContainer = findViewById(R.id.thinkingToggleContainer)
@@ -109,8 +121,13 @@ open class PocketChatActivity : AppCompatActivity() {
 
         setSupportActionBar(toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
+        toolbarMenuButton.setOnClickListener {
+            refreshDrawerSessions()
+            drawerLayout.openDrawer(GravityCompat.START)
+        }
         toolbarSubtitleView.text = getString(R.string.model_picker_empty_subtitle)
         loadToolbarLogo(toolbarLogoView)
+        configureDrawer()
 
         chatAdapter = ChatAdapter(currentSettings.chatFontSizeSp)
         chatRecyclerView.layoutManager = LinearLayoutManager(this)
@@ -149,6 +166,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
             controller.sendPrompt(prompt)
             inputEditText.text.clear()
+            refreshDrawerSessions()
         }
 
         stopButton.setOnClickListener {
@@ -196,31 +214,12 @@ open class PocketChatActivity : AppCompatActivity() {
 
         observeModelDownloadState()
         applyModelDownloadState(ModelDownloadStateStore.state.value)
+        refreshDrawerSessions()
 
         if (chatController == null) {
             chatRecyclerView.post {
                 showModelSelectionDialog(forceSelection = true)
             }
-        }
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.chat_menu, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.menu_sessions -> {
-                val controller = requireUsableController() ?: return true
-                showPreviousChats(controller)
-                true
-            }
-            R.id.menu_settings -> {
-                showSettingsDialog()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
         }
     }
 
@@ -381,6 +380,7 @@ open class PocketChatActivity : AppCompatActivity() {
         autoScrollPendingFinalUpdate = false
         wasGenerating = false
         toolbarSubtitleView.text = descriptor.displayName
+        refreshDrawerSessions()
         inputEditText.text.clear()
         thinkingToggle.isChecked = false
         observeController(controller)
@@ -421,6 +421,9 @@ open class PocketChatActivity : AppCompatActivity() {
 
         chatAdapter.submitTurns(state.transcript)
         wasGenerating = state.isGenerating
+        if (generationFinished) {
+            refreshDrawerSessions()
+        }
     }
 
     private fun renderNoControllerState(
@@ -499,6 +502,7 @@ open class PocketChatActivity : AppCompatActivity() {
             val recommendationView: TextView = itemView.findViewById(R.id.modelRecommendation)
             val statusTextView: TextView = itemView.findViewById(R.id.modelStatus)
             val actionButton: Button = itemView.findViewById(R.id.modelActionButton)
+            val deleteButton: ImageButton = itemView.findViewById(R.id.modelDeleteButton)
             val itemProgressBar: ProgressBar = itemView.findViewById(R.id.modelItemProgressBar)
             val itemProgressText: TextView = itemView.findViewById(R.id.modelItemProgressText)
 
@@ -531,18 +535,25 @@ open class PocketChatActivity : AppCompatActivity() {
             )
 
             actionButton.text = when {
-                isDownloadingThisModel -> getString(R.string.cancel_download)
+                isDownloadingThisModel -> getString(R.string.stop_download)
                 isCurrentModel -> getString(R.string.model_action_current)
                 isAvailable -> getString(R.string.model_action_use)
                 else -> getString(R.string.model_action_download)
             }
-            actionButton.isEnabled = isDownloadingThisModel || (!isModelOperationInProgress && !isCurrentModel)
+            actionButton.isEnabled = isDownloadingThisModel || !isModelOperationInProgress
             actionButton.setOnClickListener {
                 if (isDownloadingThisModel) {
                     cancelModelDownload()
                 } else {
                     handleModelSelection(descriptor)
                 }
+            }
+
+            val canDeleteDownloadedModel = isDownloaded && !isDownloadingThisModel
+            deleteButton.visibility = if (canDeleteDownloadedModel) View.VISIBLE else View.GONE
+            deleteButton.isEnabled = !isModelOperationInProgress
+            deleteButton.setOnClickListener {
+                confirmDeleteModel(descriptor)
             }
 
             itemProgressBar.visibility = if (isDownloadingThisModel) View.VISIBLE else View.GONE
@@ -552,6 +563,84 @@ open class PocketChatActivity : AppCompatActivity() {
 
             dialogUi.listContainer.addView(itemView)
         }
+    }
+
+    private fun configureDrawer() {
+        drawerSessionsAdapter = DrawerSessionsAdapter(
+            fontSizeSp = currentSettings.chatFontSizeSp,
+            onSessionSelected = { session ->
+                drawerLayout.closeDrawer(GravityCompat.START)
+                drawerLayout.post {
+                    val controller = requireUsableController()
+                    if (controller != null) {
+                        controller.loadSession(session.sessionId)
+                    }
+                }
+            },
+            onDeleteRequested = { session ->
+                confirmDeleteSession(session)
+            }
+        )
+        drawerChatsRecyclerView.layoutManager = LinearLayoutManager(this)
+        drawerChatsRecyclerView.adapter = drawerSessionsAdapter
+
+        findViewById<View>(R.id.drawerSettingsRow).setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            drawerLayout.post {
+                showSettingsDialog()
+            }
+        }
+    }
+
+    private fun refreshDrawerSessions() {
+        if (!::drawerSessionsAdapter.isInitialized) {
+            return
+        }
+
+        val sessions = chatSessionStore.list()
+        drawerSessionsAdapter.submitList(sessions)
+        drawerChatsEmptyView.visibility = if (sessions.isEmpty()) View.VISIBLE else View.GONE
+    }
+
+    private fun confirmDeleteSession(session: ChatSessionSummary) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.delete_chat))
+            .setMessage(getString(R.string.delete_chat_confirmation))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(getString(R.string.delete)) { _, _ ->
+                val deleted = chatController?.deleteSession(session.sessionId)
+                    ?: chatSessionStore.delete(session.sessionId)
+                if (deleted) {
+                    refreshDrawerSessions()
+                    showTransientMessage(getString(R.string.chat_deleted))
+                }
+            }
+            .show()
+    }
+
+    private fun confirmDeleteModel(descriptor: ModelDescriptor) {
+        if (currentModel?.id == descriptor.id) {
+            showTransientMessage(getString(R.string.delete_model_current_blocked))
+            return
+        }
+        if (isModelOperationInProgress) {
+            showTransientMessage(getString(R.string.model_operation_in_progress))
+            return
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.delete_model))
+            .setMessage(getString(R.string.delete_model_confirmation, descriptor.displayName))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(getString(R.string.delete)) { _, _ ->
+                if (modelFileResolver.deleteDownloadedModel(descriptor)) {
+                    refreshModelSelectionDialog()
+                    showTransientMessage(getString(R.string.model_deleted_message, descriptor.displayName))
+                } else {
+                    showTransientMessage(getString(R.string.delete_model_failed, descriptor.displayName))
+                }
+            }
+            .show()
     }
 
     private fun handleModelSelection(descriptor: ModelDescriptor) {
@@ -625,61 +714,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
         inputEditText.text.clear()
         controller.startNewChat()
-    }
-
-    private fun showPreviousChats(controller: PersistentChatController) {
-        val sessions = controller.listSavedSessions()
-        if (sessions.isEmpty()) {
-            MaterialAlertDialogBuilder(this)
-                .setMessage(getString(R.string.no_saved_chats))
-                .setPositiveButton(android.R.string.ok, null)
-                .show()
-            return
-        }
-
-        val dialogBuilder = MaterialAlertDialogBuilder(this)
-        val dialogView = LayoutInflater.from(dialogBuilder.context)
-            .inflate(R.layout.dialog_saved_chats, null)
-        val recyclerView: RecyclerView = dialogView.findViewById(R.id.savedChatsRecyclerView)
-        recyclerView.layoutManager = LinearLayoutManager(this)
-
-        val dialog = dialogBuilder
-            .setView(dialogView)
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-
-        lateinit var adapter: SavedSessionsAdapter
-        adapter = SavedSessionsAdapter(
-            fontSizeSp = currentSettings.chatFontSizeSp,
-            onSessionSelected = { session ->
-                dialog.dismiss()
-                controller.loadSession(session.sessionId)
-            },
-            onDeleteRequested = { session ->
-                MaterialAlertDialogBuilder(this)
-                    .setTitle(getString(R.string.delete_chat))
-                    .setMessage(getString(R.string.delete_chat_confirmation))
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .setPositiveButton(getString(R.string.delete)) { _, _ ->
-                        if (controller.deleteSession(session.sessionId)) {
-                            val remainingSessions = controller.listSavedSessions()
-                            adapter.submitList(remainingSessions)
-                            if (remainingSessions.isEmpty()) {
-                                dialog.dismiss()
-                                MaterialAlertDialogBuilder(this)
-                                    .setMessage(getString(R.string.no_saved_chats))
-                                    .setPositiveButton(android.R.string.ok, null)
-                                    .show()
-                            }
-                        }
-                    }
-                    .show()
-            }
-        )
-        recyclerView.adapter = adapter
-        adapter.submitList(sessions)
-
-        dialog.show()
+        refreshDrawerSessions()
     }
 
     private fun showSettingsDialog() {
@@ -743,6 +778,7 @@ open class PocketChatActivity : AppCompatActivity() {
                 recreate()
             } else {
                 chatAdapter.updateFontSize(updatedSettings.chatFontSizeSp)
+                drawerSessionsAdapter.updateFontSize(updatedSettings.chatFontSizeSp)
                 applyTypography(
                     findViewById(R.id.statusView),
                     findViewById(R.id.sendButton),
@@ -775,13 +811,61 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun loadToolbarLogo(toolbarLogoView: ImageView) {
+        val targetSizePx = (36 * resources.displayMetrics.density).toInt().coerceAtLeast(72)
         runCatching {
-            assets.open(TOOLBAR_LOGO_ASSET).use { input ->
-                BitmapFactory.decodeStream(input)
-            }
+            decodeSampledBitmapFromAsset(TOOLBAR_LOGO_ASSET, targetSizePx, targetSizePx)
         }.getOrNull()?.let { bitmap ->
             toolbarLogoView.setImageBitmap(bitmap)
         }
+    }
+
+    private fun decodeSampledBitmapFromAsset(
+        assetName: String,
+        requestedWidth: Int,
+        requestedHeight: Int
+    ) = assets.open(assetName).use { boundsStream ->
+        val boundsOptions = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeStream(boundsStream, null, boundsOptions)
+
+        val sampleSize = calculateInSampleSize(
+            boundsOptions.outWidth,
+            boundsOptions.outHeight,
+            requestedWidth,
+            requestedHeight
+        )
+
+        assets.open(assetName).use { decodeStream ->
+            BitmapFactory.decodeStream(
+                decodeStream,
+                null,
+                BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize
+                }
+            )
+        }
+    }
+
+    private fun calculateInSampleSize(
+        sourceWidth: Int,
+        sourceHeight: Int,
+        requestedWidth: Int,
+        requestedHeight: Int
+    ): Int {
+        var sampleSize = 1
+        if (sourceWidth <= 0 || sourceHeight <= 0) {
+            return sampleSize
+        }
+
+        while (
+            sourceWidth / (sampleSize * 2) >= requestedWidth &&
+            sourceHeight / (sampleSize * 2) >= requestedHeight
+        ) {
+            sampleSize *= 2
+        }
+
+        return max(sampleSize, 1)
     }
 
     private fun updateProgressBar(

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="8dp"
@@ -55,17 +56,37 @@
                 android:visibility="gone" />
         </LinearLayout>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/modelActionButton"
-            android:layout_width="78dp"
-            android:layout_height="42dp"
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:paddingHorizontal="8dp"
-            android:paddingVertical="0dp"
-            android:textAllCaps="false"
-            android:textSize="13sp" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/modelActionButton"
+                style="@style/ModelItemActionButton"
+                android:layout_width="64dp"
+                android:layout_height="40dp"
+                android:textColor="@color/white"
+                app:backgroundTint="?attr/colorSendFill"
+                app:rippleColor="?attr/colorSendStroke"
+                app:strokeColor="?attr/colorSendStroke"
+                app:strokeWidth="1dp" />
+
+            <ImageButton
+                android:id="@+id/modelDeleteButton"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="6dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/delete_model"
+                android:padding="8dp"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_delete_20"
+                android:tint="@color/delete_red"
+                android:visibility="gone" />
+        </LinearLayout>
     </LinearLayout>
 
     <ProgressBar

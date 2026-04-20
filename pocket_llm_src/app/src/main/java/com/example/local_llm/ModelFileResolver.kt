@@ -40,6 +40,15 @@ class ModelFileResolver(private val context: Context) {
         }
     }
 
+    fun deleteDownloadedModel(descriptor: ModelDescriptor): Boolean {
+        val modelDirectory = getModelDirectory(descriptor)
+        if (!modelDirectory.exists()) {
+            return true
+        }
+
+        return modelDirectory.deleteRecursively()
+    }
+
     fun resolveModelFile(descriptor: ModelDescriptor): File {
         return resolveFile(descriptor, descriptor.primaryModelFileName)
     }

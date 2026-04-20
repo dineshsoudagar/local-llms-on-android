@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">Local LLM</string>
     <string name="toolbar_app_title">Pocket LLM</string>
+    <string name="open_navigation_menu">Open navigation menu</string>
     <string name="dropdown_arrow">▾</string>
     <string name="change_model_hint">Change Model ▾</string>
     <string name="change_model_button">Change Model</string>
@@ -45,6 +46,12 @@
     <string name="model_action_download">↓</string>
     <string name="model_action_downloading">...</string>
     <string name="cancel_download">Cancel</string>
+    <string name="stop_download">Stop</string>
+    <string name="delete_model">Delete model</string>
+    <string name="delete_model_confirmation">Delete the downloaded files for %1$s? You can download them again later.</string>
+    <string name="delete_model_current_blocked">Switch to another model before deleting this one.</string>
+    <string name="delete_model_failed">Could not delete %1$s.</string>
+    <string name="model_deleted_message">%1$s deleted.</string>
     <string name="model_download_preparing">Preparing download for %1$s...</string>
     <string name="model_download_cancelling">Cancelling model download...</string>
     <string name="model_download_progress_title">Downloading %1$s</string>

@@ -17,7 +17,9 @@ Thumbs.db
 .gradle-cache/
 **/.gradle-user-home/
 **/.gradle-user-home-local/
+**/.gradle-home/
 **/.kotlin/
+**/.android-home/
 **/local.properties
 **/gradle/gradle-daemon-jvm.properties
 

@@ -64,5 +64,6 @@
     <color name="violet_send_stroke">#C5B0FF</color>
     <color name="violet_stop_fill">#E07A9B</color>
     <color name="violet_stop_stroke">#FFC1D5</color>
+    <color name="delete_red">#FF4D4D</color>
     <color name="white">#FFFFFFFF</color>
 </resources>
