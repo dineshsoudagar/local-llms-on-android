@@ -113,7 +113,7 @@ class ChatAdapter(
 
         val bubbleText = buildBubbleText(turn)
         val hasBubbleText = bubbleText.isNotBlank()
-        val canCopyResponse = !turn.isUser && hasBubbleText
+        val canCopyResponse = !turn.isUser && hasBubbleText && !turn.isStreaming
         holder.bubbleFrame.visibility = if (hasBubbleText) View.VISIBLE else View.GONE
         holder.textView.visibility = if (hasBubbleText) View.VISIBLE else View.GONE
         holder.textView.setPaddingRelative(

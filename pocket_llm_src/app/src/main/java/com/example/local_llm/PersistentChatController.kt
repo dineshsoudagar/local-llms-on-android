@@ -137,7 +137,7 @@ class PersistentChatController(
         liveMarkdownEnabled = false
         lastPublishedMarkdownWordCount = 0
         lastPublishedMarkdownTextLength = 0
-        streamingAssistantTurn = ChatTurn(role = ChatRole.ASSISTANT, text = "")
+        streamingAssistantTurn = ChatTurn(role = ChatRole.ASSISTANT, text = "", isStreaming = true)
         publishState(statusMessage = "", isGenerating = true)
 
         generationJob = scope.launch {
@@ -162,12 +162,13 @@ class PersistentChatController(
 
                                 updateThinkingTimer(partial)
                                 streamingAssistantTurn = (streamingAssistantTurn
-                                    ?: ChatTurn(role = ChatRole.ASSISTANT, text = "")).copy(
+                                    ?: ChatTurn(role = ChatRole.ASSISTANT, text = "", isStreaming = true)).copy(
                                     text = partial.text,
                                     thinkingText = partial.thinkingText,
                                     thinkingDurationMillis = thinkingDurationMillis(partial.thinkingText)
                                         .takeIf { partial.text.isNotBlank() },
-                                    renderAsMarkdown = liveMarkdownEnabled
+                                    renderAsMarkdown = liveMarkdownEnabled,
+                                    isStreaming = true
                                 )
                                 publishState(isGenerating = true)
                             }
@@ -188,7 +189,8 @@ class PersistentChatController(
                     thinkingText = finalThinkingText,
                     thinkingDurationMillis = thinkingDurationMillis(finalThinkingText),
                     stopped = false,
-                    renderAsMarkdown = true
+                    renderAsMarkdown = true,
+                    isStreaming = false
                 )
 
                 if (finalAssistantTurn.text.isNotBlank() || !finalAssistantTurn.thinkingText.isNullOrBlank()) {
@@ -391,7 +393,8 @@ class PersistentChatController(
             committedTurns += partialTurn.copy(
                 thinkingDurationMillis = thinkingDurationMillis(partialTurn.thinkingText),
                 stopped = true,
-                renderAsMarkdown = true
+                renderAsMarkdown = true,
+                isStreaming = false
             )
             persistCurrentSession()
         }

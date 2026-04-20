@@ -14,7 +14,8 @@ data class ChatTurn(
     val thinkingText: String? = null,
     val thinkingDurationMillis: Long? = null,
     val stopped: Boolean = false,
-    val renderAsMarkdown: Boolean = false
+    val renderAsMarkdown: Boolean = false,
+    val isStreaming: Boolean = false
 ) {
     val isUser: Boolean
         get() = role == ChatRole.USER
@@ -25,7 +26,8 @@ fun ChatTurn.asModelMemoryTurn(): ChatTurn {
         thinkingText = null,
         thinkingDurationMillis = null,
         stopped = false,
-        renderAsMarkdown = false
+        renderAsMarkdown = false,
+        isStreaming = false
     )
 }
 

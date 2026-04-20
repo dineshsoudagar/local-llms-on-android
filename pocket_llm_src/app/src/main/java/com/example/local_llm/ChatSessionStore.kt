@@ -95,6 +95,7 @@ class ChatSessionStore(context: Context) {
                                 turn.thinkingDurationMillis?.let { put("thinkingDurationMillis", it) }
                                 put("stopped", turn.stopped)
                                 put("renderAsMarkdown", turn.renderAsMarkdown)
+                                put("isStreaming", turn.isStreaming)
                             }
                         )
                     }
@@ -117,7 +118,8 @@ class ChatSessionStore(context: Context) {
                         thinkingDurationMillis = turnJson.optLong("thinkingDurationMillis")
                             .takeIf { turnJson.has("thinkingDurationMillis") },
                         stopped = turnJson.optBoolean("stopped"),
-                        renderAsMarkdown = turnJson.optBoolean("renderAsMarkdown", true)
+                        renderAsMarkdown = turnJson.optBoolean("renderAsMarkdown", true),
+                        isStreaming = turnJson.optBoolean("isStreaming", false)
                     )
                 )
             }

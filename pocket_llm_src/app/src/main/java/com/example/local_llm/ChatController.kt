@@ -84,7 +84,7 @@ class ChatController(
         }
 
         committedTurns += ChatTurn(role = ChatRole.USER, text = prompt)
-        streamingAssistantTurn = ChatTurn(role = ChatRole.ASSISTANT, text = "")
+        streamingAssistantTurn = ChatTurn(role = ChatRole.ASSISTANT, text = "", isStreaming = true)
         startGenerationTimer()
         publishState(statusMessage = "", isGenerating = true)
 
@@ -99,7 +99,8 @@ class ChatController(
                                 text = partial.text,
                                 thinkingText = partial.thinkingText,
                                 thinkingDurationMillis = thinkingDurationMillis(partial.thinkingText)
-                                    .takeIf { partial.text.isNotBlank() }
+                                    .takeIf { partial.text.isNotBlank() },
+                                isStreaming = true
                             )
                             publishState(isGenerating = true)
                         }
@@ -113,7 +114,8 @@ class ChatController(
                     role = ChatRole.ASSISTANT,
                     text = response.text,
                     thinkingText = finalThinkingText,
-                    thinkingDurationMillis = thinkingDurationMillis(finalThinkingText)
+                    thinkingDurationMillis = thinkingDurationMillis(finalThinkingText),
+                    isStreaming = false
                 )
                 if (finalTurn.text.isNotBlank() || !finalTurn.thinkingText.isNullOrBlank()) {
                     committedTurns += finalTurn
@@ -177,7 +179,8 @@ class ChatController(
         if (partialTurn != null && (partialTurn.text.isNotBlank() || !partialTurn.thinkingText.isNullOrBlank())) {
             committedTurns += partialTurn.copy(
                 thinkingDurationMillis = thinkingDurationMillis(partialTurn.thinkingText),
-                stopped = true
+                stopped = true,
+                isStreaming = false
             )
         }
         streamingAssistantTurn = null
