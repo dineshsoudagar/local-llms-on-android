@@ -20,7 +20,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_chat_surface"
-            android:minHeight="58dp"
+            android:minHeight="66dp"
             app:contentInsetEnd="0dp"
             app:contentInsetLeft="0dp"
             app:contentInsetRight="0dp"
@@ -35,9 +35,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:minHeight="58dp"
+                android:minHeight="66dp"
                 android:paddingHorizontal="8dp"
-                android:paddingVertical="9dp">
+                android:paddingVertical="6dp">
 
                 <ImageButton
                     android:id="@+id/toolbarMenuButton"
@@ -52,71 +52,56 @@
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent" />
 
-                <View
-                    android:id="@+id/toolbarEndSpacer"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:visibility="invisible"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="parent" />
-
                 <LinearLayout
                     android:id="@+id/toolbarBranding"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:orientation="vertical"
                     app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toStartOf="@id/toolbarEndSpacer"
-                    app:layout_constraintHorizontal_bias="0.5"
-                    app:layout_constraintStart_toEndOf="@id/toolbarMenuButton"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent">
 
-                    <ImageView
-                        android:id="@+id/toolbarLogo"
-                        android:layout_width="36dp"
-                        android:layout_height="36dp"
-                        android:adjustViewBounds="true"
-                        android:contentDescription="@string/toolbar_app_title"
-                        android:scaleType="fitCenter"
-                        android:src="@mipmap/ic_launcher_2"
-                        tools:ignore="ContentDescription" />
-
-                    <LinearLayout
+                    <TextView
+                        android:id="@+id/toolbarTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
+                        android:includeFontPadding="false"
+                        android:text="@string/toolbar_app_title"
+                        android:textAlignment="center"
+                        android:textColor="?attr/colorAssistantText"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/toolbarSubtitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
                         android:gravity="center"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:id="@+id/toolbarTitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:includeFontPadding="false"
-                            android:text="@string/toolbar_app_title"
-                            android:textAlignment="center"
-                            android:textColor="?attr/colorAssistantText"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/toolbarSubtitle"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:ellipsize="end"
-                            android:gravity="center"
-                            android:includeFontPadding="false"
-                            android:maxLines="1"
-                            android:maxWidth="180dp"
-                            android:textAlignment="center"
-                            android:textColor="?attr/colorStatusText"
-                            android:textSize="11sp"
-                            android:textStyle="bold"
-                            tools:text="Qwen3 0.6B LiteRT" />
-                    </LinearLayout>
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:maxWidth="180dp"
+                        android:textAlignment="center"
+                        android:textColor="?attr/colorStatusText"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        tools:text="Qwen3 0.6B LiteRT" />
                 </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/toolbarLogo"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:adjustViewBounds="true"
+                    android:contentDescription="@string/toolbar_app_title"
+                    android:scaleType="fitCenter"
+                    android:src="@mipmap/ic_launcher_2"
+                    tools:ignore="ContentDescription"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="parent" />
             </androidx.constraintlayout.widget.ConstraintLayout>
         </com.google.android.material.appbar.MaterialToolbar>
 
@@ -311,13 +296,13 @@
                 android:id="@+id/sendStopSwitcher"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
+                android:layout_marginStart="8dp"
                 android:layout_marginBottom="2dp">
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/sendButton"
                     style="@style/SendButton"
-                    android:layout_width="92dp"
+                    android:layout_width="78dp"
                     android:layout_height="56dp"
                     android:layout_gravity="bottom"
                     android:text="@string/send" />
@@ -325,7 +310,7 @@
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/stopButton"
                     style="@style/StopButton"
-                    android:layout_width="92dp"
+                    android:layout_width="78dp"
                     android:layout_height="56dp"
                     android:layout_gravity="bottom"
                     android:text="@string/stop"

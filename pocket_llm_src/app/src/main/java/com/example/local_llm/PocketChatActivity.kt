@@ -811,7 +811,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun loadToolbarLogo(toolbarLogoView: ImageView) {
-        val targetSizePx = (36 * resources.displayMetrics.density).toInt().coerceAtLeast(72)
+        val targetSizePx = (52 * resources.displayMetrics.density).toInt().coerceAtLeast(104)
         runCatching {
             decodeSampledBitmapFromAsset(TOOLBAR_LOGO_ASSET, targetSizePx, targetSizePx)
         }.getOrNull()?.let { bitmap ->
