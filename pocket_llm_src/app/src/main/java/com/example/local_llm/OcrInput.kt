@@ -6,10 +6,13 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class OcrInput(
     context: Context,
-    private val listener: Listener
+    private val listener: Listener? = null
 ) {
     enum class Source {
         GALLERY,
@@ -30,20 +33,41 @@ class OcrInput(
         source: Source = Source.GALLERY,
         requestId: Long = 0L
     ) {
-        listener.onOcrStarted(source, requestId)
+        listener?.onOcrStarted(source, requestId)
         val image = runCatching {
             InputImage.fromFilePath(appContext, uri)
         }.getOrElse { error ->
-            listener.onOcrFailed(error.message ?: "Could not read that image.", source, requestId)
+            listener?.onOcrFailed(error.message ?: "Could not read that image.", source, requestId)
             return
         }
 
         recognizer.process(image)
             .addOnSuccessListener { result ->
-                listener.onOcrTextRecognized(extractPlainText(result), source, requestId)
+                listener?.onOcrTextRecognized(extractPlainText(result), source, requestId)
             }
             .addOnFailureListener { error ->
-                listener.onOcrFailed(error.message ?: "Could not read text from that image.", source, requestId)
+                listener?.onOcrFailed(error.message ?: "Could not read text from that image.", source, requestId)
+            }
+    }
+
+    suspend fun recognizeImageUriText(uri: Uri): String = suspendCancellableCoroutine { continuation ->
+        val image = runCatching {
+            InputImage.fromFilePath(appContext, uri)
+        }.getOrElse { error ->
+            continuation.resumeWithException(error)
+            return@suspendCancellableCoroutine
+        }
+
+        recognizer.process(image)
+            .addOnSuccessListener { result ->
+                if (continuation.isActive) {
+                    continuation.resume(extractPlainText(result))
+                }
+            }
+            .addOnFailureListener { error ->
+                if (continuation.isActive) {
+                    continuation.resumeWithException(error)
+                }
             }
     }
 

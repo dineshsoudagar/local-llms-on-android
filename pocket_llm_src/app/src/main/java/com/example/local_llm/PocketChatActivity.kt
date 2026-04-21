@@ -3,6 +3,8 @@ package com.example.local_llm
 import android.Manifest
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
@@ -59,8 +61,15 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import kotlin.math.ceil
+import kotlin.math.max
 
 open class PocketChatActivity : AppCompatActivity() {
+
+    companion object {
+        private const val FAST_VLM_MAX_IMAGE_DIMENSION = 1024
+        private const val FAST_VLM_JPEG_QUALITY = 90
+    }
 
     private data class ModelDialogViews(
         val dialog: AlertDialog,
@@ -74,6 +83,7 @@ open class PocketChatActivity : AppCompatActivity() {
     )
 
     private enum class PendingImageStatus {
+        PENDING,
         READING,
         READY,
         FAILED
@@ -89,7 +99,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val uri: Uri,
         val source: OcrInput.Source,
         val contextSource: ImageInputContextSource,
-        val status: PendingImageStatus = PendingImageStatus.READING,
+        val status: PendingImageStatus = PendingImageStatus.PENDING,
         val recognizedText: String? = null,
         val errorMessage: String? = null,
         val tempFilePath: String? = null
@@ -129,6 +139,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var pendingImageInputsScroll: HorizontalScrollView
     private lateinit var pendingImageInputsContainer: LinearLayout
     private lateinit var statusView: TextView
+    private lateinit var imageProcessingStatusView: TextView
     private lateinit var transientMessageView: TextView
     private var speechInput: SpeechInput? = null
     private var ocrInput: OcrInput? = null
@@ -145,9 +156,9 @@ open class PocketChatActivity : AppCompatActivity() {
     private var cameraOcrDialog: AlertDialog? = null
     private var cameraOcrStatusView: TextView? = null
     private val pendingImageInputs = mutableListOf<PendingImageInput>()
-    private val pendingImageInputJobs = mutableMapOf<Long, Job>()
     private var nextPendingImageInputId = 1L
-    private var imageProcessingThoughtTurn: ChatTurn? = null
+    private var imagePreprocessingJob: Job? = null
+    private var isImagePreprocessingForSend = false
     private var autoScrollDuringGeneration = false
     private var autoScrollPendingFinalUpdate = false
     private var wasGenerating = false
@@ -236,6 +247,7 @@ open class PocketChatActivity : AppCompatActivity() {
         pendingImageInputsScroll = findViewById(R.id.pendingImageInputsScroll)
         pendingImageInputsContainer = findViewById(R.id.pendingImageInputsContainer)
         statusView = findViewById(R.id.statusView)
+        imageProcessingStatusView = findViewById(R.id.imageProcessingStatusView)
         transientMessageView = findViewById(R.id.transientMessageView)
         chatRecyclerView = findViewById(R.id.chatRecyclerView)
         speechInput = createSpeechInput()
@@ -268,7 +280,7 @@ open class PocketChatActivity : AppCompatActivity() {
         })
 
         toolbarModelSelector.setOnClickListener {
-            if (chatController?.state?.value?.isGenerating == true) {
+            if (chatController?.state?.value?.isGenerating == true || isImagePreprocessingForSend) {
                 showTransientMessage(getString(R.string.model_switch_generation_blocked))
                 return@setOnClickListener
             }
@@ -294,17 +306,7 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         sendButton.setOnClickListener {
-            val controller = chatController ?: return@setOnClickListener
-            val prompt = buildComposerPrompt() ?: return@setOnClickListener
-            if (prompt.modelText.isBlank() || isModelOperationInProgress) {
-                return@setOnClickListener
-            }
-
-            clearSpeechInputState()
-            controller.sendPrompt(prompt.modelText, prompt.displayText)
-            inputEditText.text.clear()
-            clearPendingImageInputs()
-            refreshDrawerSessions()
+            handleSendClick()
         }
 
         stopButton.setOnClickListener {
@@ -372,6 +374,9 @@ open class PocketChatActivity : AppCompatActivity() {
         }
         controllerStateJob?.cancel()
         modelDownloadStateJob?.cancel()
+        imagePreprocessingJob?.cancel()
+        isImagePreprocessingForSend = false
+        updateImageProcessingStatus(false)
         stopCameraOcr()
         cameraOcrDialog?.dismiss()
         speechInput?.destroy()
@@ -441,33 +446,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun createOcrInput(): OcrInput {
-        return OcrInput(
-            this,
-            object : OcrInput.Listener {
-                override fun onOcrStarted(source: OcrInput.Source, requestId: Long) = Unit
-
-                override fun onOcrTextRecognized(
-                    text: String,
-                    source: OcrInput.Source,
-                    requestId: Long
-                ) {
-                    runOnUiThread {
-                        handlePendingImageOcrText(text, requestId)
-                    }
-                }
-
-                override fun onOcrFailed(
-                    message: String,
-                    source: OcrInput.Source,
-                    requestId: Long
-                ) {
-                    runOnUiThread {
-                        markPendingImageInputFailed(requestId, message)
-                        showTransientMessage(message)
-                    }
-                }
-            }
-        )
+        return OcrInput(this)
     }
 
     private fun handleSpeechInputClick() {
@@ -688,118 +667,166 @@ open class PocketChatActivity : AppCompatActivity() {
     ) {
         val imageModel = currentImageModel
         if (imageModel != null) {
-            addPendingFastVlmImageInput(uri, source, tempFilePath, imageModel)
-            return
+            if (!modelFileResolver.isModelAvailable(imageModel)) {
+                tempFilePath?.let { runCatching { File(it).delete() } }
+                promptDownloadImageModel(imageModel)
+                return
+            }
         }
 
-        addPendingOcrImageInput(uri, source, tempFilePath)
-    }
-
-    private fun addPendingOcrImageInput(
-        uri: Uri,
-        source: OcrInput.Source,
-        tempFilePath: String? = null
-    ) {
         val requestId = nextPendingImageInputId++
         pendingImageInputs += PendingImageInput(
             id = requestId,
             uri = uri,
             source = source,
-            contextSource = ImageInputContextSource.OCR,
+            contextSource = if (imageModel == null) ImageInputContextSource.OCR else ImageInputContextSource.FAST_VLM,
             tempFilePath = tempFilePath
         )
         renderPendingImageInputs()
-        ocrInput?.recognizeImageUri(uri, source, requestId)
-            ?: markPendingImageInputFailed(requestId, "OCR is not available.")
     }
 
-    private fun addPendingFastVlmImageInput(
-        uri: Uri,
-        source: OcrInput.Source,
-        tempFilePath: String?,
-        imageModel: FastVlmLiteRtSpec
-    ) {
-        if (isModelOperationInProgress) {
-            tempFilePath?.let { runCatching { File(it).delete() } }
-            showTransientMessage(getString(R.string.model_operation_in_progress))
+    private fun handleSendClick() {
+        val controller = chatController ?: return
+        if (isModelOperationInProgress || isImagePreprocessingForSend) {
             return
         }
 
-        if (!modelFileResolver.isModelAvailable(imageModel)) {
-            tempFilePath?.let { runCatching { File(it).delete() } }
-            promptDownloadImageModel(imageModel)
+        if (pendingImageInputs.any { it.status == PendingImageStatus.FAILED }) {
+            showTransientMessage(getString(R.string.image_input_remove_failed))
             return
         }
 
-        val imageFile = runCatching {
-            prepareFastVlmImageFile(uri, tempFilePath)
-        }.getOrElse { error ->
-            tempFilePath?.let { runCatching { File(it).delete() } }
-            showTransientMessage(error.message ?: getString(R.string.image_input_file_error))
+        if (imagePreprocessingJob?.isActive == true) {
             return
         }
 
-        val requestId = nextPendingImageInputId++
-        pendingImageInputs += PendingImageInput(
-            id = requestId,
-            uri = uri,
-            source = source,
-            contextSource = ImageInputContextSource.FAST_VLM,
-            tempFilePath = imageFile.absolutePath
-        )
-        renderPendingImageInputs()
-        refreshImageProcessingThought()
-
-        val processor = ensureFastVlmImageInput(imageModel)
-        val job = lifecycleScope.launch {
+        imagePreprocessingJob = lifecycleScope.launch {
             try {
-                val description = processor.describeImageFile(imageFile)
-                handlePendingImageVlmDescription(description, requestId)
+                if (!preprocessPendingImagesForSend()) {
+                    return@launch
+                }
+                isImagePreprocessingForSend = false
+                updateImageProcessingStatus(false)
+                chatController?.let { applyChatState(it.state.value) }
+
+                val prompt = buildComposerPrompt() ?: return@launch
+                if (prompt.modelText.isBlank() || isModelOperationInProgress) {
+                    return@launch
+                }
+
+                clearSpeechInputState()
+                controller.sendPrompt(prompt.modelText, prompt.displayText)
+                inputEditText.text.clear()
+                clearPendingImageInputs()
+                refreshDrawerSessions()
             } catch (_: CancellationException) {
-                // Removed image inputs cancel their own preprocessing jobs.
+                // Activity shutdown or a future explicit cancellation stops preprocessing.
             } catch (error: Exception) {
-                val message = error.message ?: getString(R.string.fast_vlm_processing_failed)
-                markPendingImageInputFailed(requestId, message)
-                showTransientMessage(message)
+                showTransientMessage(error.message ?: getString(R.string.image_input_processing_failed))
             } finally {
-                pendingImageInputJobs.remove(requestId)
-                refreshImageProcessingThought()
+                imagePreprocessingJob = null
+                isImagePreprocessingForSend = false
+                updateImageProcessingStatus(false)
                 releaseFastVlmProcessorIfIdle()
+                chatController?.let { applyChatState(it.state.value) }
             }
         }
-        pendingImageInputJobs[requestId] = job
     }
 
-    private fun handlePendingImageOcrText(text: String, requestId: Long) {
-        val recognizedText = PromptPreprocessor.normalize(text)
-        if (recognizedText.isBlank()) {
-            markPendingImageInputFailed(requestId, getString(R.string.ocr_no_text))
-            showTransientMessage(getString(R.string.ocr_no_text))
-            return
+    private suspend fun preprocessPendingImagesForSend(): Boolean {
+        val imagesToProcess = pendingImageInputs.filter { it.status == PendingImageStatus.PENDING }
+        if (imagesToProcess.isEmpty()) {
+            return true
         }
 
-        updatePendingImageInput(
-            requestId = requestId,
-            status = PendingImageStatus.READY,
-            recognizedText = recognizedText,
-            errorMessage = null
-        )
+        isImagePreprocessingForSend = true
+        updateImageProcessingStatus(true)
+        chatController?.let { applyChatState(it.state.value) }
+
+        for (input in imagesToProcess) {
+            if (pendingImageInputs.none { it.id == input.id }) {
+                continue
+            }
+
+            updatePendingImageInput(
+                requestId = input.id,
+                status = PendingImageStatus.READING,
+                recognizedText = null,
+                errorMessage = null
+            )
+
+            val processedText = when (input.contextSource) {
+                ImageInputContextSource.OCR -> runCatching {
+                    preprocessImageWithOcr(input)
+                }.getOrElse { error ->
+                    markImagePreprocessingFailed(input, error)
+                    return false
+                }
+                ImageInputContextSource.FAST_VLM -> runCatching {
+                    preprocessImageWithFastVlm(input)
+                }.getOrElse { error ->
+                    markImagePreprocessingFailed(input, error)
+                    return false
+                }
+            }
+
+            if (processedText.isBlank()) {
+                val message = if (input.contextSource == ImageInputContextSource.OCR) {
+                    getString(R.string.ocr_no_text)
+                } else {
+                    getString(R.string.fast_vlm_no_description)
+                }
+                markPendingImageInputFailed(input.id, message)
+                showTransientMessage(message)
+                return false
+            }
+
+            updatePendingImageInput(
+                requestId = input.id,
+                status = PendingImageStatus.READY,
+                recognizedText = processedText,
+                errorMessage = null
+            )
+        }
+
+        return true
     }
 
-    private fun handlePendingImageVlmDescription(text: String, requestId: Long) {
-        val description = PromptPreprocessor.normalize(text)
-        if (description.isBlank()) {
-            markPendingImageInputFailed(requestId, getString(R.string.fast_vlm_no_description))
-            showTransientMessage(getString(R.string.fast_vlm_no_description))
-            return
+    private fun markImagePreprocessingFailed(input: PendingImageInput, error: Throwable) {
+        val message = when {
+            input.contextSource == ImageInputContextSource.FAST_VLM &&
+                error is FastVlmImageInput.FastVlmNoUsableOutputException -> error.message
+                    ?: getString(R.string.fast_vlm_no_description)
+            input.contextSource == ImageInputContextSource.FAST_VLM -> error.message
+                ?: getString(R.string.fast_vlm_processing_failed)
+            input.contextSource == ImageInputContextSource.OCR -> error.message
+                ?: getString(R.string.ocr_no_text)
+            else -> error.message ?: getString(R.string.image_input_processing_failed)
         }
 
-        updatePendingImageInput(
-            requestId = requestId,
-            status = PendingImageStatus.READY,
-            recognizedText = description,
-            errorMessage = null
-        )
+        markPendingImageInputFailed(input.id, message)
+        showTransientMessage(message)
+    }
+
+    private suspend fun preprocessImageWithOcr(input: PendingImageInput): String {
+        val rawText = ocrInput?.recognizeImageUriText(input.uri)
+            ?: throw IllegalStateException("OCR is not available.")
+        return PromptPreprocessor.normalize(rawText)
+    }
+
+    private suspend fun preprocessImageWithFastVlm(input: PendingImageInput): String {
+        val imageModel = ImageModelRegistry.fastVlm
+        if (!modelFileResolver.isModelAvailable(imageModel)) {
+            promptDownloadImageModel(imageModel)
+            throw IllegalStateException(getString(R.string.fast_vlm_download_required_message, imageModel.displayName))
+        }
+
+        val imageFile = prepareFastVlmImageFile(input.uri, input.tempFilePath)
+        if (input.tempFilePath != imageFile.absolutePath) {
+            updatePendingImageTempFile(input.id, imageFile.absolutePath)
+        }
+
+        return ensureFastVlmImageInput(imageModel).describeImageFile(imageFile)
     }
 
     private fun markPendingImageInputFailed(requestId: Long, message: String) {
@@ -828,36 +855,47 @@ open class PocketChatActivity : AppCompatActivity() {
             errorMessage = errorMessage
         )
         renderPendingImageInputs()
-        refreshImageProcessingThought()
     }
 
-    private fun removePendingImageInput(requestId: Long) {
+    private fun updatePendingImageTempFile(requestId: Long, tempFilePath: String) {
         val index = pendingImageInputs.indexOfFirst { it.id == requestId }
         if (index == -1) {
             return
         }
 
-        pendingImageInputJobs[requestId]?.cancel()
+        pendingImageInputs[index] = pendingImageInputs[index].copy(tempFilePath = tempFilePath)
+    }
+
+    private fun removePendingImageInput(requestId: Long) {
+        if (isImagePreprocessingForSend) {
+            showTransientMessage(getString(R.string.image_input_processing))
+            return
+        }
+
+        val index = pendingImageInputs.indexOfFirst { it.id == requestId }
+        if (index == -1) {
+            return
+        }
+
         deletePendingImageTempFile(pendingImageInputs.removeAt(index))
         renderPendingImageInputs()
-        refreshImageProcessingThought()
         releaseFastVlmProcessorIfIdle()
     }
 
     private fun clearPendingImageInputs() {
+        if (isImagePreprocessingForSend) {
+            return
+        }
+
         if (pendingImageInputs.isEmpty()) {
-            pendingImageInputJobs.values.forEach { it.cancel() }
             renderPendingImageInputs()
-            refreshImageProcessingThought()
             releaseFastVlmProcessorIfIdle()
             return
         }
 
-        pendingImageInputJobs.values.forEach { it.cancel() }
         pendingImageInputs.forEach(::deletePendingImageTempFile)
         pendingImageInputs.clear()
         renderPendingImageInputs()
-        refreshImageProcessingThought()
         releaseFastVlmProcessorIfIdle()
     }
 
@@ -871,31 +909,102 @@ open class PocketChatActivity : AppCompatActivity() {
         val existingTempFile = tempFilePath
             ?.let(::File)
             ?.takeIf { it.exists() && it.length() > 0L }
-        if (existingTempFile != null) {
+        if (existingTempFile != null && isNormalizedFastVlmImageFile(existingTempFile)) {
             return existingTempFile
         }
 
-        return copyImageUriToFastVlmTempFile(uri)
+        return normalizeImageForFastVlm(uri, existingTempFile)
     }
 
-    private fun copyImageUriToFastVlmTempFile(uri: Uri): File {
+    private fun isNormalizedFastVlmImageFile(file: File): Boolean {
+        return file.parentFile?.name == "fast_vlm_images" &&
+            file.extension.equals("jpg", ignoreCase = true)
+    }
+
+    private fun normalizeImageForFastVlm(uri: Uri, sourceFile: File?): File {
+        val bounds = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        openFastVlmImageInput(uri, sourceFile).use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
+        }
+
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            throw IOException(getString(R.string.fast_vlm_image_decode_failed))
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = calculateFastVlmSampleSize(bounds.outWidth, bounds.outHeight)
+        }
+        val decodedBitmap = openFastVlmImageInput(uri, sourceFile).use { input ->
+            BitmapFactory.decodeStream(input, null, decodeOptions)
+        } ?: throw IOException(getString(R.string.fast_vlm_image_decode_failed))
+
+        val normalizedBitmap = scaleBitmapForFastVlm(decodedBitmap)
+        if (normalizedBitmap !== decodedBitmap) {
+            decodedBitmap.recycle()
+        }
+
         val directory = File(cacheDir, "fast_vlm_images").apply { mkdirs() }
         val outputFile = File.createTempFile("fast_vlm_input_", ".jpg", directory)
-        val inputStream = contentResolver.openInputStream(uri)
-            ?: throw IOException(getString(R.string.image_input_file_error))
-
-        inputStream.use { input ->
+        try {
             FileOutputStream(outputFile).use { output ->
-                input.copyTo(output)
+                val compressed = normalizedBitmap.compress(
+                    Bitmap.CompressFormat.JPEG,
+                    FAST_VLM_JPEG_QUALITY,
+                    output
+                )
+                if (!compressed) {
+                    throw IOException(getString(R.string.fast_vlm_image_decode_failed))
+                }
             }
-        }
 
-        if (outputFile.length() <= 0L) {
+            if (outputFile.length() <= 0L) {
+                throw IOException(getString(R.string.fast_vlm_image_decode_failed))
+            }
+
+            return outputFile
+        } catch (error: Exception) {
             runCatching { outputFile.delete() }
-            throw IOException(getString(R.string.image_input_file_error))
+            throw error
+        } finally {
+            normalizedBitmap.recycle()
+        }
+    }
+
+    private fun openFastVlmImageInput(uri: Uri, sourceFile: File?): java.io.InputStream {
+        if (sourceFile != null && sourceFile.exists()) {
+            return sourceFile.inputStream()
         }
 
-        return outputFile
+        return contentResolver.openInputStream(uri)
+            ?: throw IOException(getString(R.string.image_input_file_error))
+    }
+
+    private fun calculateFastVlmSampleSize(width: Int, height: Int): Int {
+        val largestDimension = max(width, height)
+        if (largestDimension <= FAST_VLM_MAX_IMAGE_DIMENSION) {
+            return 1
+        }
+
+        val ratio = ceil(largestDimension.toDouble() / FAST_VLM_MAX_IMAGE_DIMENSION.toDouble()).toInt()
+        var sampleSize = 1
+        while (sampleSize * 2 <= ratio) {
+            sampleSize *= 2
+        }
+        return sampleSize.coerceAtLeast(1)
+    }
+
+    private fun scaleBitmapForFastVlm(bitmap: Bitmap): Bitmap {
+        val largestDimension = max(bitmap.width, bitmap.height)
+        if (largestDimension <= FAST_VLM_MAX_IMAGE_DIMENSION) {
+            return bitmap
+        }
+
+        val scale = FAST_VLM_MAX_IMAGE_DIMENSION.toFloat() / largestDimension.toFloat()
+        val targetWidth = (bitmap.width * scale).toInt().coerceAtLeast(1)
+        val targetHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
     }
 
     private fun ensureFastVlmImageInput(spec: FastVlmLiteRtSpec): FastVlmImageInput {
@@ -911,7 +1020,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun releaseFastVlmProcessorIfIdle() {
-        if (isFastVlmImageProcessingActive() || pendingImageInputJobs.isNotEmpty()) {
+        if (isFastVlmImageProcessingActive() || isImagePreprocessingForSend) {
             return
         }
 
@@ -927,24 +1036,13 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
-    private fun refreshImageProcessingThought() {
-        imageProcessingThoughtTurn = if (isFastVlmImageProcessingActive()) {
-            ChatTurn(
-                id = "image_processing_status",
-                role = ChatRole.ASSISTANT,
-                text = "",
-                thinkingText = getString(R.string.image_input_processing_thought),
-                isStreaming = true
-            )
-        } else {
-            null
+    private fun updateImageProcessingStatus(visible: Boolean) {
+        if (!::imageProcessingStatusView.isInitialized) {
+            return
         }
 
-        val controller = chatController
-        when {
-            controller != null -> applyChatState(controller.state.value)
-            ::chatAdapter.isInitialized -> chatAdapter.submitTurns(listOfNotNull(imageProcessingThoughtTurn))
-        }
+        imageProcessingStatusView.text = getString(R.string.image_input_processing_status)
+        imageProcessingStatusView.visibility = if (visible) View.VISIBLE else View.GONE
     }
 
     private fun promptDownloadImageModel(descriptor: FastVlmLiteRtSpec) {
@@ -1043,11 +1141,27 @@ open class PocketChatActivity : AppCompatActivity() {
             }
         )
 
+        if (input.status == PendingImageStatus.FAILED && !input.errorMessage.isNullOrBlank()) {
+            chip.isClickable = true
+            chip.isFocusable = true
+            chip.setOnClickListener { showImageInputError(input) }
+        }
+
         return chip
+    }
+
+    private fun showImageInputError(input: PendingImageInput) {
+        val message = input.errorMessage ?: return
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.image_input_error_title))
+            .setMessage(message)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun pendingImageStatusText(input: PendingImageInput): String {
         return when (input.status) {
+            PendingImageStatus.PENDING -> getString(R.string.image_input_pending)
             PendingImageStatus.READING -> if (input.contextSource == ImageInputContextSource.FAST_VLM) {
                 getString(R.string.image_input_describing)
             } else {
@@ -1077,7 +1191,7 @@ open class PocketChatActivity : AppCompatActivity() {
         } else {
             typedText
         }
-        if (pendingImageInputs.any { it.status == PendingImageStatus.READING }) {
+        if (pendingImageInputs.any { it.status == PendingImageStatus.PENDING || it.status == PendingImageStatus.READING }) {
             showTransientMessage(getString(R.string.image_input_processing))
             return null
         }
@@ -1392,8 +1506,8 @@ open class PocketChatActivity : AppCompatActivity() {
         thinkingToggleContainer.visibility = if (state.supportsThinking && !isModelOperationInProgress) View.VISIBLE else View.GONE
         sendButton.visibility = if (state.isGenerating && !isModelOperationInProgress) View.GONE else View.VISIBLE
         stopButton.visibility = if (state.isGenerating && !isModelOperationInProgress) View.VISIBLE else View.GONE
-        newChatButton.isEnabled = state.isReady && !state.isGenerating && !isModelOperationInProgress
-        sendButton.isEnabled = state.isReady && !state.isGenerating && !isModelOperationInProgress
+        newChatButton.isEnabled = state.isReady && !state.isGenerating && !isModelOperationInProgress && !isImagePreprocessingForSend
+        sendButton.isEnabled = state.isReady && !state.isGenerating && !isModelOperationInProgress && !isImagePreprocessingForSend
         stopButton.isEnabled = state.isGenerating && !isModelOperationInProgress
 
         val effectiveStatus = modelOperationStatusMessage ?: state.statusMessage
@@ -1403,7 +1517,7 @@ open class PocketChatActivity : AppCompatActivity() {
         statusView.visibility = if (showInlineStatus) View.VISIBLE else View.GONE
         applyStatusBackground(effectiveStatus)
 
-        chatAdapter.submitTurns(state.transcript + listOfNotNull(imageProcessingThoughtTurn))
+        chatAdapter.submitTurns(state.transcript)
         wasGenerating = state.isGenerating
         if (generationFinished) {
             refreshDrawerSessions()
@@ -1426,7 +1540,7 @@ open class PocketChatActivity : AppCompatActivity() {
         statusView.visibility = if (message.isBlank()) View.GONE else View.VISIBLE
         applyStatusBackground(message)
         if (!preserveTranscript) {
-            chatAdapter.submitTurns(listOfNotNull(imageProcessingThoughtTurn))
+            chatAdapter.submitTurns(emptyList())
         }
         autoScrollDuringGeneration = false
         autoScrollPendingFinalUpdate = false
@@ -1907,6 +2021,11 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun startNewChatFromUi() {
+        if (isImagePreprocessingForSend) {
+            showTransientMessage(getString(R.string.image_input_processing))
+            return
+        }
+
         val controller = requireUsableController() ?: return
         if (controller.state.value.isGenerating) {
             return
@@ -2215,6 +2334,7 @@ open class PocketChatActivity : AppCompatActivity() {
     ) {
         inputEditText.textSize = currentSettings.chatFontSizeSp
         statusView.textSize = currentSettings.chatFontSizeSp
+        imageProcessingStatusView.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
         transientMessageView.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
         sendButton.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
         stopButton.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
