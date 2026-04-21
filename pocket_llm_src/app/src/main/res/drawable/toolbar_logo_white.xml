@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:drawable="@mipmap/ic_launcher_2_foreground"
+        android:bottom="-22dp"
+        android:left="-22dp"
+        android:right="-22dp"
+        android:top="-22dp" />
+</layer-list>

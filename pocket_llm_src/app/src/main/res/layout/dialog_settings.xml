@@ -16,17 +16,53 @@
         android:textStyle="bold" />
 
     <TextView
-        android:id="@+id/themeLabel"
+        android:id="@+id/appearanceModeLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="18dp"
-        android:text="@string/theme_label"
+        android:text="@string/appearance_mode_label"
         android:textColor="?attr/colorAssistantText"
         android:textStyle="bold"
         android:textSize="16sp" />
 
     <RadioGroup
-        android:id="@+id/themeGroup"
+        android:id="@+id/appearanceModeGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="horizontal">
+
+        <RadioButton
+            android:id="@+id/appearanceDark"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:buttonTint="?attr/colorSendFill"
+            android:text="@string/appearance_dark"
+            android:textColor="?attr/colorAssistantText" />
+
+        <RadioButton
+            android:id="@+id/appearanceLight"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:buttonTint="?attr/colorSendFill"
+            android:text="@string/appearance_light"
+            android:textColor="?attr/colorAssistantText" />
+    </RadioGroup>
+
+    <TextView
+        android:id="@+id/accentColorLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="18dp"
+        android:text="@string/accent_color_label"
+        android:textColor="?attr/colorAssistantText"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <RadioGroup
+        android:id="@+id/accentColorGroup"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
@@ -37,32 +73,32 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:buttonTint="?attr/colorSendFill"
-            android:textColor="?attr/colorAssistantText"
-            android:text="Ocean Blue" />
+            android:text="@string/accent_blue"
+            android:textColor="?attr/colorAssistantText" />
 
         <RadioButton
             android:id="@+id/themeMidnight"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:buttonTint="?attr/colorSendFill"
-            android:textColor="?attr/colorAssistantText"
-            android:text="Midnight Slate" />
+            android:text="@string/accent_indigo"
+            android:textColor="?attr/colorAssistantText" />
 
         <RadioButton
             android:id="@+id/themeForest"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:buttonTint="?attr/colorSendFill"
-            android:textColor="?attr/colorAssistantText"
-            android:text="Forest Night" />
+            android:text="@string/accent_green"
+            android:textColor="?attr/colorAssistantText" />
 
         <RadioButton
             android:id="@+id/themeViolet"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:buttonTint="?attr/colorSendFill"
-            android:textColor="?attr/colorAssistantText"
-            android:text="Violet Night" />
+            android:text="@string/accent_violet"
+            android:textColor="?attr/colorAssistantText" />
     </RadioGroup>
 
     <TextView

@@ -25,6 +25,26 @@
         android:textStyle="bold" />
 
     <TextView
+        android:id="@+id/modelInstructionPresetLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/model_instruction_preset_label"
+        android:textColor="?attr/colorAssistantText"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <androidx.appcompat.widget.AppCompatSpinner
+        android:id="@+id/modelInstructionPresetSpinner"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/rounded_edittext"
+        android:paddingHorizontal="12dp"
+        android:popupBackground="?attr/colorFrameBackground"
+        android:spinnerMode="dropdown" />
+
+    <TextView
         android:id="@+id/modelInstructionLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

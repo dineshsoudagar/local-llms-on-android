@@ -3,11 +3,12 @@ package com.example.local_llm
 import android.Manifest
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
-import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
 import android.text.format.Formatter
 import android.text.util.Linkify
@@ -16,6 +17,8 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -31,6 +34,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.AppCompatSpinner
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -51,14 +55,9 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlin.math.max
 import java.io.File
 
 open class PocketChatActivity : AppCompatActivity() {
-
-    companion object {
-        private const val TOOLBAR_LOGO_ASSET = "pocket_llm_logo.png"
-    }
 
     private data class ModelDialogViews(
         val dialog: AlertDialog,
@@ -199,14 +198,13 @@ open class PocketChatActivity : AppCompatActivity() {
         modelSelectionStore = ModelSelectionStore(this)
         modelFileResolver = ModelFileResolver(this)
         chatSessionStore = ChatSessionStore(this)
-        setTheme(currentSettings.theme.styleRes)
+        setTheme(currentSettings.accent.styleFor(currentSettings.appearance))
         super.onCreate(savedInstanceState)
         retainedState = ViewModelProvider(this)[PocketChatViewModel::class.java]
         setContentView(R.layout.activity_main)
 
         val toolbar: MaterialToolbar = findViewById(R.id.topToolbar)
         val toolbarMenuButton: View = findViewById(R.id.toolbarMenuButton)
-        val toolbarLogoView: ImageView = findViewById(R.id.toolbarLogo)
         drawerLayout = findViewById(R.id.drawerLayout)
         drawerChatsRecyclerView = findViewById(R.id.drawerChatsRecyclerView)
         drawerChatsEmptyView = findViewById(R.id.drawerChatsEmpty)
@@ -236,7 +234,6 @@ open class PocketChatActivity : AppCompatActivity() {
             drawerLayout.openDrawer(GravityCompat.START)
         }
         toolbarSubtitleView.text = getString(R.string.model_picker_empty_subtitle)
-        loadToolbarLogo(toolbarLogoView)
         configureDrawer()
 
         chatAdapter = ChatAdapter(currentSettings.chatFontSizeSp)
@@ -1484,18 +1481,24 @@ open class PocketChatActivity : AppCompatActivity() {
         val dialogBuilder = MaterialAlertDialogBuilder(this)
         val dialogView = LayoutInflater.from(dialogBuilder.context)
             .inflate(R.layout.dialog_settings, null)
-        val themeGroup: RadioGroup = dialogView.findViewById(R.id.themeGroup)
+        val appearanceModeGroup: RadioGroup = dialogView.findViewById(R.id.appearanceModeGroup)
+        val accentColorGroup: RadioGroup = dialogView.findViewById(R.id.accentColorGroup)
         val fontSizeValue: TextView = dialogView.findViewById(R.id.fontSizeValue)
         val fontSizePreview: TextView = dialogView.findViewById(R.id.fontSizePreview)
         val fontSizeSeekBar: SeekBar = dialogView.findViewById(R.id.fontSizeSeekBar)
         val cancelButton: Button = dialogView.findViewById(R.id.settingsCancelButton)
         val saveButton: Button = dialogView.findViewById(R.id.settingsSaveButton)
 
-        when (currentSettings.theme) {
-            AppThemeOption.OCEAN -> themeGroup.check(R.id.themeOcean)
-            AppThemeOption.MIDNIGHT -> themeGroup.check(R.id.themeMidnight)
-            AppThemeOption.FOREST -> themeGroup.check(R.id.themeForest)
-            AppThemeOption.VIOLET -> themeGroup.check(R.id.themeViolet)
+        when (currentSettings.appearance) {
+            AppAppearanceMode.LIGHT -> appearanceModeGroup.check(R.id.appearanceLight)
+            AppAppearanceMode.DARK -> appearanceModeGroup.check(R.id.appearanceDark)
+        }
+
+        when (currentSettings.accent) {
+            AppAccentOption.OCEAN -> accentColorGroup.check(R.id.themeOcean)
+            AppAccentOption.MIDNIGHT -> accentColorGroup.check(R.id.themeMidnight)
+            AppAccentOption.FOREST -> accentColorGroup.check(R.id.themeForest)
+            AppAccentOption.VIOLET -> accentColorGroup.check(R.id.themeViolet)
         }
 
         val initialProgress = (currentSettings.chatFontSizeSp - 13f).toInt().coerceIn(0, 11)
@@ -1521,22 +1524,28 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         saveButton.setOnClickListener {
-            val selectedTheme = when (themeGroup.checkedRadioButtonId) {
-                R.id.themeMidnight -> AppThemeOption.MIDNIGHT
-                R.id.themeForest -> AppThemeOption.FOREST
-                R.id.themeViolet -> AppThemeOption.VIOLET
-                else -> AppThemeOption.OCEAN
+            val selectedAppearance = when (appearanceModeGroup.checkedRadioButtonId) {
+                R.id.appearanceLight -> AppAppearanceMode.LIGHT
+                else -> AppAppearanceMode.DARK
+            }
+            val selectedAccent = when (accentColorGroup.checkedRadioButtonId) {
+                R.id.themeMidnight -> AppAccentOption.MIDNIGHT
+                R.id.themeForest -> AppAccentOption.FOREST
+                R.id.themeViolet -> AppAccentOption.VIOLET
+                else -> AppAccentOption.OCEAN
             }
             val selectedFontSize = 13f + fontSizeSeekBar.progress
             val updatedSettings = AppSettings(
-                theme = selectedTheme,
+                accent = selectedAccent,
+                appearance = selectedAppearance,
                 chatFontSizeSp = selectedFontSize
             )
-            val themeChanged = updatedSettings.theme != currentSettings.theme
+            val visualThemeChanged = updatedSettings.accent != currentSettings.accent ||
+                updatedSettings.appearance != currentSettings.appearance
             currentSettings = updatedSettings
             settingsStore.save(updatedSettings)
             dialog.dismiss()
-            if (themeChanged) {
+            if (visualThemeChanged) {
                 recreate()
             } else {
                 chatAdapter.updateFontSize(updatedSettings.chatFontSizeSp)
@@ -1606,14 +1615,113 @@ open class PocketChatActivity : AppCompatActivity() {
         val dialogView = LayoutInflater.from(dialogBuilder.context)
             .inflate(R.layout.dialog_model_settings, null)
         val modelNameView: TextView = dialogView.findViewById(R.id.modelSettingsModelName)
+        val presetSpinner: AppCompatSpinner = dialogView.findViewById(R.id.modelInstructionPresetSpinner)
         val instructionInput: EditText = dialogView.findViewById(R.id.modelInstructionInput)
         val cancelButton: Button = dialogView.findViewById(R.id.modelSettingsCancelButton)
         val saveButton: Button = dialogView.findViewById(R.id.modelSettingsSaveButton)
 
         modelNameView.text = descriptor.displayName
+        val presets = InstructionPreset.entries.toList()
+        val presetLabels = presets.map { it.label }
+        val presetAdapter = ArrayAdapter(
+            this,
+            R.layout.item_instruction_preset_spinner,
+            presetLabels
+        ).apply {
+            setDropDownViewResource(R.layout.item_instruction_preset_dropdown)
+        }
+        presetSpinner.adapter = presetAdapter
+
+        var selectedPreset = modelInstructionStore.loadPreset(descriptor)
+        var applyingPresetText = false
+        var switchingToCustomFromEdit = false
+
         val currentInstruction = modelInstructionStore.loadInstruction(descriptor)
+        val selectedPresetIndex = presets.indexOf(selectedPreset).coerceAtLeast(0)
+        var customInstructionText = if (selectedPreset == InstructionPreset.CUSTOM) {
+            currentInstruction
+        } else {
+            InstructionPreset.CUSTOM.instruction
+        }
+        var ignoreInitialPresetSelection = true
+        presetSpinner.setSelection(selectedPresetIndex, false)
+        applyingPresetText = true
         instructionInput.setText(currentInstruction)
         instructionInput.setSelection(currentInstruction.length)
+        applyingPresetText = false
+
+        presetSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
+                val preset = presets.getOrNull(position) ?: return
+                if (ignoreInitialPresetSelection && position == selectedPresetIndex) {
+                    ignoreInitialPresetSelection = false
+                    return
+                }
+                ignoreInitialPresetSelection = false
+                selectedPreset = preset
+                if (switchingToCustomFromEdit) {
+                    return
+                }
+
+                applyingPresetText = true
+                val presetInstruction = if (preset == InstructionPreset.CUSTOM) {
+                    customInstructionText
+                } else {
+                    preset.instruction
+                }
+                instructionInput.setText(presetInstruction)
+                instructionInput.setSelection(instructionInput.text.length)
+                applyingPresetText = false
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+
+        instructionInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(
+                text: CharSequence?,
+                start: Int,
+                count: Int,
+                after: Int
+            ) = Unit
+
+            override fun onTextChanged(
+                text: CharSequence?,
+                start: Int,
+                before: Int,
+                count: Int
+            ) = Unit
+
+            override fun afterTextChanged(text: Editable?) {
+                if (applyingPresetText) {
+                    return
+                }
+
+                val editedInstruction = text?.toString().orEmpty()
+                if (selectedPreset == InstructionPreset.CUSTOM) {
+                    customInstructionText = editedInstruction
+                    return
+                }
+
+                if (editedInstruction.trim() == selectedPreset.instruction) {
+                    return
+                }
+
+                customInstructionText = editedInstruction
+                selectedPreset = InstructionPreset.CUSTOM
+                val customPresetIndex = presets.indexOf(InstructionPreset.CUSTOM)
+                if (presetSpinner.selectedItemPosition != customPresetIndex) {
+                    switchingToCustomFromEdit = true
+                    presetSpinner.setSelection(customPresetIndex)
+                    switchingToCustomFromEdit = false
+                }
+            }
+        })
 
         val dialog = dialogBuilder
             .setView(dialogView)
@@ -1630,7 +1738,16 @@ open class PocketChatActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            modelInstructionStore.saveInstruction(descriptor, instruction)
+            val presetToSave = if (
+                selectedPreset != InstructionPreset.CUSTOM &&
+                instruction != selectedPreset.instruction
+            ) {
+                InstructionPreset.CUSTOM
+            } else {
+                selectedPreset
+            }
+
+            modelInstructionStore.saveInstruction(descriptor, instruction, presetToSave)
             dialog.dismiss()
             showTransientMessage(getString(R.string.model_instruction_saved))
         }
@@ -1668,64 +1785,6 @@ open class PocketChatActivity : AppCompatActivity() {
     ) {
         fontSizeValue.text = "${fontSizeSp.toInt()} sp"
         fontSizePreview.textSize = fontSizeSp
-    }
-
-    private fun loadToolbarLogo(toolbarLogoView: ImageView) {
-        val targetSizePx = (52 * resources.displayMetrics.density).toInt().coerceAtLeast(104)
-        runCatching {
-            decodeSampledBitmapFromAsset(TOOLBAR_LOGO_ASSET, targetSizePx, targetSizePx)
-        }.getOrNull()?.let { bitmap ->
-            toolbarLogoView.setImageBitmap(bitmap)
-        }
-    }
-
-    private fun decodeSampledBitmapFromAsset(
-        assetName: String,
-        requestedWidth: Int,
-        requestedHeight: Int
-    ) = assets.open(assetName).use { boundsStream ->
-        val boundsOptions = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
-        BitmapFactory.decodeStream(boundsStream, null, boundsOptions)
-
-        val sampleSize = calculateInSampleSize(
-            boundsOptions.outWidth,
-            boundsOptions.outHeight,
-            requestedWidth,
-            requestedHeight
-        )
-
-        assets.open(assetName).use { decodeStream ->
-            BitmapFactory.decodeStream(
-                decodeStream,
-                null,
-                BitmapFactory.Options().apply {
-                    inSampleSize = sampleSize
-                }
-            )
-        }
-    }
-
-    private fun calculateInSampleSize(
-        sourceWidth: Int,
-        sourceHeight: Int,
-        requestedWidth: Int,
-        requestedHeight: Int
-    ): Int {
-        var sampleSize = 1
-        if (sourceWidth <= 0 || sourceHeight <= 0) {
-            return sampleSize
-        }
-
-        while (
-            sourceWidth / (sampleSize * 2) >= requestedWidth &&
-            sourceHeight / (sampleSize * 2) >= requestedHeight
-        ) {
-            sampleSize *= 2
-        }
-
-        return max(sampleSize, 1)
     }
 
     private fun updateProgressBar(

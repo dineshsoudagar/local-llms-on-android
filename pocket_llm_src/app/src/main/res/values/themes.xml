@@ -21,6 +21,30 @@
         <item name="colorSendStroke">@color/send_button_stroke</item>
         <item name="colorStopFill">@color/stop_button_fill</item>
         <item name="colorStopStroke">@color/stop_button_stroke</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">?attr/colorAppBackground</item>
+    </style>
+
+    <style name="Theme.local_llm.Light" parent="Theme.local_llm">
+        <item name="colorPrimary">@color/light_frame_background</item>
+        <item name="colorPrimaryVariant">@color/light_app_background</item>
+        <item name="colorOnPrimary">@color/light_assistant_text</item>
+        <item name="colorOnBackground">@color/light_assistant_text</item>
+        <item name="colorSurface">@color/light_frame_background</item>
+        <item name="colorOnSurface">@color/light_assistant_text</item>
+        <item name="android:windowBackground">?attr/colorAppBackground</item>
+        <item name="colorAppBackground">@color/light_app_background</item>
+        <item name="colorFrameBackground">@color/light_frame_background</item>
+        <item name="colorUserBubble">@color/light_assistant_bubble</item>
+        <item name="colorAssistantBubble">@color/light_user_bubble</item>
+        <item name="colorUserText">@color/light_user_text</item>
+        <item name="colorAssistantText">@color/light_assistant_text</item>
+        <item name="colorInputBackground">@color/light_input_background</item>
+        <item name="colorInputText">@color/light_input_text</item>
+        <item name="colorInputHint">@color/light_input_hint</item>
+        <item name="colorStatusText">@color/light_status_text</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">?attr/colorAppBackground</item>
     </style>
 
     <style name="Theme.local_llm.Midnight" parent="Theme.local_llm">
@@ -28,6 +52,14 @@
         <item name="colorAssistantBubble">@color/midnight_assistant_bubble</item>
         <item name="colorUserText">@color/midnight_user_text</item>
         <item name="colorStatusText">@color/midnight_status_text</item>
+        <item name="colorSendFill">@color/midnight_send_fill</item>
+        <item name="colorSendStroke">@color/midnight_send_stroke</item>
+        <item name="colorStopFill">@color/midnight_stop_fill</item>
+        <item name="colorStopStroke">@color/midnight_stop_stroke</item>
+    </style>
+
+    <style name="Theme.local_llm.Midnight.Light" parent="Theme.local_llm.Light">
+        <item name="colorAssistantBubble">@color/light_midnight_user_bubble</item>
         <item name="colorSendFill">@color/midnight_send_fill</item>
         <item name="colorSendStroke">@color/midnight_send_stroke</item>
         <item name="colorStopFill">@color/midnight_stop_fill</item>
@@ -45,11 +77,27 @@
         <item name="colorStopStroke">@color/forest_stop_stroke</item>
     </style>
 
+    <style name="Theme.local_llm.Forest.Light" parent="Theme.local_llm.Light">
+        <item name="colorAssistantBubble">@color/light_forest_user_bubble</item>
+        <item name="colorSendFill">@color/forest_send_fill</item>
+        <item name="colorSendStroke">@color/forest_send_stroke</item>
+        <item name="colorStopFill">@color/forest_stop_fill</item>
+        <item name="colorStopStroke">@color/forest_stop_stroke</item>
+    </style>
+
     <style name="Theme.local_llm.Violet" parent="Theme.local_llm">
         <item name="colorUserBubble">@color/violet_user_bubble</item>
         <item name="colorAssistantBubble">@color/violet_assistant_bubble</item>
         <item name="colorUserText">@color/violet_user_text</item>
         <item name="colorStatusText">@color/violet_status_text</item>
+        <item name="colorSendFill">@color/violet_send_fill</item>
+        <item name="colorSendStroke">@color/violet_send_stroke</item>
+        <item name="colorStopFill">@color/violet_stop_fill</item>
+        <item name="colorStopStroke">@color/violet_stop_stroke</item>
+    </style>
+
+    <style name="Theme.local_llm.Violet.Light" parent="Theme.local_llm.Light">
+        <item name="colorAssistantBubble">@color/light_violet_user_bubble</item>
         <item name="colorSendFill">@color/violet_send_fill</item>
         <item name="colorSendStroke">@color/violet_send_stroke</item>
         <item name="colorStopFill">@color/violet_stop_fill</item>
