@@ -53,9 +53,12 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 
 open class PocketChatActivity : AppCompatActivity() {
 
@@ -76,10 +79,16 @@ open class PocketChatActivity : AppCompatActivity() {
         FAILED
     }
 
+    private enum class ImageInputContextSource {
+        OCR,
+        FAST_VLM
+    }
+
     private data class PendingImageInput(
         val id: Long,
         val uri: Uri,
         val source: OcrInput.Source,
+        val contextSource: ImageInputContextSource,
         val status: PendingImageStatus = PendingImageStatus.READING,
         val recognizedText: String? = null,
         val errorMessage: String? = null,
@@ -94,6 +103,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var chatSessionStore: ChatSessionStore
     private lateinit var retainedState: PocketChatViewModel
     private var currentModel: ModelDescriptor? = null
+    private var currentImageModel: FastVlmLiteRtSpec? = null
     private var chatController: PersistentChatController? = null
     private var controllerStateJob: Job? = null
     private var modelDownloadStateJob: Job? = null
@@ -122,6 +132,8 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var transientMessageView: TextView
     private var speechInput: SpeechInput? = null
     private var ocrInput: OcrInput? = null
+    private var fastVlmImageInput: FastVlmImageInput? = null
+    private var fastVlmImageInputModelId: String? = null
     private var speechBasePromptText: String = ""
     private var speechRecognizedText: String = ""
     private var speechCommittedText: String = ""
@@ -133,7 +145,9 @@ open class PocketChatActivity : AppCompatActivity() {
     private var cameraOcrDialog: AlertDialog? = null
     private var cameraOcrStatusView: TextView? = null
     private val pendingImageInputs = mutableListOf<PendingImageInput>()
+    private val pendingImageInputJobs = mutableMapOf<Long, Job>()
     private var nextPendingImageInputId = 1L
+    private var imageProcessingThoughtTurn: ChatTurn? = null
     private var autoScrollDuringGeneration = false
     private var autoScrollPendingFinalUpdate = false
     private var wasGenerating = false
@@ -307,6 +321,8 @@ open class PocketChatActivity : AppCompatActivity() {
 
         val restoredModel = retainedState.modelId?.let(ModelRegistry::findById)
         currentModel = restoredModel ?: modelSelectionStore.loadSelectedModel()
+        currentImageModel = modelSelectionStore.loadSelectedImageModel()
+        updateImageInputButtonDescriptions()
 
         val retainedController = retainedState.chatController
         if (retainedController != null && currentModel != null) {
@@ -524,10 +540,17 @@ open class PocketChatActivity : AppCompatActivity() {
         val dialogBuilder = MaterialAlertDialogBuilder(this)
         val dialogView = LayoutInflater.from(dialogBuilder.context)
             .inflate(R.layout.dialog_camera_ocr, null)
+        val titleView: TextView = dialogView.findViewById(R.id.cameraOcrDialogTitle)
         val previewView: PreviewView = dialogView.findViewById(R.id.cameraPreviewView)
         val statusText: TextView = dialogView.findViewById(R.id.cameraOcrStatus)
         val cancelButton: Button = dialogView.findViewById(R.id.cameraOcrCancelButton)
         val captureButton: Button = dialogView.findViewById(R.id.cameraOcrCaptureButton)
+
+        titleView.text = if (currentImageModel == null) {
+            getString(R.string.camera_ocr_title)
+        } else {
+            getString(R.string.camera_image_title)
+        }
 
         val dialog = dialogBuilder
             .setView(dialogView)
@@ -598,7 +621,7 @@ open class PocketChatActivity : AppCompatActivity() {
                             cameraImageCapture?.targetRotation = rotation
                         }
                     }
-                    cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_ready)
+                    cameraOcrStatusView?.text = cameraReadyStatusText()
                 }.onFailure { error ->
                     cameraOcrStatusView?.text = error.message ?: "Camera OCR could not start."
                 }
@@ -644,6 +667,14 @@ open class PocketChatActivity : AppCompatActivity() {
         return File.createTempFile("camera_ocr_", ".jpg", directory)
     }
 
+    private fun cameraReadyStatusText(): String {
+        return if (currentImageModel == null) {
+            getString(R.string.camera_ocr_status_ready)
+        } else {
+            getString(R.string.camera_image_status_ready)
+        }
+    }
+
     private fun stopCameraOcr() {
         cameraProvider?.unbindAll()
         cameraProvider = null
@@ -655,16 +686,88 @@ open class PocketChatActivity : AppCompatActivity() {
         source: OcrInput.Source,
         tempFilePath: String? = null
     ) {
+        val imageModel = currentImageModel
+        if (imageModel != null) {
+            addPendingFastVlmImageInput(uri, source, tempFilePath, imageModel)
+            return
+        }
+
+        addPendingOcrImageInput(uri, source, tempFilePath)
+    }
+
+    private fun addPendingOcrImageInput(
+        uri: Uri,
+        source: OcrInput.Source,
+        tempFilePath: String? = null
+    ) {
         val requestId = nextPendingImageInputId++
         pendingImageInputs += PendingImageInput(
             id = requestId,
             uri = uri,
             source = source,
+            contextSource = ImageInputContextSource.OCR,
             tempFilePath = tempFilePath
         )
         renderPendingImageInputs()
         ocrInput?.recognizeImageUri(uri, source, requestId)
             ?: markPendingImageInputFailed(requestId, "OCR is not available.")
+    }
+
+    private fun addPendingFastVlmImageInput(
+        uri: Uri,
+        source: OcrInput.Source,
+        tempFilePath: String?,
+        imageModel: FastVlmLiteRtSpec
+    ) {
+        if (isModelOperationInProgress) {
+            tempFilePath?.let { runCatching { File(it).delete() } }
+            showTransientMessage(getString(R.string.model_operation_in_progress))
+            return
+        }
+
+        if (!modelFileResolver.isModelAvailable(imageModel)) {
+            tempFilePath?.let { runCatching { File(it).delete() } }
+            promptDownloadImageModel(imageModel)
+            return
+        }
+
+        val imageFile = runCatching {
+            prepareFastVlmImageFile(uri, tempFilePath)
+        }.getOrElse { error ->
+            tempFilePath?.let { runCatching { File(it).delete() } }
+            showTransientMessage(error.message ?: getString(R.string.image_input_file_error))
+            return
+        }
+
+        val requestId = nextPendingImageInputId++
+        pendingImageInputs += PendingImageInput(
+            id = requestId,
+            uri = uri,
+            source = source,
+            contextSource = ImageInputContextSource.FAST_VLM,
+            tempFilePath = imageFile.absolutePath
+        )
+        renderPendingImageInputs()
+        refreshImageProcessingThought()
+
+        val processor = ensureFastVlmImageInput(imageModel)
+        val job = lifecycleScope.launch {
+            try {
+                val description = processor.describeImageFile(imageFile)
+                handlePendingImageVlmDescription(description, requestId)
+            } catch (_: CancellationException) {
+                // Removed image inputs cancel their own preprocessing jobs.
+            } catch (error: Exception) {
+                val message = error.message ?: getString(R.string.fast_vlm_processing_failed)
+                markPendingImageInputFailed(requestId, message)
+                showTransientMessage(message)
+            } finally {
+                pendingImageInputJobs.remove(requestId)
+                refreshImageProcessingThought()
+                releaseFastVlmProcessorIfIdle()
+            }
+        }
+        pendingImageInputJobs[requestId] = job
     }
 
     private fun handlePendingImageOcrText(text: String, requestId: Long) {
@@ -679,6 +782,22 @@ open class PocketChatActivity : AppCompatActivity() {
             requestId = requestId,
             status = PendingImageStatus.READY,
             recognizedText = recognizedText,
+            errorMessage = null
+        )
+    }
+
+    private fun handlePendingImageVlmDescription(text: String, requestId: Long) {
+        val description = PromptPreprocessor.normalize(text)
+        if (description.isBlank()) {
+            markPendingImageInputFailed(requestId, getString(R.string.fast_vlm_no_description))
+            showTransientMessage(getString(R.string.fast_vlm_no_description))
+            return
+        }
+
+        updatePendingImageInput(
+            requestId = requestId,
+            status = PendingImageStatus.READY,
+            recognizedText = description,
             errorMessage = null
         )
     }
@@ -709,6 +828,7 @@ open class PocketChatActivity : AppCompatActivity() {
             errorMessage = errorMessage
         )
         renderPendingImageInputs()
+        refreshImageProcessingThought()
     }
 
     private fun removePendingImageInput(requestId: Long) {
@@ -717,25 +837,130 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
+        pendingImageInputJobs[requestId]?.cancel()
         deletePendingImageTempFile(pendingImageInputs.removeAt(index))
         renderPendingImageInputs()
+        refreshImageProcessingThought()
+        releaseFastVlmProcessorIfIdle()
     }
 
     private fun clearPendingImageInputs() {
         if (pendingImageInputs.isEmpty()) {
+            pendingImageInputJobs.values.forEach { it.cancel() }
             renderPendingImageInputs()
+            refreshImageProcessingThought()
+            releaseFastVlmProcessorIfIdle()
             return
         }
 
+        pendingImageInputJobs.values.forEach { it.cancel() }
         pendingImageInputs.forEach(::deletePendingImageTempFile)
         pendingImageInputs.clear()
         renderPendingImageInputs()
+        refreshImageProcessingThought()
+        releaseFastVlmProcessorIfIdle()
     }
 
     private fun deletePendingImageTempFile(input: PendingImageInput) {
         input.tempFilePath?.let { path ->
             runCatching { File(path).delete() }
         }
+    }
+
+    private fun prepareFastVlmImageFile(uri: Uri, tempFilePath: String?): File {
+        val existingTempFile = tempFilePath
+            ?.let(::File)
+            ?.takeIf { it.exists() && it.length() > 0L }
+        if (existingTempFile != null) {
+            return existingTempFile
+        }
+
+        return copyImageUriToFastVlmTempFile(uri)
+    }
+
+    private fun copyImageUriToFastVlmTempFile(uri: Uri): File {
+        val directory = File(cacheDir, "fast_vlm_images").apply { mkdirs() }
+        val outputFile = File.createTempFile("fast_vlm_input_", ".jpg", directory)
+        val inputStream = contentResolver.openInputStream(uri)
+            ?: throw IOException(getString(R.string.image_input_file_error))
+
+        inputStream.use { input ->
+            FileOutputStream(outputFile).use { output ->
+                input.copyTo(output)
+            }
+        }
+
+        if (outputFile.length() <= 0L) {
+            runCatching { outputFile.delete() }
+            throw IOException(getString(R.string.image_input_file_error))
+        }
+
+        return outputFile
+    }
+
+    private fun ensureFastVlmImageInput(spec: FastVlmLiteRtSpec): FastVlmImageInput {
+        val existing = fastVlmImageInput
+        if (existing != null && fastVlmImageInputModelId == spec.id) {
+            return existing
+        }
+
+        fastVlmImageInput?.close()
+        fastVlmImageInput = FastVlmImageInput(this, spec, modelFileResolver)
+        fastVlmImageInputModelId = spec.id
+        return fastVlmImageInput ?: error("FastVLM image processor was not created.")
+    }
+
+    private fun releaseFastVlmProcessorIfIdle() {
+        if (isFastVlmImageProcessingActive() || pendingImageInputJobs.isNotEmpty()) {
+            return
+        }
+
+        fastVlmImageInput?.close()
+        fastVlmImageInput = null
+        fastVlmImageInputModelId = null
+    }
+
+    private fun isFastVlmImageProcessingActive(): Boolean {
+        return pendingImageInputs.any {
+            it.contextSource == ImageInputContextSource.FAST_VLM &&
+                it.status == PendingImageStatus.READING
+        }
+    }
+
+    private fun refreshImageProcessingThought() {
+        imageProcessingThoughtTurn = if (isFastVlmImageProcessingActive()) {
+            ChatTurn(
+                id = "image_processing_status",
+                role = ChatRole.ASSISTANT,
+                text = "",
+                thinkingText = getString(R.string.image_input_processing_thought),
+                isStreaming = true
+            )
+        } else {
+            null
+        }
+
+        val controller = chatController
+        when {
+            controller != null -> applyChatState(controller.state.value)
+            ::chatAdapter.isInitialized -> chatAdapter.submitTurns(listOfNotNull(imageProcessingThoughtTurn))
+        }
+    }
+
+    private fun promptDownloadImageModel(descriptor: FastVlmLiteRtSpec) {
+        if (isModelOperationInProgress) {
+            showTransientMessage(getString(R.string.model_operation_in_progress))
+            return
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.fast_vlm_download_required_title))
+            .setMessage(getString(R.string.fast_vlm_download_required_message, descriptor.displayName))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(getString(R.string.download_model)) { _, _ ->
+                startModelDownload(descriptor)
+            }
+            .show()
     }
 
     private fun renderPendingImageInputs() {
@@ -823,9 +1048,17 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun pendingImageStatusText(input: PendingImageInput): String {
         return when (input.status) {
-            PendingImageStatus.READING -> getString(R.string.image_input_reading)
+            PendingImageStatus.READING -> if (input.contextSource == ImageInputContextSource.FAST_VLM) {
+                getString(R.string.image_input_describing)
+            } else {
+                getString(R.string.image_input_reading)
+            }
             PendingImageStatus.READY -> getString(R.string.image_input_ready)
-            PendingImageStatus.FAILED -> getString(R.string.image_input_failed)
+            PendingImageStatus.FAILED -> if (input.contextSource == ImageInputContextSource.FAST_VLM) {
+                getString(R.string.image_input_failed_generic)
+            } else {
+                getString(R.string.image_input_failed)
+            }
         }
     }
 
@@ -925,18 +1158,24 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         return buildString {
-            append("[Image OCR context]\n")
-            append("The following text was extracted from attached image input using OCR. Use it as context from the image; it was not typed directly by the user.")
+            append("[Image context]\n")
+            append("The following information was derived from attached image input. OCR entries contain extracted text; Fast VLM entries contain generated image descriptions. Use it as context from the image; it was not typed directly by the user.")
             images.forEachIndexed { index, input ->
                 val sourceLabel = if (input.source == OcrInput.Source.CAMERA) {
                     "camera photo"
                 } else {
                     "gallery image"
                 }
+                val contextLabel = when (input.contextSource) {
+                    ImageInputContextSource.OCR -> "OCR text"
+                    ImageInputContextSource.FAST_VLM -> "Fast VLM image description"
+                }
                 append("\n\n[Image ")
                 append(index + 1)
                 append(" - ")
                 append(sourceLabel)
+                append(" - ")
+                append(contextLabel)
                 append("]\n")
                 append(input.recognizedText.orEmpty().trim())
             }
@@ -1010,7 +1249,11 @@ open class PocketChatActivity : AppCompatActivity() {
                     modelOperationStatusMessage = null
                     resetDownloadState()
                     refreshModelSelectionDialog()
-                    chatController?.let { applyChatState(it.state.value) }
+                    if (chatController != null) {
+                        applyChatState(chatController!!.state.value)
+                    } else {
+                        renderNoControllerState(getString(R.string.model_required_message), preserveTranscript = true)
+                    }
                 }
             }
 
@@ -1045,21 +1288,35 @@ open class PocketChatActivity : AppCompatActivity() {
             }
 
             is ModelDownloadState.Completed -> {
-                val descriptor = ModelRegistry.findById(state.modelId)
+                val textDescriptor = ModelRegistry.findById(state.modelId)
+                val imageDescriptor = ImageModelRegistry.findById(state.modelId)
                 isModelOperationInProgress = false
                 modelOperationStatusMessage = null
                 resetDownloadState()
                 refreshModelSelectionDialog()
-                modelDialogViews?.dialog?.dismiss()
 
-                if (descriptor != null && (currentModel?.id != descriptor.id || chatController == null)) {
+                if (textDescriptor != null && (currentModel?.id != textDescriptor.id || chatController == null)) {
+                    modelDialogViews?.dialog?.dismiss()
                     switchToController(
-                        descriptor,
-                        PersistentChatController(this, descriptor),
+                        textDescriptor,
+                        PersistentChatController(this, textDescriptor),
                         initialize = true,
                         activeChatSnapshot = chatController?.snapshotActiveChat()
                     )
+                } else if (imageDescriptor != null) {
+                    currentImageModel = imageDescriptor
+                    modelSelectionStore.saveSelectedImageModel(imageDescriptor.id)
+                    updateImageInputButtonDescriptions()
+                    refreshModelSelectionDialog()
+                    dismissModelDialogAfterImageSelectionIfAllowed()
+                    showTransientMessage(getString(R.string.image_model_selected, imageDescriptor.displayName))
+                    if (chatController != null) {
+                        applyChatState(chatController!!.state.value)
+                    } else {
+                        renderNoControllerState(getString(R.string.model_required_message), preserveTranscript = true)
+                    }
                 } else {
+                    modelDialogViews?.dialog?.dismiss()
                     chatController?.let { applyChatState(it.state.value) }
                 }
 
@@ -1146,7 +1403,7 @@ open class PocketChatActivity : AppCompatActivity() {
         statusView.visibility = if (showInlineStatus) View.VISIBLE else View.GONE
         applyStatusBackground(effectiveStatus)
 
-        chatAdapter.submitTurns(state.transcript)
+        chatAdapter.submitTurns(state.transcript + listOfNotNull(imageProcessingThoughtTurn))
         wasGenerating = state.isGenerating
         if (generationFinished) {
             refreshDrawerSessions()
@@ -1169,7 +1426,7 @@ open class PocketChatActivity : AppCompatActivity() {
         statusView.visibility = if (message.isBlank()) View.GONE else View.VISIBLE
         applyStatusBackground(message)
         if (!preserveTranscript) {
-            chatAdapter.submitTurns(emptyList())
+            chatAdapter.submitTurns(listOfNotNull(imageProcessingThoughtTurn))
         }
         autoScrollDuringGeneration = false
         autoScrollPendingFinalUpdate = false
@@ -1222,74 +1479,178 @@ open class PocketChatActivity : AppCompatActivity() {
 
         dialogUi.listContainer.removeAllViews()
         val inflater = LayoutInflater.from(this)
+        addModelSectionHeader(dialogUi.listContainer, getString(R.string.chat_model_section_title))
         ModelRegistry.all.forEach { descriptor ->
-            val itemView = inflater.inflate(R.layout.item_model_option, dialogUi.listContainer, false)
-            val nameView: TextView = itemView.findViewById(R.id.modelName)
-            val metaView: TextView = itemView.findViewById(R.id.modelMeta)
-            val recommendationView: TextView = itemView.findViewById(R.id.modelRecommendation)
-            val statusTextView: TextView = itemView.findViewById(R.id.modelStatus)
-            val actionButton: Button = itemView.findViewById(R.id.modelActionButton)
-            val deleteButton: ImageButton = itemView.findViewById(R.id.modelDeleteButton)
-            val itemProgressBar: ProgressBar = itemView.findViewById(R.id.modelItemProgressBar)
-            val itemProgressText: TextView = itemView.findViewById(R.id.modelItemProgressText)
-
-            nameView.text = descriptor.displayName
-            val metaText = getString(
-                R.string.model_picker_meta_format,
-                descriptor.backendLabel,
-                descriptor.sizeLabel
-            )
-            metaView.text = metaText
-            val isCurrentModel = currentModel?.id == descriptor.id && chatController != null
-            val isDownloadingThisModel = activeDownloadModelId == descriptor.id
-            val isDownloaded = modelFileResolver.isModelDownloaded(descriptor)
-            val isAvailable = modelFileResolver.isModelAvailable(descriptor)
-
-            val statusText = when {
-                isDownloadingThisModel -> getString(R.string.model_status_downloading)
-                isCurrentModel -> getString(R.string.model_status_current)
-                isDownloaded -> getString(R.string.model_status_downloaded)
-                isAvailable -> getString(R.string.model_status_bundled)
-                else -> getString(R.string.model_status_not_downloaded)
-            }
-            statusTextView.text = statusText
-            recommendationView.text = getString(
-                R.string.model_picker_compact_detail_format,
-                descriptor.backendLabel,
-                descriptor.sizeLabel,
-                descriptor.deviceRecommendation,
-                statusText
-            )
-
-            actionButton.text = when {
-                isDownloadingThisModel -> getString(R.string.stop_download)
-                isCurrentModel -> getString(R.string.model_action_current)
-                isAvailable -> getString(R.string.model_action_use)
-                else -> getString(R.string.model_action_download)
-            }
-            actionButton.isEnabled = isDownloadingThisModel || !isModelOperationInProgress
-            actionButton.setOnClickListener {
-                if (isDownloadingThisModel) {
-                    cancelModelDownload()
-                } else {
-                    handleModelSelection(descriptor)
-                }
-            }
-
-            val canDeleteDownloadedModel = isDownloaded && !isDownloadingThisModel
-            deleteButton.visibility = if (canDeleteDownloadedModel) View.VISIBLE else View.GONE
-            deleteButton.isEnabled = !isModelOperationInProgress
-            deleteButton.setOnClickListener {
-                confirmDeleteModel(descriptor)
-            }
-
-            itemProgressBar.visibility = if (isDownloadingThisModel) View.VISIBLE else View.GONE
-            updateProgressBar(itemProgressBar, activeDownloadBytes, activeDownloadTotalBytes)
-            itemProgressText.visibility = if (isDownloadingThisModel) View.VISIBLE else View.GONE
-            itemProgressText.text = formatDownloadProgressText(activeDownloadBytes, activeDownloadTotalBytes)
-
-            dialogUi.listContainer.addView(itemView)
+            addTextModelOption(inflater, dialogUi.listContainer, descriptor)
         }
+        addModelSectionHeader(dialogUi.listContainer, getString(R.string.image_model_section_title))
+        addOcrImageModelOption(inflater, dialogUi.listContainer)
+        ImageModelRegistry.all.forEach { descriptor ->
+            addImageModelOption(inflater, dialogUi.listContainer, descriptor)
+        }
+    }
+
+    private fun addModelSectionHeader(container: LinearLayout, title: String) {
+        container.addView(
+            TextView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    topMargin = dp(8)
+                    bottomMargin = dp(4)
+                }
+                text = title
+                setTextColor(resolveThemeColor(R.attr.colorStatusText))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                letterSpacing = 0f
+            }
+        )
+    }
+
+    private fun addTextModelOption(
+        inflater: LayoutInflater,
+        container: LinearLayout,
+        descriptor: ModelDescriptor
+    ) {
+        addDownloadableModelOption(
+            inflater = inflater,
+            container = container,
+            descriptor = descriptor,
+            isCurrentModel = currentModel?.id == descriptor.id && chatController != null,
+            onUseModel = { handleModelSelection(descriptor) }
+        )
+    }
+
+    private fun addImageModelOption(
+        inflater: LayoutInflater,
+        container: LinearLayout,
+        descriptor: FastVlmLiteRtSpec
+    ) {
+        addDownloadableModelOption(
+            inflater = inflater,
+            container = container,
+            descriptor = descriptor,
+            isCurrentModel = currentImageModel?.id == descriptor.id,
+            onUseModel = { handleImageModelSelection(descriptor) }
+        )
+    }
+
+    private fun addDownloadableModelOption(
+        inflater: LayoutInflater,
+        container: LinearLayout,
+        descriptor: ModelDescriptor,
+        isCurrentModel: Boolean,
+        onUseModel: () -> Unit
+    ) {
+        val itemView = inflater.inflate(R.layout.item_model_option, container, false)
+        val nameView: TextView = itemView.findViewById(R.id.modelName)
+        val metaView: TextView = itemView.findViewById(R.id.modelMeta)
+        val recommendationView: TextView = itemView.findViewById(R.id.modelRecommendation)
+        val statusTextView: TextView = itemView.findViewById(R.id.modelStatus)
+        val actionButton: Button = itemView.findViewById(R.id.modelActionButton)
+        val deleteButton: ImageButton = itemView.findViewById(R.id.modelDeleteButton)
+        val itemProgressBar: ProgressBar = itemView.findViewById(R.id.modelItemProgressBar)
+        val itemProgressText: TextView = itemView.findViewById(R.id.modelItemProgressText)
+
+        nameView.text = descriptor.displayName
+        val metaText = getString(
+            R.string.model_picker_meta_format,
+            descriptor.backendLabel,
+            descriptor.sizeLabel
+        )
+        metaView.text = metaText
+        val isDownloadingThisModel = activeDownloadModelId == descriptor.id
+        val isDownloaded = modelFileResolver.isModelDownloaded(descriptor)
+        val isAvailable = modelFileResolver.isModelAvailable(descriptor)
+
+        val statusText = when {
+            isDownloadingThisModel -> getString(R.string.model_status_downloading)
+            isCurrentModel -> getString(R.string.model_status_current)
+            isDownloaded -> getString(R.string.model_status_downloaded)
+            isAvailable -> getString(R.string.model_status_bundled)
+            else -> getString(R.string.model_status_not_downloaded)
+        }
+        statusTextView.text = statusText
+        recommendationView.text = getString(
+            R.string.model_picker_compact_detail_format,
+            descriptor.backendLabel,
+            descriptor.sizeLabel,
+            descriptor.deviceRecommendation,
+            statusText
+        )
+
+        actionButton.text = when {
+            isDownloadingThisModel -> getString(R.string.stop_download)
+            isCurrentModel -> getString(R.string.model_action_current)
+            isAvailable -> getString(R.string.model_action_use)
+            else -> getString(R.string.model_action_download)
+        }
+        actionButton.isEnabled = isDownloadingThisModel || !isModelOperationInProgress
+        actionButton.setOnClickListener {
+            if (isDownloadingThisModel) {
+                cancelModelDownload()
+            } else {
+                onUseModel()
+            }
+        }
+
+        val canDeleteDownloadedModel = isDownloaded && !isDownloadingThisModel
+        deleteButton.visibility = if (canDeleteDownloadedModel) View.VISIBLE else View.GONE
+        deleteButton.isEnabled = !isModelOperationInProgress
+        deleteButton.setOnClickListener {
+            confirmDeleteModel(descriptor)
+        }
+
+        itemProgressBar.visibility = if (isDownloadingThisModel) View.VISIBLE else View.GONE
+        updateProgressBar(itemProgressBar, activeDownloadBytes, activeDownloadTotalBytes)
+        itemProgressText.visibility = if (isDownloadingThisModel) View.VISIBLE else View.GONE
+        itemProgressText.text = formatDownloadProgressText(activeDownloadBytes, activeDownloadTotalBytes)
+
+        container.addView(itemView)
+    }
+
+    private fun addOcrImageModelOption(
+        inflater: LayoutInflater,
+        container: LinearLayout
+    ) {
+        val itemView = inflater.inflate(R.layout.item_model_option, container, false)
+        val nameView: TextView = itemView.findViewById(R.id.modelName)
+        val metaView: TextView = itemView.findViewById(R.id.modelMeta)
+        val recommendationView: TextView = itemView.findViewById(R.id.modelRecommendation)
+        val statusTextView: TextView = itemView.findViewById(R.id.modelStatus)
+        val actionButton: Button = itemView.findViewById(R.id.modelActionButton)
+        val deleteButton: ImageButton = itemView.findViewById(R.id.modelDeleteButton)
+        val itemProgressBar: ProgressBar = itemView.findViewById(R.id.modelItemProgressBar)
+        val itemProgressText: TextView = itemView.findViewById(R.id.modelItemProgressText)
+
+        val isCurrent = currentImageModel == null
+        val statusText = if (isCurrent) {
+            getString(R.string.model_status_current)
+        } else {
+            getString(R.string.model_status_bundled)
+        }
+
+        nameView.text = getString(R.string.ocr_image_model_name)
+        metaView.text = getString(R.string.ocr_image_model_meta)
+        statusTextView.text = statusText
+        recommendationView.text = getString(R.string.ocr_image_model_detail, statusText)
+        actionButton.text = if (isCurrent) {
+            getString(R.string.model_action_current)
+        } else {
+            getString(R.string.model_action_use)
+        }
+        actionButton.isEnabled = !isCurrent && !isModelOperationInProgress
+        actionButton.setOnClickListener {
+            handleOcrImageModelSelection()
+        }
+
+        deleteButton.visibility = View.GONE
+        itemProgressBar.visibility = View.GONE
+        itemProgressText.visibility = View.GONE
+
+        container.addView(itemView)
     }
 
     private fun configureDrawer() {
@@ -1369,6 +1730,10 @@ open class PocketChatActivity : AppCompatActivity() {
             showTransientMessage(getString(R.string.delete_model_current_blocked))
             return
         }
+        if (descriptor is FastVlmLiteRtSpec && isFastVlmImageProcessingActive()) {
+            showTransientMessage(getString(R.string.delete_image_model_processing_blocked))
+            return
+        }
         if (isModelOperationInProgress) {
             showTransientMessage(getString(R.string.model_operation_in_progress))
             return
@@ -1379,6 +1744,14 @@ open class PocketChatActivity : AppCompatActivity() {
             .setMessage(getString(R.string.delete_model_confirmation, descriptor.displayName))
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(getString(R.string.delete)) { _, _ ->
+                if (currentImageModel?.id == descriptor.id) {
+                    currentImageModel = null
+                    modelSelectionStore.clearSelectedImageModel()
+                    updateImageInputButtonDescriptions()
+                    fastVlmImageInput?.close()
+                    fastVlmImageInput = null
+                    fastVlmImageInputModelId = null
+                }
                 if (modelFileResolver.deleteDownloadedModel(descriptor)) {
                     refreshModelSelectionDialog()
                     showTransientMessage(getString(R.string.model_deleted_message, descriptor.displayName))
@@ -1402,6 +1775,11 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun handleModelSelection(descriptor: ModelDescriptor) {
+        if (descriptor is FastVlmLiteRtSpec) {
+            handleImageModelSelection(descriptor)
+            return
+        }
+
         if (isModelOperationInProgress) {
             return
         }
@@ -1424,6 +1802,70 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         startModelDownload(descriptor)
+    }
+
+    private fun handleImageModelSelection(descriptor: FastVlmLiteRtSpec) {
+        if (isModelOperationInProgress) {
+            return
+        }
+
+        if (currentImageModel?.id == descriptor.id) {
+            dismissModelDialogAfterImageSelectionIfAllowed()
+            return
+        }
+
+        if (modelFileResolver.isModelAvailable(descriptor)) {
+            currentImageModel = descriptor
+            modelSelectionStore.saveSelectedImageModel(descriptor.id)
+            updateImageInputButtonDescriptions()
+            refreshModelSelectionDialog()
+            dismissModelDialogAfterImageSelectionIfAllowed()
+            showTransientMessage(getString(R.string.image_model_selected, descriptor.displayName))
+            return
+        }
+
+        startModelDownload(descriptor)
+    }
+
+    private fun handleOcrImageModelSelection() {
+        if (isModelOperationInProgress) {
+            return
+        }
+
+        currentImageModel = null
+        modelSelectionStore.clearSelectedImageModel()
+        updateImageInputButtonDescriptions()
+        refreshModelSelectionDialog()
+        dismissModelDialogAfterImageSelectionIfAllowed()
+        showTransientMessage(getString(R.string.ocr_image_model_selected))
+        releaseFastVlmProcessorIfIdle()
+    }
+
+    private fun dismissModelDialogAfterImageSelectionIfAllowed() {
+        if (!modelDialogForceSelection || chatController != null) {
+            modelDialogViews?.dialog?.dismiss()
+        }
+    }
+
+    private fun updateImageInputButtonDescriptions() {
+        if (!::galleryOcrButton.isInitialized || !::cameraOcrButton.isInitialized) {
+            return
+        }
+
+        val imageModel = currentImageModel
+        if (imageModel == null) {
+            galleryOcrButton.contentDescription = getString(R.string.gallery_ocr_input)
+            cameraOcrButton.contentDescription = getString(R.string.camera_ocr_input)
+        } else {
+            galleryOcrButton.contentDescription = getString(
+                R.string.gallery_vlm_input,
+                imageModel.displayName
+            )
+            cameraOcrButton.contentDescription = getString(
+                R.string.camera_vlm_input,
+                imageModel.displayName
+            )
+        }
     }
 
     private fun startModelDownload(descriptor: ModelDescriptor) {

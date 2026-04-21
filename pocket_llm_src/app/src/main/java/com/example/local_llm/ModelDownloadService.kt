@@ -65,7 +65,7 @@ class ModelDownloadService : Service() {
             return START_NOT_STICKY
         }
 
-        val descriptor = ModelRegistry.findById(intent?.getStringExtra(EXTRA_MODEL_ID))
+        val descriptor = DownloadableModelRegistry.findById(intent?.getStringExtra(EXTRA_MODEL_ID))
         if (descriptor == null) {
             stopSelf(startId)
             return START_NOT_STICKY
@@ -152,7 +152,12 @@ class ModelDownloadService : Service() {
                     notificationManager.notify(NOTIFICATION_ID, buildRunningNotification(runningState))
                 }
 
-                ModelSelectionStore(applicationContext).saveSelectedModel(descriptor.id)
+                val selectionStore = ModelSelectionStore(applicationContext)
+                if (descriptor is FastVlmLiteRtSpec) {
+                    selectionStore.saveSelectedImageModel(descriptor.id)
+                } else {
+                    selectionStore.saveSelectedModel(descriptor.id)
+                }
                 val completedState = ModelDownloadState.Completed(
                     modelId = descriptor.id,
                     modelName = descriptor.displayName

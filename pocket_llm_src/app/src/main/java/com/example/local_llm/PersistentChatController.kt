@@ -70,6 +70,7 @@ class PersistentChatController(
             is OnnxQwenSpec -> OnnxChatBackend(appContext, modelDescriptor, modelFileResolver)
             is GemmaLiteRtSpec -> GemmaLiteRtBackend(appContext, modelDescriptor, modelFileResolver)
             is QwenLiteRtSpec -> QwenLiteRtBackend(appContext, modelDescriptor, modelFileResolver)
+            is FastVlmLiteRtSpec -> error("Image models cannot be used as chat models.")
         }
     }
 
