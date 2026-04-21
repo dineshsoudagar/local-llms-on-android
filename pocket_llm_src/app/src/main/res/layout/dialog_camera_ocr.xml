@@ -20,23 +20,15 @@
         android:textSize="20sp"
         android:textStyle="bold" />
 
-    <FrameLayout
-        android:id="@+id/cameraPreviewFrame"
+    <androidx.camera.view.PreviewView
+        android:id="@+id/cameraPreviewView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="14dp"
         android:layout_weight="1"
-        android:background="@drawable/bg_camera_preview_frame"
-        android:padding="1dp">
-
-        <androidx.camera.view.PreviewView
-            android:id="@+id/cameraPreviewView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@color/black"
-            app:implementationMode="performance"
-            app:scaleType="fillCenter" />
-    </FrameLayout>
+        android:background="@color/black"
+        app:implementationMode="performance"
+        app:scaleType="fillCenter" />
 
     <TextView
         android:id="@+id/cameraOcrStatus"

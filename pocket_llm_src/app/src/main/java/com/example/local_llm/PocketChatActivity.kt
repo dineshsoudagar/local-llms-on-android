@@ -2,6 +2,7 @@ package com.example.local_llm
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -46,6 +47,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -112,7 +114,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var newChatButton: View
     private lateinit var sendButton: Button
     private lateinit var stopButton: Button
-    private lateinit var micInputButton: Button
+    private lateinit var micInputButton: MaterialButton
     private lateinit var galleryOcrButton: Button
     private lateinit var cameraOcrButton: Button
     private lateinit var pendingImageInputsScroll: HorizontalScrollView
@@ -243,6 +245,7 @@ open class PocketChatActivity : AppCompatActivity() {
         chatRecyclerView.itemAnimator = null
         chatAdapter.registerAdapterDataObserver(chatAdapterObserver)
         applyTypography(statusView, sendButton, stopButton)
+        updateMicRecordingState(false)
         chatRecyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                 super.onScrollStateChanged(recyclerView, newState)
@@ -286,9 +289,9 @@ open class PocketChatActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            clearSpeechInputState()
             controller.sendPrompt(prompt.modelText, prompt.displayText)
             inputEditText.text.clear()
-            clearSpeechInputState()
             clearPendingImageInputs()
             refreshDrawerSessions()
         }
@@ -392,6 +395,7 @@ open class PocketChatActivity : AppCompatActivity() {
             object : SpeechInput.Listener {
                 override fun onSpeechStarted() {
                     runOnUiThread {
+                        updateMicRecordingState(true)
                         showTransientMessage(getString(R.string.speech_listening))
                     }
                 }
@@ -414,7 +418,11 @@ open class PocketChatActivity : AppCompatActivity() {
                     }
                 }
 
-                override fun onSpeechEnded() = Unit
+                override fun onSpeechEnded() {
+                    runOnUiThread {
+                        updateMicRecordingState(false)
+                    }
+                }
             }
         )
     }
@@ -750,18 +758,18 @@ open class PocketChatActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             background = ContextCompat.getDrawable(this@PocketChatActivity, R.drawable.bg_image_input_chip)
-            setPadding(dp(6), dp(5), dp(5), dp(5))
+            setPadding(dp(5), dp(4), dp(4), dp(4))
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                dp(58)
+                dp(46)
             ).apply {
-                marginEnd = dp(8)
+                marginEnd = dp(6)
             }
         }
 
         chip.addView(
             ImageView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44))
+                layoutParams = LinearLayout.LayoutParams(dp(34), dp(34))
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setBackgroundColor(Color.BLACK)
                 setImageURI(input.uri)
@@ -772,8 +780,8 @@ open class PocketChatActivity : AppCompatActivity() {
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_VERTICAL
-                layoutParams = LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-                    marginStart = dp(8)
+                layoutParams = LinearLayout.LayoutParams(dp(58), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                    marginStart = dp(6)
                 }
 
                 addView(
@@ -784,7 +792,7 @@ open class PocketChatActivity : AppCompatActivity() {
                             getString(R.string.image_input_label)
                         }
                         setTextColor(resolveThemeColor(R.attr.colorAssistantText))
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
                         maxLines = 1
                     }
@@ -794,7 +802,7 @@ open class PocketChatActivity : AppCompatActivity() {
                     TextView(this@PocketChatActivity).apply {
                         text = pendingImageStatusText(input)
                         setTextColor(pendingImageStatusColor(input))
-                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                        setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
                         maxLines = 1
                     }
                 )
@@ -803,12 +811,12 @@ open class PocketChatActivity : AppCompatActivity() {
 
         chip.addView(
             ImageButton(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(34), dp(34))
+                layoutParams = LinearLayout.LayoutParams(dp(26), dp(26))
                 background = null
                 contentDescription = getString(R.string.remove_image_input)
-                setImageResource(R.drawable.ic_delete_20)
+                setImageResource(R.drawable.ic_close_18)
                 setColorFilter(resolveThemeColor(R.attr.colorStatusText))
-                setPadding(dp(7), dp(7), dp(7), dp(7))
+                setPadding(dp(4), dp(4), dp(4), dp(4))
                 setOnClickListener { removePendingImageInput(input.id) }
             }
         )
@@ -962,6 +970,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun clearSpeechInputState() {
         speechInput?.cancel()
+        updateMicRecordingState(false)
         speechBasePromptText = ""
         speechRecognizedText = ""
         speechCommittedText = ""
@@ -1762,6 +1771,33 @@ open class PocketChatActivity : AppCompatActivity() {
             else -> R.drawable.bg_status_chip
         }
         statusView.setBackgroundResource(backgroundRes)
+    }
+
+    private fun updateMicRecordingState(active: Boolean) {
+        if (!::micInputButton.isInitialized) {
+            return
+        }
+
+        val backgroundColor = if (active) {
+            resolveThemeColor(R.attr.colorStopFill)
+        } else {
+            resolveThemeColor(R.attr.colorFrameBackground)
+        }
+        val strokeColor = if (active) {
+            resolveThemeColor(R.attr.colorStopStroke)
+        } else {
+            resolveThemeColor(R.attr.colorSendStroke)
+        }
+        val iconColor = if (active) {
+            ContextCompat.getColor(this, R.color.white)
+        } else {
+            resolveThemeColor(R.attr.colorAssistantText)
+        }
+
+        micInputButton.isSelected = active
+        micInputButton.backgroundTintList = ColorStateList.valueOf(backgroundColor)
+        micInputButton.strokeColor = ColorStateList.valueOf(strokeColor)
+        micInputButton.iconTint = ColorStateList.valueOf(iconColor)
     }
 
     private fun showTransientMessage(message: String) {

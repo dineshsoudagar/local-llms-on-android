@@ -16,8 +16,6 @@
         <item name="android:minWidth">0dp</item>
         <item name="android:paddingHorizontal">10dp</item>
         <item name="backgroundTint">?attr/colorSendFill</item>
-        <item name="strokeColor">?attr/colorSendStroke</item>
-        <item name="strokeWidth">1dp</item>
         <item name="rippleColor">?attr/colorSendStroke</item>
         <item name="android:textColor">#FFFFFF</item>
     </style>
@@ -26,8 +24,6 @@
         <item name="android:minWidth">0dp</item>
         <item name="android:paddingHorizontal">10dp</item>
         <item name="backgroundTint">?attr/colorStopFill</item>
-        <item name="strokeColor">?attr/colorStopStroke</item>
-        <item name="strokeWidth">1dp</item>
         <item name="rippleColor">?attr/colorStopStroke</item>
         <item name="android:textColor">#FFFFFF</item>
     </style>
@@ -39,8 +35,7 @@
         <item name="cornerRadius">10dp</item>
         <item name="elevation">0dp</item>
         <item name="backgroundTint">?attr/colorFrameBackground</item>
-        <item name="strokeColor">?attr/colorSendStroke</item>
-        <item name="strokeWidth">1dp</item>
+        <item name="strokeWidth">0dp</item>
         <item name="rippleColor">?attr/colorSendStroke</item>
         <item name="iconTint">?attr/colorAssistantText</item>
     </style>
