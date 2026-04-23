@@ -7,6 +7,7 @@ class ModelSelectionStore(context: Context) {
     companion object {
         private const val PREFS_NAME = "pocket_chat_model_selection"
         private const val KEY_SELECTED_MODEL_ID = "selected_model_id"
+        private const val KEY_SELECTED_IMAGE_INPUT_MODE = "selected_image_input_mode"
         private const val KEY_SELECTED_IMAGE_MODEL_ID = "selected_image_model_id"
     }
 
@@ -32,8 +33,31 @@ class ModelSelectionStore(context: Context) {
         return ImageModelRegistry.findById(prefs.getString(KEY_SELECTED_IMAGE_MODEL_ID, null))
     }
 
+    fun loadSelectedImageInputMode(): ImageInputMode {
+        val savedMode = prefs.getString(KEY_SELECTED_IMAGE_INPUT_MODE, null)
+            ?.let { value ->
+                runCatching { ImageInputMode.valueOf(value) }.getOrNull()
+            }
+        if (savedMode != null) {
+            return savedMode
+        }
+
+        return if (loadSelectedImageModel() != null) {
+            ImageInputMode.FAST_VLM
+        } else {
+            ImageInputMode.OCR
+        }
+    }
+
+    fun saveSelectedImageInputMode(mode: ImageInputMode) {
+        prefs.edit()
+            .putString(KEY_SELECTED_IMAGE_INPUT_MODE, mode.name)
+            .apply()
+    }
+
     fun saveSelectedImageModel(modelId: String) {
         prefs.edit()
+            .putString(KEY_SELECTED_IMAGE_INPUT_MODE, ImageInputMode.FAST_VLM.name)
             .putString(KEY_SELECTED_IMAGE_MODEL_ID, modelId)
             .apply()
     }

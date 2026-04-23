@@ -39,8 +39,12 @@ class OnnxChatBackend(
         history: List<ChatTurn>,
         thinkingEnabled: Boolean,
         modelInstruction: String,
+        imageFilePaths: List<String>,
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse = withContext(Dispatchers.IO) {
+        require(imageFilePaths.isEmpty()) {
+            "ONNX chat models do not support direct image input."
+        }
         cancelRequested.set(false)
         val coroutineIsActive = { isActive }
         val isQwen3 = spec.modelName.equals("qwen3", ignoreCase = true)

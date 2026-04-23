@@ -68,8 +68,12 @@ class QwenLiteRtBackend(
         history: List<ChatTurn>,
         thinkingEnabled: Boolean,
         modelInstruction: String,
+        imageFilePaths: List<String>,
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse = withContext(Dispatchers.IO) {
+        require(imageFilePaths.isEmpty()) {
+            "Qwen LiteRT models do not support direct image input."
+        }
         require(history.isNotEmpty() && history.last().role == ChatRole.USER) {
             "Qwen LiteRT backend expects the final history turn to be the user's prompt."
         }

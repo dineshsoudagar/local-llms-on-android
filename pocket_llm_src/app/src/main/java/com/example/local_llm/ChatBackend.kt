@@ -12,6 +12,7 @@ interface ChatBackend : AutoCloseable {
         history: List<ChatTurn>,
         thinkingEnabled: Boolean,
         modelInstruction: String,
+        imageFilePaths: List<String> = emptyList(),
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse
     fun cancelGeneration()

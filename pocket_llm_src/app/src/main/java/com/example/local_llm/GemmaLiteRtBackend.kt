@@ -2,6 +2,7 @@ package com.example.local_llm
 
 import android.content.Context
 import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Contents
@@ -27,33 +28,12 @@ class GemmaLiteRtBackend(
 
     override suspend fun initialize() = withContext(Dispatchers.IO) {
         val modelFile = modelFileResolver.resolveModelFile(spec)
+        val modelPath = modelFile.absolutePath
 
-        val gpuResult = runCatching {
-            Engine(
-                EngineConfig(
-                    modelPath = modelFile.absolutePath,
-                    backend = Backend.GPU(),
-                    cacheDir = context.cacheDir.absolutePath
-                )
-            ).apply { initialize() }
-        }
-
-        engine = gpuResult.getOrElse { gpuError ->
-            runCatching {
-                Engine(
-                    EngineConfig(
-                        modelPath = modelFile.absolutePath,
-                        backend = Backend.CPU(),
-                        cacheDir = context.cacheDir.absolutePath
-                    )
-                ).apply { initialize() }
-            }.getOrElse { cpuError ->
-                throw IllegalStateException(
-                    "Failed to initialize LiteRT-LM GPU (${gpuError.message}) and CPU (${cpuError.message}).",
-                    cpuError
-                )
-            }
-        }
+        engine = createInitializedEngine(modelPath, Backend.GPU(), Backend.GPU())
+            ?: createInitializedEngine(modelPath, Backend.GPU(), Backend.CPU())
+            ?: createInitializedEngine(modelPath, Backend.CPU(), Backend.CPU())
+            ?: throw IllegalStateException("Failed to initialize Gemma LiteRT-LM with GPU or CPU backends.")
     }
 
     override suspend fun resetConversation(
@@ -68,8 +48,12 @@ class GemmaLiteRtBackend(
         history: List<ChatTurn>,
         thinkingEnabled: Boolean,
         modelInstruction: String,
+        imageFilePaths: List<String>,
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse = withContext(Dispatchers.IO) {
+        require(imageFilePaths.isEmpty() || spec.directImageInputAvailable) {
+            "This Gemma model does not support direct image input."
+        }
         require(history.isNotEmpty() && history.last().role == ChatRole.USER) {
             "Gemma backend expects the final history turn to be the user's prompt."
         }
@@ -84,8 +68,9 @@ class GemmaLiteRtBackend(
         val textBuilder = StringBuilder()
         val thinkingBuilder = StringBuilder()
 
-        activeConversation.sendMessageAsync(userTurn.text).collect { message ->
-            val chunkText = message.contents.toString()
+        val messageForModel = buildUserMessage(userTurn.text, imageFilePaths)
+        activeConversation.sendMessageAsync(messageForModel).collect { message ->
+            val chunkText = extractTextContent(message)
             if (chunkText.isNotEmpty()) {
                 textBuilder.append(chunkText)
             }
@@ -107,6 +92,23 @@ class GemmaLiteRtBackend(
             text = textBuilder.toString(),
             thinkingText = thinkingBuilder.toString().takeIf { it.isNotBlank() }
         )
+    }
+
+    private fun createInitializedEngine(
+        modelPath: String,
+        backend: Backend,
+        visionBackend: Backend
+    ): Engine? {
+        return runCatching {
+            Engine(
+                EngineConfig(
+                    modelPath = modelPath,
+                    backend = backend,
+                    visionBackend = visionBackend,
+                    cacheDir = context.cacheDir.absolutePath
+                )
+            ).apply { initialize() }
+        }.getOrNull()
     }
 
     override fun cancelGeneration() {
@@ -146,6 +148,26 @@ class GemmaLiteRtBackend(
         } else {
             modelInstruction
         }
+    }
+
+    private fun buildUserMessage(text: String, imageFilePaths: List<String>): Message {
+        if (imageFilePaths.isEmpty()) {
+            return Message.user(text)
+        }
+
+        val textContent = text.ifBlank { "Describe the attached image." }
+        val contents = buildList<Content> {
+            imageFilePaths.forEach { path -> add(Content.ImageFile(path)) }
+            add(Content.Text(textContent))
+        }
+        return Message.user(Contents.of(*contents.toTypedArray()))
+    }
+
+    private fun extractTextContent(message: Message): String {
+        val text = message.contents.contents
+            .filterIsInstance<Content.Text>()
+            .joinToString(separator = "") { content -> content.text }
+        return text.ifBlank { message.contents.toString() }
     }
 
     private fun closeConversation() {

@@ -95,23 +95,25 @@ class ChatController(
             try {
                 val response = withContext(Dispatchers.IO) {
                     backend.streamReply(
-                        committedTurns.asModelMemoryTurns(),
-                        thinkingEnabled,
-                        currentModelInstruction()
-                    ) { partial ->
-                        scope.launch {
-                            updateThinkingTimer(partial)
-                            streamingAssistantTurn = ChatTurn(
-                                role = ChatRole.ASSISTANT,
-                                text = partial.text,
-                                thinkingText = partial.thinkingText,
-                                thinkingDurationMillis = thinkingDurationMillis(partial.thinkingText)
-                                    .takeIf { partial.text.isNotBlank() },
-                                isStreaming = true
-                            )
-                            publishState(isGenerating = true)
+                        history = committedTurns.asModelMemoryTurns(),
+                        thinkingEnabled = thinkingEnabled,
+                        modelInstruction = currentModelInstruction(),
+                        imageFilePaths = emptyList(),
+                        onPartial = { partial ->
+                            scope.launch {
+                                updateThinkingTimer(partial)
+                                streamingAssistantTurn = ChatTurn(
+                                    role = ChatRole.ASSISTANT,
+                                    text = partial.text,
+                                    thinkingText = partial.thinkingText,
+                                    thinkingDurationMillis = thinkingDurationMillis(partial.thinkingText)
+                                        .takeIf { partial.text.isNotBlank() },
+                                    isStreaming = true
+                                )
+                                publishState(isGenerating = true)
+                            }
                         }
-                    }
+                    )
                 }
 
                 updateThinkingTimer(response)

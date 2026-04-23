@@ -53,6 +53,7 @@ data class GemmaLiteRtSpec(
     val defaultSystemInstruction: String,
     val displayNameOverride: String = modelName,
     val thinkingModeAvailable: Boolean = false,
+    val directImageInputAvailable: Boolean = true,
     val downloadSizeLabel: String,
     val recommendationLabel: String,
     val estimatedDownloadBytes: Long,

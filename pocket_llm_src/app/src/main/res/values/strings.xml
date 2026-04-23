@@ -13,6 +13,8 @@
     <string name="camera_ocr_input">Read text with camera</string>
     <string name="gallery_vlm_input">Describe image with %1$s</string>
     <string name="camera_vlm_input">Describe camera image with %1$s</string>
+    <string name="gallery_gemma_direct_input">Send image directly to Gemma</string>
+    <string name="camera_gemma_direct_input">Send camera image directly to Gemma</string>
     <string name="speech_listening">Listening</string>
     <string name="speech_permission_denied">Microphone permission is required for voice input.</string>
     <string name="speech_text_added">Added</string>
@@ -32,6 +34,7 @@
     <string name="image_input_pending">Attached</string>
     <string name="image_input_reading">Reading</string>
     <string name="image_input_describing">Describing</string>
+    <string name="image_input_preparing">Preparing</string>
     <string name="image_input_ready">Ready</string>
     <string name="image_input_failed">No text</string>
     <string name="image_input_failed_generic">Failed</string>
@@ -47,6 +50,9 @@
     <string name="fast_vlm_processing_failed">Could not describe that image with FastVLM.</string>
     <string name="fast_vlm_no_description">FastVLM did not return an image description.</string>
     <string name="fast_vlm_image_decode_failed">Could not decode this image for FastVLM. Try a JPEG or PNG image.</string>
+    <string name="gemma_direct_default_prompt">Describe the attached image.</string>
+    <string name="gemma_direct_image_processing_failed">Could not prepare that image for Gemma.</string>
+    <string name="gemma_direct_image_model_unavailable">Direct Gemma image input requires the selected chat model to be Gemma.</string>
     <string name="fast_vlm_download_required_title">Download image model</string>
     <string name="fast_vlm_download_required_message">%1$s must be downloaded before it can describe images.</string>
     <string name="cancel">Cancel</string>
@@ -92,7 +98,7 @@
     <string name="model_picker_empty_subtitle">Choose a model</string>
     <string name="model_picker_title">Select Models</string>
     <string name="model_picker_required_intro">Choose a chat model before chatting offline.\nThe image model converts attached images into context before sending.</string>
-    <string name="model_picker_optional_intro">Pick chat and image models anytime.\nOCR extracts text only; FastVLM describes images for the chat model.</string>
+    <string name="model_picker_optional_intro">Pick chat and image models anytime.\nOCR extracts text; FastVLM describes images; Gemma can use direct image input.</string>
     <string name="model_picker_meta_format">%1$s - %2$s download</string>
     <string name="model_picker_compact_detail_format">%1$s - %2$s - %3$s - %4$s</string>
     <string name="chat_model_section_title">Chat model</string>
@@ -101,7 +107,11 @@
     <string name="ocr_image_model_name">OCR text extraction</string>
     <string name="ocr_image_model_meta">Built in - no download</string>
     <string name="ocr_image_model_detail">Extracts readable text only - %1$s</string>
+    <string name="gemma_direct_image_model_name">Gemma direct image input</string>
+    <string name="gemma_direct_image_model_meta">Uses selected Gemma model</string>
+    <string name="gemma_direct_image_model_detail">Sends the image directly to Gemma - %1$s</string>
     <string name="ocr_image_model_selected">Image input will use OCR.</string>
+    <string name="gemma_direct_image_model_selected">Image input will go directly to Gemma.</string>
     <string name="image_model_selected">Image input will use %1$s.</string>
     <string name="model_required_message">Choose a model to continue.</string>
     <string name="model_missing_message">%1$s is not available on this device yet. Download it or choose another model.</string>

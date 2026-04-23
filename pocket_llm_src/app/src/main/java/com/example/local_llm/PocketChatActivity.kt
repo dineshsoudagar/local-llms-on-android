@@ -86,12 +86,14 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private data class ComposerPrompt(
         val modelText: String,
-        val displayText: String
+        val displayText: String,
+        val imageFilePaths: List<String> = emptyList()
     )
 
     private data class ImagePreprocessingResult(
         val text: String,
-        val tempFilePath: String?
+        val tempFilePath: String?,
+        val directImageFilePath: String? = null
     )
 
     private data class ComposerDraft(
@@ -109,7 +111,8 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private enum class ImageInputContextSource {
         OCR,
-        FAST_VLM
+        FAST_VLM,
+        GEMMA_DIRECT
     }
 
     private data class PendingImageInput(
@@ -120,7 +123,8 @@ open class PocketChatActivity : AppCompatActivity() {
         val status: PendingImageStatus = PendingImageStatus.PENDING,
         val recognizedText: String? = null,
         val errorMessage: String? = null,
-        val tempFilePath: String? = null
+        val tempFilePath: String? = null,
+        val directImageFilePath: String? = null
     )
 
     private lateinit var settingsStore: AppSettingsStore
@@ -131,6 +135,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var chatSessionStore: ChatSessionStore
     private lateinit var retainedState: PocketChatViewModel
     private var currentModel: ModelDescriptor? = null
+    private var currentImageInputMode: ImageInputMode = ImageInputMode.OCR
     private var currentImageModel: FastVlmLiteRtSpec? = null
     private var chatController: PersistentChatController? = null
     private var controllerStateJob: Job? = null
@@ -339,7 +344,9 @@ open class PocketChatActivity : AppCompatActivity() {
 
         val restoredModel = retainedState.modelId?.let(ModelRegistry::findById)
         currentModel = restoredModel ?: modelSelectionStore.loadSelectedModel()
+        currentImageInputMode = modelSelectionStore.loadSelectedImageInputMode()
         currentImageModel = modelSelectionStore.loadSelectedImageModel()
+        ensureImageInputModeAllowedForCurrentModel()
         updateImageInputButtonDescriptions()
 
         val retainedController = retainedState.chatController
@@ -540,7 +547,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val cancelButton: Button = dialogView.findViewById(R.id.cameraOcrCancelButton)
         val captureButton: Button = dialogView.findViewById(R.id.cameraOcrCaptureButton)
 
-        titleView.text = if (currentImageModel == null) {
+        titleView.text = if (currentImageInputMode == ImageInputMode.OCR) {
             getString(R.string.camera_ocr_title)
         } else {
             getString(R.string.camera_image_title)
@@ -662,10 +669,40 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun cameraReadyStatusText(): String {
-        return if (currentImageModel == null) {
+        return if (currentImageInputMode == ImageInputMode.OCR) {
             getString(R.string.camera_ocr_status_ready)
         } else {
             getString(R.string.camera_image_status_ready)
+        }
+    }
+
+    private fun currentImageContextSource(): ImageInputContextSource {
+        return when (currentImageInputMode) {
+            ImageInputMode.OCR -> ImageInputContextSource.OCR
+            ImageInputMode.FAST_VLM -> ImageInputContextSource.FAST_VLM
+            ImageInputMode.GEMMA_DIRECT -> {
+                if (isGemmaDirectImageInputAvailable()) {
+                    ImageInputContextSource.GEMMA_DIRECT
+                } else {
+                    ImageInputContextSource.OCR
+                }
+            }
+        }
+    }
+
+    private fun isGemmaDirectImageInputAvailable(): Boolean {
+        return (currentModel as? GemmaLiteRtSpec)?.directImageInputAvailable == true
+    }
+
+    private fun ensureImageInputModeAllowedForCurrentModel() {
+        if (currentImageInputMode == ImageInputMode.GEMMA_DIRECT && !isGemmaDirectImageInputAvailable()) {
+            currentImageInputMode = ImageInputMode.OCR
+            currentImageModel = null
+            modelSelectionStore.saveSelectedImageInputMode(ImageInputMode.OCR)
+            modelSelectionStore.clearSelectedImageModel()
+        }
+        if (currentImageInputMode == ImageInputMode.FAST_VLM && currentImageModel == null) {
+            currentImageModel = ImageModelRegistry.fastVlm
         }
     }
 
@@ -686,7 +723,9 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
-        val imageModel = currentImageModel
+        ensureImageInputModeAllowedForCurrentModel()
+        val imageContextSource = currentImageContextSource()
+        val imageModel = currentImageModel.takeIf { imageContextSource == ImageInputContextSource.FAST_VLM }
         if (imageModel != null) {
             if (!modelFileResolver.isModelAvailable(imageModel)) {
                 tempFilePath?.let { runCatching { File(it).delete() } }
@@ -694,13 +733,18 @@ open class PocketChatActivity : AppCompatActivity() {
                 return
             }
         }
+        if (imageContextSource == ImageInputContextSource.GEMMA_DIRECT && !isGemmaDirectImageInputAvailable()) {
+            tempFilePath?.let { runCatching { File(it).delete() } }
+            showTransientMessage(getString(R.string.gemma_direct_image_model_unavailable))
+            return
+        }
 
         val requestId = nextPendingImageInputId++
         pendingImageInputs += PendingImageInput(
             id = requestId,
             uri = uri,
             source = source,
-            contextSource = if (imageModel == null) ImageInputContextSource.OCR else ImageInputContextSource.FAST_VLM,
+            contextSource = imageContextSource,
             tempFilePath = tempFilePath
         )
         renderPendingImageInputs()
@@ -731,9 +775,9 @@ open class PocketChatActivity : AppCompatActivity() {
             }
 
             clearSpeechInputState()
-            if (controller.sendPrompt(prompt.modelText, prompt.displayText)) {
+            if (controller.sendPrompt(prompt.modelText, prompt.displayText, prompt.imageFilePaths)) {
                 inputEditText.text.clear()
-                clearPendingImageInputs()
+                clearPendingImageInputs(keepTempFilePaths = prompt.imageFilePaths.toSet())
                 refreshDrawerSessions()
             }
             return
@@ -784,14 +828,21 @@ open class PocketChatActivity : AppCompatActivity() {
                     return@launch
                 }
 
-                promptStarted = controller.sendPreparedPrompt(prompt.modelText, prompt.displayText)
+                promptStarted = controller.sendPreparedPrompt(
+                    prompt.modelText,
+                    prompt.displayText,
+                    prompt.imageFilePaths
+                )
                 if (!promptStarted) {
                     controller.cancelPromptPreparation()
                     restoreComposerDraft(draft)
                     restorePendingImageInputs(processedImagesForSend)
                     return@launch
                 }
-                deletePendingImageTempFiles(imagesForSend + processedImagesForSend)
+                deletePendingImageTempFiles(
+                    imagesForSend + processedImagesForSend,
+                    keepTempFilePaths = prompt.imageFilePaths.toSet()
+                )
                 refreshDrawerSessions()
             } catch (_: CancellationException) {
                 if (!promptStarted) {
@@ -854,9 +905,16 @@ open class PocketChatActivity : AppCompatActivity() {
                     markImagePreprocessingFailed(processedImages, index, readingInput, error)
                     return null
                 }
+                ImageInputContextSource.GEMMA_DIRECT -> runCatching {
+                    preprocessImageForGemmaDirect(readingInput)
+                }.getOrElse { error ->
+                    markImagePreprocessingFailed(processedImages, index, readingInput, error)
+                    return null
+                }
             }
 
-            if (result.text.isBlank()) {
+            val isDirectGemmaInput = readingInput.contextSource == ImageInputContextSource.GEMMA_DIRECT
+            if (!isDirectGemmaInput && result.text.isBlank()) {
                 val message = if (readingInput.contextSource == ImageInputContextSource.OCR) {
                     getString(R.string.ocr_no_text)
                 } else {
@@ -872,12 +930,26 @@ open class PocketChatActivity : AppCompatActivity() {
                 showTransientMessage(message)
                 return null
             }
+            if (isDirectGemmaInput && result.directImageFilePath.isNullOrBlank()) {
+                val message = getString(R.string.gemma_direct_image_processing_failed)
+                processedImages[index] = readingInput.copy(
+                    status = PendingImageStatus.FAILED,
+                    recognizedText = null,
+                    errorMessage = message,
+                    tempFilePath = result.tempFilePath,
+                    directImageFilePath = null
+                )
+                restorePendingImageInputs(processedImages)
+                showTransientMessage(message)
+                return null
+            }
 
             processedImages[index] = readingInput.copy(
                 status = PendingImageStatus.READY,
                 recognizedText = result.text,
                 errorMessage = null,
-                tempFilePath = result.tempFilePath
+                tempFilePath = result.tempFilePath,
+                directImageFilePath = result.directImageFilePath
             )
         }
 
@@ -907,6 +979,8 @@ open class PocketChatActivity : AppCompatActivity() {
                     ?: getString(R.string.fast_vlm_no_description)
             input.contextSource == ImageInputContextSource.FAST_VLM -> error.message
                 ?: getString(R.string.fast_vlm_processing_failed)
+            input.contextSource == ImageInputContextSource.GEMMA_DIRECT -> error.message
+                ?: getString(R.string.gemma_direct_image_processing_failed)
             input.contextSource == ImageInputContextSource.OCR -> error.message
                 ?: getString(R.string.ocr_no_text)
             else -> error.message ?: getString(R.string.image_input_processing_failed)
@@ -936,6 +1010,23 @@ open class PocketChatActivity : AppCompatActivity() {
         )
     }
 
+    private suspend fun preprocessImageForGemmaDirect(input: PendingImageInput): ImagePreprocessingResult {
+        if (!isGemmaDirectImageInputAvailable()) {
+            throw IllegalStateException(getString(R.string.gemma_direct_image_model_unavailable))
+        }
+
+        val imageFile = runCatching {
+            prepareFastVlmImageFile(input.uri, input.tempFilePath)
+        }.getOrElse { error ->
+            throw IOException(getString(R.string.gemma_direct_image_processing_failed), error)
+        }
+        return ImagePreprocessingResult(
+            text = "",
+            tempFilePath = imageFile.absolutePath,
+            directImageFilePath = imageFile.absolutePath
+        )
+    }
+
     private fun removePendingImageInput(requestId: Long) {
         if (isImagePreprocessingForSend) {
             showTransientMessage(getString(R.string.image_input_processing))
@@ -952,7 +1043,7 @@ open class PocketChatActivity : AppCompatActivity() {
         releaseFastVlmProcessorIfIdle()
     }
 
-    private fun clearPendingImageInputs() {
+    private fun clearPendingImageInputs(keepTempFilePaths: Set<String> = emptySet()) {
         if (isImagePreprocessingForSend) {
             return
         }
@@ -963,7 +1054,9 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
-        pendingImageInputs.forEach(::deletePendingImageTempFile)
+        pendingImageInputs.forEach { input ->
+            deletePendingImageTempFile(input, keepTempFilePaths)
+        }
         pendingImageInputs.clear()
         renderPendingImageInputs()
         releaseFastVlmProcessorIfIdle()
@@ -980,12 +1073,23 @@ open class PocketChatActivity : AppCompatActivity() {
         renderPendingImageInputs()
     }
 
-    private fun deletePendingImageTempFiles(inputs: List<PendingImageInput>) {
-        inputs.forEach(::deletePendingImageTempFile)
+    private fun deletePendingImageTempFiles(
+        inputs: List<PendingImageInput>,
+        keepTempFilePaths: Set<String> = emptySet()
+    ) {
+        inputs.forEach { input ->
+            deletePendingImageTempFile(input, keepTempFilePaths)
+        }
     }
 
-    private fun deletePendingImageTempFile(input: PendingImageInput) {
+    private fun deletePendingImageTempFile(
+        input: PendingImageInput,
+        keepTempFilePaths: Set<String> = emptySet()
+    ) {
         input.tempFilePath?.let { path ->
+            if (path in keepTempFilePaths) {
+                return@let
+            }
             runCatching { File(path).delete() }
         }
     }
@@ -1340,16 +1444,16 @@ open class PocketChatActivity : AppCompatActivity() {
     private fun pendingImageStatusText(input: PendingImageInput): String {
         return when (input.status) {
             PendingImageStatus.PENDING -> getString(R.string.image_input_pending)
-            PendingImageStatus.READING -> if (input.contextSource == ImageInputContextSource.FAST_VLM) {
-                getString(R.string.image_input_describing)
-            } else {
-                getString(R.string.image_input_reading)
+            PendingImageStatus.READING -> when (input.contextSource) {
+                ImageInputContextSource.FAST_VLM -> getString(R.string.image_input_describing)
+                ImageInputContextSource.GEMMA_DIRECT -> getString(R.string.image_input_preparing)
+                ImageInputContextSource.OCR -> getString(R.string.image_input_reading)
             }
             PendingImageStatus.READY -> getString(R.string.image_input_ready)
-            PendingImageStatus.FAILED -> if (input.contextSource == ImageInputContextSource.FAST_VLM) {
-                getString(R.string.image_input_failed_generic)
-            } else {
-                getString(R.string.image_input_failed)
+            PendingImageStatus.FAILED -> when (input.contextSource) {
+                ImageInputContextSource.OCR -> getString(R.string.image_input_failed)
+                ImageInputContextSource.FAST_VLM,
+                ImageInputContextSource.GEMMA_DIRECT -> getString(R.string.image_input_failed_generic)
             }
         }
     }
@@ -1396,21 +1500,39 @@ open class PocketChatActivity : AppCompatActivity() {
             return null
         }
 
-        val readyImages = images.filter {
-            it.status == PendingImageStatus.READY && !it.recognizedText.isNullOrBlank()
+        val readyTextImages = images.filter {
+            it.status == PendingImageStatus.READY &&
+                it.contextSource != ImageInputContextSource.GEMMA_DIRECT &&
+                !it.recognizedText.isNullOrBlank()
         }
+        val directGemmaImagePaths = images
+            .filter {
+                it.status == PendingImageStatus.READY &&
+                    it.contextSource == ImageInputContextSource.GEMMA_DIRECT &&
+                    !it.directImageFilePath.isNullOrBlank()
+            }
+            .mapNotNull { it.directImageFilePath }
+        val readyImageCount = readyTextImages.size + directGemmaImagePaths.size
         val modelText = buildSourceAwareModelText(
             typedText = draft.typedTextWithoutVoice,
             voiceText = draft.voiceText,
-            images = readyImages
-        )
+            images = readyTextImages,
+            hasDirectGemmaImages = directGemmaImagePaths.isNotEmpty()
+        ).ifBlank {
+            if (directGemmaImagePaths.isNotEmpty()) {
+                getString(R.string.gemma_direct_default_prompt)
+            } else {
+                ""
+            }
+        }
         if (modelText.isBlank()) {
             return null
         }
 
         return ComposerPrompt(
             modelText = modelText,
-            displayText = buildComposerDisplayText(draft.typedText, readyImages.size)
+            displayText = buildComposerDisplayText(draft.typedText, readyImageCount),
+            imageFilePaths = directGemmaImagePaths
         )
     }
 
@@ -1430,14 +1552,18 @@ open class PocketChatActivity : AppCompatActivity() {
     private fun buildSourceAwareModelText(
         typedText: String,
         voiceText: String?,
-        images: List<PendingImageInput>
+        images: List<PendingImageInput>,
+        hasDirectGemmaImages: Boolean
     ): String {
         val hasTypedText = typedText.isNotBlank()
         val hasVoiceText = !voiceText.isNullOrBlank()
         val hasImageText = images.any { !it.recognizedText.isNullOrBlank() }
 
-        if (!hasVoiceText && !hasImageText) {
+        if (!hasVoiceText && !hasImageText && !hasDirectGemmaImages) {
             return typedText
+        }
+        if (!hasTypedText && !hasVoiceText && !hasImageText && hasDirectGemmaImages) {
+            return ""
         }
 
         return buildString {
@@ -1459,6 +1585,11 @@ open class PocketChatActivity : AppCompatActivity() {
                 append("\n\n")
                 append(imageText)
             }
+
+            if (hasDirectGemmaImages) {
+                append("\n\n[Attached image input]\n")
+                append("The image file is attached directly to this message. Use the visual content itself when answering.")
+            }
         }.trim()
     }
 
@@ -1479,6 +1610,7 @@ open class PocketChatActivity : AppCompatActivity() {
                 val contextLabel = when (input.contextSource) {
                     ImageInputContextSource.OCR -> "OCR text"
                     ImageInputContextSource.FAST_VLM -> "Fast VLM image description"
+                    ImageInputContextSource.GEMMA_DIRECT -> "Gemma direct image"
                 }
                 append("\n\n[Image ")
                 append(index + 1)
@@ -1614,7 +1746,9 @@ open class PocketChatActivity : AppCompatActivity() {
                         activeChatSnapshot = chatController?.snapshotActiveChat()
                     )
                 } else if (imageDescriptor != null) {
+                    currentImageInputMode = ImageInputMode.FAST_VLM
                     currentImageModel = imageDescriptor
+                    modelSelectionStore.saveSelectedImageInputMode(ImageInputMode.FAST_VLM)
                     modelSelectionStore.saveSelectedImageModel(imageDescriptor.id)
                     updateImageInputButtonDescriptions()
                     refreshModelSelectionDialog()
@@ -1665,6 +1799,7 @@ open class PocketChatActivity : AppCompatActivity() {
         chatController?.close()
         chatController = controller
         currentModel = descriptor
+        ensureImageInputModeAllowedForCurrentModel()
         retainedState.chatController = controller
         retainedState.modelId = descriptor.id
         modelSelectionStore.saveSelectedModel(descriptor.id)
@@ -1675,6 +1810,7 @@ open class PocketChatActivity : AppCompatActivity() {
         autoScrollPendingFinalUpdate = false
         wasGenerating = false
         toolbarSubtitleView.text = descriptor.displayName
+        updateImageInputButtonDescriptions()
         refreshDrawerSessions()
         thinkingToggle.isChecked = false
         observeController(controller)
@@ -1795,6 +1931,9 @@ open class PocketChatActivity : AppCompatActivity() {
         }
         addModelSectionHeader(dialogUi.listContainer, getString(R.string.image_model_section_title))
         addOcrImageModelOption(inflater, dialogUi.listContainer)
+        if (isGemmaDirectImageInputAvailable()) {
+            addGemmaDirectImageModelOption(inflater, dialogUi.listContainer)
+        }
         ImageModelRegistry.all.forEach { descriptor ->
             addImageModelOption(inflater, dialogUi.listContainer, descriptor)
         }
@@ -1842,7 +1981,8 @@ open class PocketChatActivity : AppCompatActivity() {
             inflater = inflater,
             container = container,
             descriptor = descriptor,
-            isCurrentModel = currentImageModel?.id == descriptor.id,
+            isCurrentModel = currentImageInputMode == ImageInputMode.FAST_VLM &&
+                currentImageModel?.id == descriptor.id,
             onUseModel = { handleImageModelSelection(descriptor) }
         )
     }
@@ -1939,7 +2079,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val itemProgressBar: ProgressBar = itemView.findViewById(R.id.modelItemProgressBar)
         val itemProgressText: TextView = itemView.findViewById(R.id.modelItemProgressText)
 
-        val isCurrent = currentImageModel == null
+        val isCurrent = currentImageInputMode == ImageInputMode.OCR
         val statusText = if (isCurrent) {
             getString(R.string.model_status_current)
         } else {
@@ -1958,6 +2098,48 @@ open class PocketChatActivity : AppCompatActivity() {
         actionButton.isEnabled = !isCurrent && !isModelOperationInProgress
         actionButton.setOnClickListener {
             handleOcrImageModelSelection()
+        }
+
+        deleteButton.visibility = View.GONE
+        itemProgressBar.visibility = View.GONE
+        itemProgressText.visibility = View.GONE
+
+        container.addView(itemView)
+    }
+
+    private fun addGemmaDirectImageModelOption(
+        inflater: LayoutInflater,
+        container: LinearLayout
+    ) {
+        val itemView = inflater.inflate(R.layout.item_model_option, container, false)
+        val nameView: TextView = itemView.findViewById(R.id.modelName)
+        val metaView: TextView = itemView.findViewById(R.id.modelMeta)
+        val recommendationView: TextView = itemView.findViewById(R.id.modelRecommendation)
+        val statusTextView: TextView = itemView.findViewById(R.id.modelStatus)
+        val actionButton: Button = itemView.findViewById(R.id.modelActionButton)
+        val deleteButton: ImageButton = itemView.findViewById(R.id.modelDeleteButton)
+        val itemProgressBar: ProgressBar = itemView.findViewById(R.id.modelItemProgressBar)
+        val itemProgressText: TextView = itemView.findViewById(R.id.modelItemProgressText)
+
+        val isCurrent = currentImageInputMode == ImageInputMode.GEMMA_DIRECT
+        val statusText = if (isCurrent) {
+            getString(R.string.model_status_current)
+        } else {
+            getString(R.string.model_status_bundled)
+        }
+
+        nameView.text = getString(R.string.gemma_direct_image_model_name)
+        metaView.text = getString(R.string.gemma_direct_image_model_meta)
+        statusTextView.text = statusText
+        recommendationView.text = getString(R.string.gemma_direct_image_model_detail, statusText)
+        actionButton.text = if (isCurrent) {
+            getString(R.string.model_action_current)
+        } else {
+            getString(R.string.model_action_use)
+        }
+        actionButton.isEnabled = !isCurrent && !isModelOperationInProgress
+        actionButton.setOnClickListener {
+            handleGemmaDirectImageModelSelection()
         }
 
         deleteButton.visibility = View.GONE
@@ -2059,7 +2241,9 @@ open class PocketChatActivity : AppCompatActivity() {
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(getString(R.string.delete)) { _, _ ->
                 if (currentImageModel?.id == descriptor.id) {
+                    currentImageInputMode = ImageInputMode.OCR
                     currentImageModel = null
+                    modelSelectionStore.saveSelectedImageInputMode(ImageInputMode.OCR)
                     modelSelectionStore.clearSelectedImageModel()
                     updateImageInputButtonDescriptions()
                     fastVlmImageInput?.close()
@@ -2123,13 +2307,15 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
-        if (currentImageModel?.id == descriptor.id) {
+        if (currentImageInputMode == ImageInputMode.FAST_VLM && currentImageModel?.id == descriptor.id) {
             dismissModelDialogAfterImageSelectionIfAllowed()
             return
         }
 
         if (modelFileResolver.isModelAvailable(descriptor)) {
+            currentImageInputMode = ImageInputMode.FAST_VLM
             currentImageModel = descriptor
+            modelSelectionStore.saveSelectedImageInputMode(ImageInputMode.FAST_VLM)
             modelSelectionStore.saveSelectedImageModel(descriptor.id)
             updateImageInputButtonDescriptions()
             refreshModelSelectionDialog()
@@ -2146,12 +2332,34 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
+        currentImageInputMode = ImageInputMode.OCR
         currentImageModel = null
+        modelSelectionStore.saveSelectedImageInputMode(ImageInputMode.OCR)
         modelSelectionStore.clearSelectedImageModel()
         updateImageInputButtonDescriptions()
         refreshModelSelectionDialog()
         dismissModelDialogAfterImageSelectionIfAllowed()
         showTransientMessage(getString(R.string.ocr_image_model_selected))
+        releaseFastVlmProcessorIfIdle()
+    }
+
+    private fun handleGemmaDirectImageModelSelection() {
+        if (isModelOperationInProgress) {
+            return
+        }
+        if (!isGemmaDirectImageInputAvailable()) {
+            showTransientMessage(getString(R.string.gemma_direct_image_model_unavailable))
+            return
+        }
+
+        currentImageInputMode = ImageInputMode.GEMMA_DIRECT
+        currentImageModel = null
+        modelSelectionStore.saveSelectedImageInputMode(ImageInputMode.GEMMA_DIRECT)
+        modelSelectionStore.clearSelectedImageModel()
+        updateImageInputButtonDescriptions()
+        refreshModelSelectionDialog()
+        dismissModelDialogAfterImageSelectionIfAllowed()
+        showTransientMessage(getString(R.string.gemma_direct_image_model_selected))
         releaseFastVlmProcessorIfIdle()
     }
 
@@ -2166,19 +2374,26 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
-        val imageModel = currentImageModel
-        if (imageModel == null) {
-            galleryOcrButton.contentDescription = getString(R.string.gallery_ocr_input)
-            cameraOcrButton.contentDescription = getString(R.string.camera_ocr_input)
-        } else {
-            galleryOcrButton.contentDescription = getString(
-                R.string.gallery_vlm_input,
-                imageModel.displayName
-            )
-            cameraOcrButton.contentDescription = getString(
-                R.string.camera_vlm_input,
-                imageModel.displayName
-            )
+        when (currentImageInputMode) {
+            ImageInputMode.OCR -> {
+                galleryOcrButton.contentDescription = getString(R.string.gallery_ocr_input)
+                cameraOcrButton.contentDescription = getString(R.string.camera_ocr_input)
+            }
+            ImageInputMode.FAST_VLM -> {
+                val imageModel = currentImageModel ?: ImageModelRegistry.fastVlm
+                galleryOcrButton.contentDescription = getString(
+                    R.string.gallery_vlm_input,
+                    imageModel.displayName
+                )
+                cameraOcrButton.contentDescription = getString(
+                    R.string.camera_vlm_input,
+                    imageModel.displayName
+                )
+            }
+            ImageInputMode.GEMMA_DIRECT -> {
+                galleryOcrButton.contentDescription = getString(R.string.gallery_gemma_direct_input)
+                cameraOcrButton.contentDescription = getString(R.string.camera_gemma_direct_input)
+            }
         }
     }
 

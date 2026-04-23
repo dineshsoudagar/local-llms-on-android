@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 data class ActiveChatSnapshot(
@@ -64,6 +65,7 @@ class PersistentChatController(
     private var currentGenerationStartedAtMillis: Long? = null
     private var currentThinkingStartedAtMillis: Long? = null
     private var currentThinkingFinishedAtMillis: Long? = null
+    private var currentGenerationImageFilePaths: List<String> = emptyList()
 
     init {
         val modelFileResolver = ModelFileResolver(appContext)
@@ -164,8 +166,12 @@ class PersistentChatController(
         publishState()
     }
 
-    fun sendPreparedPrompt(text: String, displayText: String = text): Boolean {
-        val preparedUserTurnId = preparedPromptUserTurnId ?: return sendPrompt(text, displayText)
+    fun sendPreparedPrompt(
+        text: String,
+        displayText: String = text,
+        imageFilePaths: List<String> = emptyList()
+    ): Boolean {
+        val preparedUserTurnId = preparedPromptUserTurnId ?: return sendPrompt(text, displayText, imageFilePaths)
         val prompt = text.trim()
         if (prompt.isEmpty() || generationJob != null || !_state.value.isReady) {
             return false
@@ -175,7 +181,7 @@ class PersistentChatController(
         if (preparedUserTurnIndex == -1) {
             preparedPromptUserTurnId = null
             streamingAssistantTurn = null
-            return sendPrompt(text, displayText)
+            return sendPrompt(text, displayText, imageFilePaths)
         }
 
         val displayPrompt = PromptPreprocessor.normalize(displayText)
@@ -187,10 +193,14 @@ class PersistentChatController(
         preparedPromptUserTurnId = null
         persistCurrentSession()
 
-        return startGeneration()
+        return startGeneration(imageFilePaths)
     }
 
-    fun sendPrompt(text: String, displayText: String = text): Boolean {
+    fun sendPrompt(
+        text: String,
+        displayText: String = text,
+        imageFilePaths: List<String> = emptyList()
+    ): Boolean {
         val prompt = text.trim()
         if (prompt.isEmpty() || generationJob != null || !_state.value.isReady) {
             return false
@@ -207,10 +217,10 @@ class PersistentChatController(
         preparedPromptUserTurnId = null
         persistCurrentSession()
 
-        return startGeneration()
+        return startGeneration(imageFilePaths)
     }
 
-    private fun startGeneration(): Boolean {
+    private fun startGeneration(imageFilePaths: List<String> = emptyList()): Boolean {
         if (generationJob != null || !_state.value.isReady) {
             return false
         }
@@ -223,6 +233,7 @@ class PersistentChatController(
         lastPublishedMarkdownTextLength = 0
         streamingAssistantTurn = ChatTurn(role = ChatRole.ASSISTANT, text = "", isStreaming = true)
         publishState(statusMessage = "", isGenerating = true)
+        currentGenerationImageFilePaths = imageFilePaths
 
         generationJob = scope.launch {
             try {
@@ -231,6 +242,7 @@ class PersistentChatController(
                         committedTurns.asModelMemoryTurns(),
                         thinkingEnabled,
                         currentModelInstruction(),
+                        currentGenerationImageFilePaths,
                         partialCallback@{ partial ->
                             if (generationId != currentGenerationId) {
                                 return@partialCallback
@@ -314,6 +326,8 @@ class PersistentChatController(
                     isGenerating = false
                 )
             } finally {
+                deleteTransientImageFiles(currentGenerationImageFilePaths)
+                currentGenerationImageFilePaths = emptyList()
                 generationJob = null
             }
         }
@@ -420,6 +434,8 @@ class PersistentChatController(
         liveMarkdownEnabled = false
         currentGenerationId = 0L
         preparedPromptUserTurnId = null
+        deleteTransientImageFiles(currentGenerationImageFilePaths)
+        currentGenerationImageFilePaths = emptyList()
         resetGenerationTimer()
         lastPublishedMarkdownWordCount = 0
         lastPublishedMarkdownTextLength = 0
@@ -561,6 +577,12 @@ class PersistentChatController(
 
     private fun countWords(text: String): Int {
         return Regex("\\S+").findAll(text).count()
+    }
+
+    private fun deleteTransientImageFiles(paths: List<String>) {
+        paths.forEach { path ->
+            runCatching { File(path).delete() }
+        }
     }
 
     private fun publishState(
