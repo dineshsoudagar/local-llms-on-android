@@ -247,7 +247,7 @@ object ImageModelRegistry {
         modelAssetName = FAST_VLM_MODEL_ASSET,
         displayNameOverride = "FastVLM 0.5B LiteRT",
         downloadSizeLabel = "1.16 GB",
-        recommendationLabel = "Image descriptions; best on devices with strong GPU or NPU memory",
+        recommendationLabel = "Use only for image descriptions\nBest for mid to high-end devices",
         estimatedDownloadBytes = 1_160_000_000L,
         downloadArtifacts = listOf(
             ModelDownloadFile(

@@ -144,25 +144,6 @@
                 tools:text="Model is ready" />
 
             <TextView
-                android:id="@+id/imageProcessingStatusView"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top|center_horizontal"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_status_chip"
-                android:elevation="8dp"
-                android:gravity="center"
-                android:maxWidth="280dp"
-                android:paddingHorizontal="18dp"
-                android:paddingVertical="8dp"
-                android:text="@string/image_input_processing_status"
-                android:textColor="?attr/colorStatusText"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:visibility="gone"
-                tools:text="Image is being processed" />
-
-            <TextView
                 android:id="@+id/transientMessageView"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

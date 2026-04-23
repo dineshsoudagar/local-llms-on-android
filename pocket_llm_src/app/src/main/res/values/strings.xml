@@ -91,12 +91,13 @@
     <string name="enable_thinking">Enable Thinking</string>
     <string name="model_picker_empty_subtitle">Choose a model</string>
     <string name="model_picker_title">Select Models</string>
-    <string name="model_picker_required_intro">Choose a chat model before you can start chatting offline. The image model controls how attached images are converted into context before sending.</string>
-    <string name="model_picker_optional_intro">Pick chat and image models anytime. OCR extracts text only; FastVLM describes the image and feeds that description to the chat model.</string>
+    <string name="model_picker_required_intro">Choose a chat model before chatting offline.\nThe image model converts attached images into context before sending.</string>
+    <string name="model_picker_optional_intro">Pick chat and image models anytime.\nOCR extracts text only; FastVLM describes images for the chat model.</string>
     <string name="model_picker_meta_format">%1$s - %2$s download</string>
     <string name="model_picker_compact_detail_format">%1$s - %2$s - %3$s - %4$s</string>
     <string name="chat_model_section_title">Chat model</string>
     <string name="image_model_section_title">Image model</string>
+    <string name="fast_vlm_image_model_detail">Use only for image descriptions\nBest for mid to high-end devices</string>
     <string name="ocr_image_model_name">OCR text extraction</string>
     <string name="ocr_image_model_meta">Built in - no download</string>
     <string name="ocr_image_model_detail">Extracts readable text only - %1$s</string>

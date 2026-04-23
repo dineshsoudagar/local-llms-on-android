@@ -58,6 +58,7 @@ class PersistentChatController(
     private var currentGenerationId: Long = 0L
     private var currentSessionId: String? = null
     private var currentSessionCreatedAtMillis: Long = 0L
+    private var preparedPromptUserTurnId: String? = null
     private var lastPublishedMarkdownWordCount: Int = 0
     private var lastPublishedMarkdownTextLength: Int = 0
     private var currentGenerationStartedAtMillis: Long? = null
@@ -127,10 +128,72 @@ class PersistentChatController(
         )
     }
 
-    fun sendPrompt(text: String, displayText: String = text) {
+    fun beginPromptPreparation(displayText: String, statusText: String): Boolean {
+        val displayPrompt = PromptPreprocessor.normalize(displayText)
+        if (
+            displayPrompt.isEmpty() ||
+            generationJob != null ||
+            preparedPromptUserTurnId != null ||
+            !_state.value.isReady
+        ) {
+            return false
+        }
+
+        ensureActiveSession()
+        val userTurn = ChatTurn(
+            role = ChatRole.USER,
+            text = displayPrompt
+        )
+        committedTurns += userTurn
+        preparedPromptUserTurnId = userTurn.id
+        streamingAssistantTurn = ChatTurn(
+            role = ChatRole.ASSISTANT,
+            text = "",
+            preResponseStatusText = statusText,
+            isStreaming = true
+        )
+        publishState(statusMessage = "")
+        return true
+    }
+
+    fun cancelPromptPreparation() {
+        val preparedUserTurnId = preparedPromptUserTurnId ?: return
+        committedTurns.removeAll { it.id == preparedUserTurnId }
+        preparedPromptUserTurnId = null
+        streamingAssistantTurn = null
+        publishState()
+    }
+
+    fun sendPreparedPrompt(text: String, displayText: String = text): Boolean {
+        val preparedUserTurnId = preparedPromptUserTurnId ?: return sendPrompt(text, displayText)
         val prompt = text.trim()
         if (prompt.isEmpty() || generationJob != null || !_state.value.isReady) {
-            return
+            return false
+        }
+
+        val preparedUserTurnIndex = committedTurns.indexOfFirst { it.id == preparedUserTurnId }
+        if (preparedUserTurnIndex == -1) {
+            preparedPromptUserTurnId = null
+            streamingAssistantTurn = null
+            return sendPrompt(text, displayText)
+        }
+
+        val displayPrompt = PromptPreprocessor.normalize(displayText)
+            .takeIf { it.isNotBlank() && it != prompt }
+        committedTurns[preparedUserTurnIndex] = committedTurns[preparedUserTurnIndex].copy(
+            text = prompt,
+            displayText = displayPrompt
+        )
+        preparedPromptUserTurnId = null
+        persistCurrentSession()
+
+        return startGeneration()
+    }
+
+    fun sendPrompt(text: String, displayText: String = text): Boolean {
+        val prompt = text.trim()
+        if (prompt.isEmpty() || generationJob != null || !_state.value.isReady) {
+            return false
         }
 
         ensureActiveSession()
@@ -141,7 +204,16 @@ class PersistentChatController(
             text = prompt,
             displayText = displayPrompt
         )
+        preparedPromptUserTurnId = null
         persistCurrentSession()
+
+        return startGeneration()
+    }
+
+    private fun startGeneration(): Boolean {
+        if (generationJob != null || !_state.value.isReady) {
+            return false
+        }
 
         val generationId = currentGenerationId + 1L
         currentGenerationId = generationId
@@ -245,6 +317,7 @@ class PersistentChatController(
                 generationJob = null
             }
         }
+        return true
     }
 
     fun cancelGeneration() {
@@ -307,6 +380,7 @@ class PersistentChatController(
             streamingAssistantTurn = null
             liveMarkdownEnabled = false
             currentGenerationId = 0L
+            preparedPromptUserTurnId = null
             resetGenerationTimer()
             lastPublishedMarkdownWordCount = 0
             lastPublishedMarkdownTextLength = 0
@@ -345,6 +419,7 @@ class PersistentChatController(
         streamingAssistantTurn = null
         liveMarkdownEnabled = false
         currentGenerationId = 0L
+        preparedPromptUserTurnId = null
         resetGenerationTimer()
         lastPublishedMarkdownWordCount = 0
         lastPublishedMarkdownTextLength = 0
@@ -355,6 +430,7 @@ class PersistentChatController(
         streamingAssistantTurn = null
         liveMarkdownEnabled = false
         currentGenerationId = 0L
+        preparedPromptUserTurnId = null
         currentSessionId = null
         currentSessionCreatedAtMillis = 0L
         resetGenerationTimer()
@@ -403,6 +479,7 @@ class PersistentChatController(
         streamingAssistantTurn = null
         liveMarkdownEnabled = false
         currentGenerationId = 0L
+        preparedPromptUserTurnId = null
         resetGenerationTimer()
         lastPublishedMarkdownWordCount = 0
         lastPublishedMarkdownTextLength = 0

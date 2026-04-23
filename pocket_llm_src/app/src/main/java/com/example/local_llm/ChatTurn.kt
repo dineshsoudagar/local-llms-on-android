@@ -12,6 +12,7 @@ data class ChatTurn(
     val role: ChatRole,
     val text: String,
     val displayText: String? = null,
+    val preResponseStatusText: String? = null,
     val thinkingText: String? = null,
     val thinkingDurationMillis: Long? = null,
     val stopped: Boolean = false,
@@ -25,6 +26,7 @@ data class ChatTurn(
 fun ChatTurn.asModelMemoryTurn(): ChatTurn {
     return copy(
         displayText = null,
+        preResponseStatusText = null,
         thinkingText = null,
         thinkingDurationMillis = null,
         stopped = false,

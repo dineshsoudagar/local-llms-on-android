@@ -82,6 +82,12 @@ open class PocketChatActivity : AppCompatActivity() {
         val displayText: String
     )
 
+    private data class ComposerDraft(
+        val typedText: String,
+        val typedTextWithoutVoice: String,
+        val voiceText: String?
+    )
+
     private enum class PendingImageStatus {
         PENDING,
         READING,
@@ -139,7 +145,6 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var pendingImageInputsScroll: HorizontalScrollView
     private lateinit var pendingImageInputsContainer: LinearLayout
     private lateinit var statusView: TextView
-    private lateinit var imageProcessingStatusView: TextView
     private lateinit var transientMessageView: TextView
     private var speechInput: SpeechInput? = null
     private var ocrInput: OcrInput? = null
@@ -247,7 +252,6 @@ open class PocketChatActivity : AppCompatActivity() {
         pendingImageInputsScroll = findViewById(R.id.pendingImageInputsScroll)
         pendingImageInputsContainer = findViewById(R.id.pendingImageInputsContainer)
         statusView = findViewById(R.id.statusView)
-        imageProcessingStatusView = findViewById(R.id.imageProcessingStatusView)
         transientMessageView = findViewById(R.id.transientMessageView)
         chatRecyclerView = findViewById(R.id.chatRecyclerView)
         speechInput = createSpeechInput()
@@ -376,7 +380,6 @@ open class PocketChatActivity : AppCompatActivity() {
         modelDownloadStateJob?.cancel()
         imagePreprocessingJob?.cancel()
         isImagePreprocessingForSend = false
-        updateImageProcessingStatus(false)
         stopCameraOcr()
         cameraOcrDialog?.dismiss()
         speechInput?.destroy()
@@ -700,35 +703,90 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
-        imagePreprocessingJob = lifecycleScope.launch {
-            try {
-                if (!preprocessPendingImagesForSend()) {
-                    return@launch
-                }
-                isImagePreprocessingForSend = false
-                updateImageProcessingStatus(false)
-                chatController?.let { applyChatState(it.state.value) }
+        val draft = captureComposerDraft()
+        val shouldPreprocessAfterSend = pendingImageInputs.any { it.status == PendingImageStatus.PENDING }
+        if (!shouldPreprocessAfterSend) {
+            val prompt = buildComposerPrompt(draft) ?: return
+            if (prompt.modelText.isBlank() || isModelOperationInProgress) {
+                return
+            }
 
-                val prompt = buildComposerPrompt() ?: return@launch
-                if (prompt.modelText.isBlank() || isModelOperationInProgress) {
-                    return@launch
-                }
-
-                clearSpeechInputState()
-                controller.sendPrompt(prompt.modelText, prompt.displayText)
+            clearSpeechInputState()
+            if (controller.sendPrompt(prompt.modelText, prompt.displayText)) {
                 inputEditText.text.clear()
                 clearPendingImageInputs()
                 refreshDrawerSessions()
+            }
+            return
+        }
+
+        val displayText = buildComposerDisplayText(draft.typedText, pendingImageInputs.size)
+        if (displayText.isBlank()) {
+            return
+        }
+
+        isImagePreprocessingForSend = true
+        autoScrollDuringGeneration = true
+        if (!controller.beginPromptPreparation(displayText, getString(R.string.image_input_processing_status))) {
+            isImagePreprocessingForSend = false
+            autoScrollDuringGeneration = false
+            applyChatState(controller.state.value)
+            return
+        }
+        clearSpeechInputState()
+        inputEditText.text.clear()
+        applyChatState(controller.state.value)
+
+        imagePreprocessingJob = lifecycleScope.launch {
+            var promptStarted = false
+            try {
+                if (!preprocessPendingImagesForSend()) {
+                    controller.cancelPromptPreparation()
+                    restoreComposerDraft(draft)
+                    return@launch
+                }
+                isImagePreprocessingForSend = false
+                chatController?.let { applyChatState(it.state.value) }
+
+                val prompt = buildComposerPrompt(draft) ?: run {
+                    controller.cancelPromptPreparation()
+                    restoreComposerDraft(draft)
+                    return@launch
+                }
+                if (prompt.modelText.isBlank() || isModelOperationInProgress) {
+                    controller.cancelPromptPreparation()
+                    restoreComposerDraft(draft)
+                    return@launch
+                }
+
+                promptStarted = controller.sendPreparedPrompt(prompt.modelText, prompt.displayText)
+                if (!promptStarted) {
+                    controller.cancelPromptPreparation()
+                    restoreComposerDraft(draft)
+                    return@launch
+                }
+                clearPendingImageInputs()
+                refreshDrawerSessions()
             } catch (_: CancellationException) {
+                if (!promptStarted) {
+                    controller.cancelPromptPreparation()
+                    restoreComposerDraft(draft)
+                }
                 // Activity shutdown or a future explicit cancellation stops preprocessing.
             } catch (error: Exception) {
+                if (!promptStarted) {
+                    controller.cancelPromptPreparation()
+                    restoreComposerDraft(draft)
+                }
                 showTransientMessage(error.message ?: getString(R.string.image_input_processing_failed))
             } finally {
                 imagePreprocessingJob = null
                 isImagePreprocessingForSend = false
-                updateImageProcessingStatus(false)
                 releaseFastVlmProcessorIfIdle()
                 chatController?.let { applyChatState(it.state.value) }
+                if (!promptStarted) {
+                    autoScrollDuringGeneration = false
+                }
             }
         }
     }
@@ -740,7 +798,6 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         isImagePreprocessingForSend = true
-        updateImageProcessingStatus(true)
         chatController?.let { applyChatState(it.state.value) }
 
         for (input in imagesToProcess) {
@@ -1036,15 +1093,6 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateImageProcessingStatus(visible: Boolean) {
-        if (!::imageProcessingStatusView.isInitialized) {
-            return
-        }
-
-        imageProcessingStatusView.text = getString(R.string.image_input_processing_status)
-        imageProcessingStatusView.visibility = if (visible) View.VISIBLE else View.GONE
-    }
-
     private fun promptDownloadImageModel(descriptor: FastVlmLiteRtSpec) {
         if (isModelOperationInProgress) {
             showTransientMessage(getString(R.string.model_operation_in_progress))
@@ -1183,7 +1231,7 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
-    private fun buildComposerPrompt(): ComposerPrompt? {
+    private fun captureComposerDraft(): ComposerDraft {
         val typedText = PromptPreprocessor.normalize(inputEditText.text.toString())
         val voiceText = currentVoiceTranscriptForPrompt(typedText)
         val typedTextWithoutVoice = if (voiceText != null) {
@@ -1191,6 +1239,21 @@ open class PocketChatActivity : AppCompatActivity() {
         } else {
             typedText
         }
+
+        return ComposerDraft(
+            typedText = typedText,
+            typedTextWithoutVoice = typedTextWithoutVoice,
+            voiceText = voiceText
+        )
+    }
+
+    private fun restoreComposerDraft(draft: ComposerDraft) {
+        if (draft.typedText.isNotBlank()) {
+            setPromptInputText(draft.typedText)
+        }
+    }
+
+    private fun buildComposerPrompt(draft: ComposerDraft = captureComposerDraft()): ComposerPrompt? {
         if (pendingImageInputs.any { it.status == PendingImageStatus.PENDING || it.status == PendingImageStatus.READING }) {
             showTransientMessage(getString(R.string.image_input_processing))
             return null
@@ -1204,8 +1267,8 @@ open class PocketChatActivity : AppCompatActivity() {
             it.status == PendingImageStatus.READY && !it.recognizedText.isNullOrBlank()
         }
         val modelText = buildSourceAwareModelText(
-            typedText = typedTextWithoutVoice,
-            voiceText = voiceText,
+            typedText = draft.typedTextWithoutVoice,
+            voiceText = draft.voiceText,
             images = readyImages
         )
         if (modelText.isBlank()) {
@@ -1214,7 +1277,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
         return ComposerPrompt(
             modelText = modelText,
-            displayText = buildComposerDisplayText(typedText, readyImages.size)
+            displayText = buildComposerDisplayText(draft.typedText, readyImages.size)
         )
     }
 
@@ -1687,13 +1750,17 @@ open class PocketChatActivity : AppCompatActivity() {
             else -> getString(R.string.model_status_not_downloaded)
         }
         statusTextView.text = statusText
-        recommendationView.text = getString(
-            R.string.model_picker_compact_detail_format,
-            descriptor.backendLabel,
-            descriptor.sizeLabel,
-            descriptor.deviceRecommendation,
-            statusText
-        )
+        recommendationView.text = if (descriptor is FastVlmLiteRtSpec) {
+            getString(R.string.fast_vlm_image_model_detail)
+        } else {
+            getString(
+                R.string.model_picker_compact_detail_format,
+                descriptor.backendLabel,
+                descriptor.sizeLabel,
+                descriptor.deviceRecommendation,
+                statusText
+            )
+        }
 
         actionButton.text = when {
             isDownloadingThisModel -> getString(R.string.stop_download)
@@ -2334,7 +2401,6 @@ open class PocketChatActivity : AppCompatActivity() {
     ) {
         inputEditText.textSize = currentSettings.chatFontSizeSp
         statusView.textSize = currentSettings.chatFontSizeSp
-        imageProcessingStatusView.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
         transientMessageView.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
         sendButton.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)
         stopButton.textSize = (currentSettings.chatFontSizeSp - 1f).coerceAtLeast(12f)

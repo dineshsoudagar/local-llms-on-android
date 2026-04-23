@@ -63,11 +63,14 @@ class ChatAdapter(
         val textColorAttr = if (turn.isUser) R.attr.colorUserText else R.attr.colorAssistantText
         val messageLayoutParams = holder.bubbleFrame.layoutParams as LinearLayout.LayoutParams
         val textLayoutParams = holder.textView.layoutParams as FrameLayout.LayoutParams
+        val statusLayoutParams = holder.preResponseStatusContainer.layoutParams as LinearLayout.LayoutParams
         val thoughtLayoutParams = holder.thoughtContainer.layoutParams as LinearLayout.LayoutParams
 
         holder.textView.setBackgroundResource(bubbleBackground)
         holder.textView.setTextColor(resolveThemeColor(holder.textView, textColorAttr))
         holder.textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp)
+        holder.preResponseStatusView.setTextColor(resolveThemeColor(holder.preResponseStatusView, R.attr.colorStatusText))
+        holder.preResponseStatusView.setTextSize(TypedValue.COMPLEX_UNIT_SP, (fontSizeSp - 2f).coerceAtLeast(12f))
         holder.thoughtHeaderView.setTextColor(resolveThemeColor(holder.thoughtHeaderView, R.attr.colorStatusText))
         holder.thoughtHeaderView.setTextSize(TypedValue.COMPLEX_UNIT_SP, (fontSizeSp - 2f).coerceAtLeast(12f))
         holder.thoughtView.setTextColor(resolveThemeColor(holder.thoughtView, R.attr.colorStatusText))
@@ -77,10 +80,17 @@ class ChatAdapter(
         messageLayoutParams.marginStart = calculateUserBubbleStartMargin(holder, turn.isUser)
         textLayoutParams.width = if (turn.isUser) ViewGroup.LayoutParams.WRAP_CONTENT else ViewGroup.LayoutParams.MATCH_PARENT
         holder.textView.maxWidth = calculateUserBubbleMaxWidth(holder, turn.isUser)
+        statusLayoutParams.width = ViewGroup.LayoutParams.MATCH_PARENT
         thoughtLayoutParams.width = ViewGroup.LayoutParams.MATCH_PARENT
         holder.bubbleFrame.layoutParams = messageLayoutParams
         holder.textView.layoutParams = textLayoutParams
+        holder.preResponseStatusContainer.layoutParams = statusLayoutParams
         holder.thoughtContainer.layoutParams = thoughtLayoutParams
+
+        val preResponseStatusText = turn.preResponseStatusText
+            ?.takeIf { !turn.isUser && it.isNotBlank() }
+        holder.preResponseStatusContainer.visibility = if (preResponseStatusText == null) View.GONE else View.VISIBLE
+        holder.preResponseStatusView.text = preResponseStatusText.orEmpty()
 
         val thoughtText = buildThoughtText(turn)
         val hasThought = !thoughtText.isNullOrBlank()
@@ -235,6 +245,8 @@ class ChatAdapter(
 
     class MessageViewHolder(view: View, val markwon: Markwon) : RecyclerView.ViewHolder(view) {
         val container: LinearLayout = view.findViewById(R.id.messageContainer)
+        val preResponseStatusContainer: LinearLayout = view.findViewById(R.id.preResponseStatusContainer)
+        val preResponseStatusView: TextView = view.findViewById(R.id.preResponseStatusView)
         val thoughtContainer: LinearLayout = view.findViewById(R.id.thoughtContainer)
         val thoughtHeaderView: TextView = view.findViewById(R.id.thoughtHeaderView)
         val thoughtView: TextView = view.findViewById(R.id.thoughtView)
