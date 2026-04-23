@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/bg_dialog_panel"
@@ -11,63 +10,30 @@
     android:paddingBottom="14dp">
 
     <TextView
-        android:id="@+id/cameraOcrDialogTitle"
+        android:id="@+id/cameraCropTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:text="@string/camera_ocr_title"
+        android:text="@string/camera_crop_title"
         android:textColor="?attr/colorAssistantText"
         android:textSize="20sp"
         android:textStyle="bold" />
 
-    <FrameLayout
+    <com.example.local_llm.CropImageView
+        android:id="@+id/cameraCropImageView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="14dp"
         android:layout_weight="1"
-        android:background="@color/black">
-
-        <androidx.camera.view.PreviewView
-            android:id="@+id/cameraPreviewView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            app:implementationMode="performance"
-            app:scaleType="fillCenter" />
-    </FrameLayout>
-
-    <LinearLayout
-        android:id="@+id/cameraControlRow"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/cameraZoomLabel"
-            android:layout_width="78dp"
-            android:layout_height="wrap_content"
-            android:text="@string/camera_zoom_label_default"
-            android:textColor="?attr/colorStatusText"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <SeekBar
-            android:id="@+id/cameraZoomSeekBar"
-            android:layout_width="0dp"
-            android:layout_height="44dp"
-            android:layout_weight="1"
-            android:max="100"
-            android:progress="0" />
-    </LinearLayout>
+        android:background="@color/black" />
 
     <TextView
-        android:id="@+id/cameraOcrStatus"
+        android:id="@+id/cameraCropStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
         android:gravity="center"
-        android:text="@string/camera_ocr_status_starting"
+        android:text="@string/camera_crop_status"
         android:textColor="?attr/colorStatusText"
         android:textSize="14sp"
         android:textStyle="bold" />
@@ -80,18 +46,26 @@
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/cameraOcrCancelButton"
+            android:id="@+id/cameraCropRetakeButton"
             style="@style/DialogSecondaryButton"
             android:layout_width="wrap_content"
             android:layout_height="48dp"
-            android:text="@string/cancel" />
+            android:text="@string/camera_retake_photo" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/cameraOcrCaptureButton"
+            android:id="@+id/cameraCropBackButton"
+            style="@style/DialogSecondaryButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:layout_marginStart="10dp"
+            android:text="@string/back" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/cameraCropUseButton"
             style="@style/DialogPrimaryButton"
             android:layout_width="wrap_content"
             android:layout_height="48dp"
             android:layout_marginStart="10dp"
-            android:text="@string/take_photo" />
+            android:text="@string/camera_use_crop" />
     </LinearLayout>
 </LinearLayout>

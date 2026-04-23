@@ -11,63 +11,32 @@
     android:paddingBottom="14dp">
 
     <TextView
-        android:id="@+id/cameraOcrDialogTitle"
+        android:id="@+id/cameraPhotoReviewTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
-        android:text="@string/camera_ocr_title"
+        android:text="@string/camera_photo_review_title"
         android:textColor="?attr/colorAssistantText"
         android:textSize="20sp"
         android:textStyle="bold" />
 
-    <FrameLayout
+    <ImageView
+        android:id="@+id/cameraPhotoReviewImage"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="14dp"
         android:layout_weight="1"
-        android:background="@color/black">
-
-        <androidx.camera.view.PreviewView
-            android:id="@+id/cameraPreviewView"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            app:implementationMode="performance"
-            app:scaleType="fillCenter" />
-    </FrameLayout>
-
-    <LinearLayout
-        android:id="@+id/cameraControlRow"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/cameraZoomLabel"
-            android:layout_width="78dp"
-            android:layout_height="wrap_content"
-            android:text="@string/camera_zoom_label_default"
-            android:textColor="?attr/colorStatusText"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-
-        <SeekBar
-            android:id="@+id/cameraZoomSeekBar"
-            android:layout_width="0dp"
-            android:layout_height="44dp"
-            android:layout_weight="1"
-            android:max="100"
-            android:progress="0" />
-    </LinearLayout>
+        android:background="@color/black"
+        android:contentDescription="@string/camera_photo_preview"
+        android:scaleType="fitCenter" />
 
     <TextView
-        android:id="@+id/cameraOcrStatus"
+        android:id="@+id/cameraPhotoReviewStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
         android:gravity="center"
-        android:text="@string/camera_ocr_status_starting"
+        android:text="@string/camera_photo_review_status"
         android:textColor="?attr/colorStatusText"
         android:textSize="14sp"
         android:textStyle="bold" />
@@ -80,18 +49,34 @@
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/cameraOcrCancelButton"
+            android:id="@+id/cameraPhotoRetakeButton"
             style="@style/DialogSecondaryButton"
             android:layout_width="wrap_content"
             android:layout_height="48dp"
-            android:text="@string/cancel" />
+            android:text="@string/camera_retake_photo" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/cameraOcrCaptureButton"
+            android:id="@+id/cameraPhotoCropButton"
+            style="@style/DialogSecondaryButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="10dp"
+            android:contentDescription="@string/camera_crop_action"
+            android:insetLeft="0dp"
+            android:insetRight="0dp"
+            android:minWidth="48dp"
+            android:paddingHorizontal="0dp"
+            android:text=""
+            app:icon="@drawable/ic_crop_24"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/cameraPhotoUseButton"
             style="@style/DialogPrimaryButton"
             android:layout_width="wrap_content"
             android:layout_height="48dp"
             android:layout_marginStart="10dp"
-            android:text="@string/take_photo" />
+            android:text="@string/camera_use_photo" />
     </LinearLayout>
 </LinearLayout>

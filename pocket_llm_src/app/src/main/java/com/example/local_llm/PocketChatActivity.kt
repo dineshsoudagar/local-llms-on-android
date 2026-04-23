@@ -42,6 +42,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatSpinner
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.Camera
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
@@ -76,6 +77,8 @@ open class PocketChatActivity : AppCompatActivity() {
         private const val FAST_VLM_MIN_NORMALIZED_DIMENSION = 256
         private const val FAST_VLM_EXTREME_ASPECT_RATIO = 4f
         private const val FAST_VLM_JPEG_QUALITY = 90
+        private const val CAMERA_CROP_MAX_IMAGE_DIMENSION = 1600
+        private const val CAMERA_CROP_JPEG_QUALITY = 95
     }
 
     private data class ModelDialogViews(
@@ -543,6 +546,8 @@ open class PocketChatActivity : AppCompatActivity() {
             .inflate(R.layout.dialog_camera_ocr, null)
         val titleView: TextView = dialogView.findViewById(R.id.cameraOcrDialogTitle)
         val previewView: PreviewView = dialogView.findViewById(R.id.cameraPreviewView)
+        val zoomLabelView: TextView = dialogView.findViewById(R.id.cameraZoomLabel)
+        val zoomSeekBar: SeekBar = dialogView.findViewById(R.id.cameraZoomSeekBar)
         val statusText: TextView = dialogView.findViewById(R.id.cameraOcrStatus)
         val cancelButton: Button = dialogView.findViewById(R.id.cameraOcrCancelButton)
         val captureButton: Button = dialogView.findViewById(R.id.cameraOcrCaptureButton)
@@ -579,10 +584,14 @@ open class PocketChatActivity : AppCompatActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
-        startCameraPreview(previewView)
+        startCameraPreview(previewView, zoomSeekBar, zoomLabelView)
     }
 
-    private fun startCameraPreview(previewView: PreviewView) {
+    private fun startCameraPreview(
+        previewView: PreviewView,
+        zoomSeekBar: SeekBar,
+        zoomLabelView: TextView
+    ) {
         cameraOcrStatusView?.text = getString(R.string.camera_ocr_status_starting)
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener(
@@ -609,7 +618,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
                 runCatching {
                     provider.unbindAll()
-                    provider.bindToLifecycle(
+                    val boundCamera = provider.bindToLifecycle(
                         this,
                         CameraSelector.DEFAULT_BACK_CAMERA,
                         preview,
@@ -617,6 +626,7 @@ open class PocketChatActivity : AppCompatActivity() {
                     )
                     cameraProvider = provider
                     cameraImageCapture = imageCapture
+                    configureCameraZoomControls(boundCamera, zoomSeekBar, zoomLabelView)
                     previewView.post {
                         previewView.display?.rotation?.let { rotation ->
                             cameraImageCapture?.targetRotation = rotation
@@ -629,6 +639,45 @@ open class PocketChatActivity : AppCompatActivity() {
             },
             ContextCompat.getMainExecutor(this)
         )
+    }
+
+    private fun configureCameraZoomControls(
+        boundCamera: Camera,
+        zoomSeekBar: SeekBar,
+        zoomLabelView: TextView
+    ) {
+        val zoomState = boundCamera.cameraInfo.zoomState.value
+        val minZoomRatio = zoomState?.minZoomRatio ?: 1f
+        val maxZoomRatio = zoomState?.maxZoomRatio ?: minZoomRatio
+        val hasZoom = maxZoomRatio > minZoomRatio + 0.01f
+
+        zoomSeekBar.max = 100
+        zoomSeekBar.progress = 0
+        zoomSeekBar.isEnabled = hasZoom
+        updateCameraZoomLabel(zoomLabelView, minZoomRatio)
+
+        zoomSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (!fromUser || !hasZoom) {
+                    return
+                }
+
+                val linearZoom = (progress / 100f).coerceIn(0f, 1f)
+                boundCamera.cameraControl.setLinearZoom(linearZoom)
+                updateCameraZoomLabel(
+                    zoomLabelView,
+                    minZoomRatio + ((maxZoomRatio - minZoomRatio) * linearZoom)
+                )
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+    }
+
+    private fun updateCameraZoomLabel(labelView: TextView, zoomRatio: Float) {
+        labelView.text = getString(R.string.camera_zoom_label_format, zoomRatio.coerceAtLeast(1f))
     }
 
     private fun captureCameraOcrPhoto(dialog: AlertDialog) {
@@ -645,12 +694,8 @@ open class PocketChatActivity : AppCompatActivity() {
             ContextCompat.getMainExecutor(this),
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                    addPendingImageInput(
-                        uri = Uri.fromFile(outputFile),
-                        source = OcrInput.Source.CAMERA,
-                        tempFilePath = outputFile.absolutePath
-                    )
                     dialog.dismiss()
+                    showCameraPhotoReviewDialog(outputFile)
                 }
 
                 override fun onError(exception: ImageCaptureException) {
@@ -661,6 +706,225 @@ open class PocketChatActivity : AppCompatActivity() {
                 }
             }
         )
+    }
+
+    private fun showCameraPhotoReviewDialog(photoFile: File) {
+        val reviewBitmap = runCatching { decodeBitmapForCameraCrop(photoFile) }.getOrElse { error ->
+            runCatching { photoFile.delete() }
+            val message = error.message ?: getString(R.string.image_input_file_error)
+            showTransientMessage(message)
+            return
+        }
+
+        val dialogBuilder = MaterialAlertDialogBuilder(this)
+        val dialogView = LayoutInflater.from(dialogBuilder.context)
+            .inflate(R.layout.dialog_camera_photo_review, null)
+        val previewImage: ImageView = dialogView.findViewById(R.id.cameraPhotoReviewImage)
+        val retakeButton: Button = dialogView.findViewById(R.id.cameraPhotoRetakeButton)
+        val cropButton: Button = dialogView.findViewById(R.id.cameraPhotoCropButton)
+        val useButton: Button = dialogView.findViewById(R.id.cameraPhotoUseButton)
+        previewImage.setImageBitmap(reviewBitmap)
+
+        val dialog = dialogBuilder
+            .setView(dialogView)
+            .create()
+        var handled = false
+
+        retakeButton.setOnClickListener {
+            handled = true
+            runCatching { photoFile.delete() }
+            dialog.dismiss()
+            showCameraOcrDialog()
+        }
+
+        cropButton.setOnClickListener {
+            handled = true
+            dialog.dismiss()
+            showCameraCropDialog(photoFile)
+        }
+
+        useButton.setOnClickListener {
+            handled = true
+            attachCameraPhoto(photoFile)
+            dialog.dismiss()
+        }
+
+        dialog.setOnDismissListener {
+            previewImage.setImageDrawable(null)
+            reviewBitmap.recycle()
+            if (!handled) {
+                runCatching { photoFile.delete() }
+            }
+        }
+
+        showPanelDialog(dialog)
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+    }
+
+    private fun showCameraCropDialog(photoFile: File) {
+        val sourceBitmap = runCatching { decodeBitmapForCameraCrop(photoFile) }.getOrElse { error ->
+            runCatching { photoFile.delete() }
+            val message = error.message ?: getString(R.string.image_input_file_error)
+            showTransientMessage(message)
+            return
+        }
+
+        val dialogBuilder = MaterialAlertDialogBuilder(this)
+        val dialogView = LayoutInflater.from(dialogBuilder.context)
+            .inflate(R.layout.dialog_camera_crop, null)
+        val cropImageView: CropImageView = dialogView.findViewById(R.id.cameraCropImageView)
+        val statusView: TextView = dialogView.findViewById(R.id.cameraCropStatus)
+        val retakeButton: Button = dialogView.findViewById(R.id.cameraCropRetakeButton)
+        val backButton: Button = dialogView.findViewById(R.id.cameraCropBackButton)
+        val useButton: Button = dialogView.findViewById(R.id.cameraCropUseButton)
+        cropImageView.setImageBitmap(sourceBitmap)
+
+        val dialog = dialogBuilder
+            .setView(dialogView)
+            .create()
+        var handled = false
+
+        retakeButton.setOnClickListener {
+            handled = true
+            runCatching { photoFile.delete() }
+            dialog.dismiss()
+            showCameraOcrDialog()
+        }
+
+        backButton.setOnClickListener {
+            handled = true
+            dialog.dismiss()
+            showCameraPhotoReviewDialog(photoFile)
+        }
+
+        useButton.setOnClickListener {
+            val finalOutputFile = runCatching {
+                val croppedBitmap = cropImageView.cropBitmap()
+                try {
+                    writeCroppedCameraPhoto(photoFile, croppedBitmap)
+                } finally {
+                    croppedBitmap.recycle()
+                }
+            }.getOrElse { error ->
+                val message = error.message ?: getString(R.string.camera_crop_failed)
+                statusView.text = message
+                showTransientMessage(message)
+                return@setOnClickListener
+            }
+
+            handled = true
+            attachCameraPhoto(finalOutputFile)
+            dialog.dismiss()
+        }
+
+        dialog.setOnDismissListener {
+            cropImageView.clearImage()
+            sourceBitmap.recycle()
+            if (!handled) {
+                runCatching { photoFile.delete() }
+            }
+        }
+
+        showPanelDialog(dialog)
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+    }
+
+    private fun attachCameraPhoto(photoFile: File) {
+        addPendingImageInput(
+            uri = Uri.fromFile(photoFile),
+            source = OcrInput.Source.CAMERA,
+            tempFilePath = photoFile.absolutePath
+        )
+    }
+
+    private fun writeCroppedCameraPhoto(originalFile: File, croppedBitmap: Bitmap): File {
+        val croppedFile = createCameraOcrOutputFile()
+        try {
+            FileOutputStream(croppedFile).use { output ->
+                val compressed = croppedBitmap.compress(
+                    Bitmap.CompressFormat.JPEG,
+                    CAMERA_CROP_JPEG_QUALITY,
+                    output
+                )
+                if (!compressed) {
+                    throw IOException(getString(R.string.camera_crop_failed))
+                }
+            }
+
+            if (croppedFile.length() <= 0L) {
+                throw IOException(getString(R.string.camera_crop_failed))
+            }
+
+            runCatching { originalFile.delete() }
+            return croppedFile
+        } catch (error: Exception) {
+            runCatching { croppedFile.delete() }
+            throw error
+        }
+    }
+
+    private fun decodeBitmapForCameraCrop(imageFile: File): Bitmap {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            runCatching {
+                val source = ImageDecoder.createSource(imageFile)
+                return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    val width = info.size.width
+                    val height = info.size.height
+                    if (width > 0 && height > 0) {
+                        val (targetWidth, targetHeight) = cameraCropTargetSize(width, height)
+                        decoder.setTargetSize(targetWidth, targetHeight)
+                    }
+                }
+            }.onFailure { error ->
+                Log.w(TAG, "ImageDecoder could not decode camera crop image; falling back to BitmapFactory.", error)
+            }
+        }
+
+        val bounds = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeFile(imageFile.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            throw IOException(getString(R.string.camera_crop_failed))
+        }
+
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = calculateCameraCropSampleSize(bounds.outWidth, bounds.outHeight)
+        }
+        return BitmapFactory.decodeFile(imageFile.absolutePath, options)
+            ?: throw IOException(getString(R.string.camera_crop_failed))
+    }
+
+    private fun cameraCropTargetSize(width: Int, height: Int): Pair<Int, Int> {
+        val largestDimension = max(width, height)
+        if (largestDimension <= CAMERA_CROP_MAX_IMAGE_DIMENSION) {
+            return width.coerceAtLeast(1) to height.coerceAtLeast(1)
+        }
+
+        val scale = CAMERA_CROP_MAX_IMAGE_DIMENSION.toFloat() / largestDimension.toFloat()
+        return (width * scale).toInt().coerceAtLeast(1) to
+            (height * scale).toInt().coerceAtLeast(1)
+    }
+
+    private fun calculateCameraCropSampleSize(width: Int, height: Int): Int {
+        val largestDimension = max(width, height)
+        if (largestDimension <= CAMERA_CROP_MAX_IMAGE_DIMENSION) {
+            return 1
+        }
+
+        val ratio = ceil(largestDimension.toDouble() / CAMERA_CROP_MAX_IMAGE_DIMENSION.toDouble()).toInt()
+        var sampleSize = 1
+        while (sampleSize * 2 <= ratio) {
+            sampleSize *= 2
+        }
+        return sampleSize.coerceAtLeast(1)
     }
 
     private fun createCameraOcrOutputFile(): File {

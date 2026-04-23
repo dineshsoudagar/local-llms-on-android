@@ -28,6 +28,18 @@
     <string name="camera_ocr_status_ready">Frame the text, then take a photo.</string>
     <string name="camera_image_status_ready">Frame the image, then take a photo.</string>
     <string name="camera_ocr_status_capturing">Capturing photo...</string>
+    <string name="camera_zoom_label_default">Zoom 1.0x</string>
+    <string name="camera_zoom_label_format">Zoom %1$.1fx</string>
+    <string name="camera_photo_review_title">Review Photo</string>
+    <string name="camera_photo_review_status">Use this photo, crop it, or retake.</string>
+    <string name="camera_photo_preview">Captured photo preview</string>
+    <string name="camera_crop_title">Crop Photo</string>
+    <string name="camera_crop_status">Drag the edges or corners to crop.</string>
+    <string name="camera_crop_action">Crop photo</string>
+    <string name="camera_crop_failed">Could not crop this photo.</string>
+    <string name="camera_use_photo">Use Photo</string>
+    <string name="camera_use_crop">Use Crop</string>
+    <string name="camera_retake_photo">Retake</string>
     <string name="take_photo">Take Photo</string>
     <string name="image_input_label">Image</string>
     <string name="photo_input_label">Photo</string>
@@ -56,6 +68,7 @@
     <string name="fast_vlm_download_required_title">Download image model</string>
     <string name="fast_vlm_download_required_message">%1$s must be downloaded before it can describe images.</string>
     <string name="cancel">Cancel</string>
+    <string name="back">Back</string>
     <string name="delete">Delete</string>
     <string name="delete_chat">Delete chat</string>
     <string name="delete_chat_confirmation">Delete this saved chat? This cannot be undone.</string>

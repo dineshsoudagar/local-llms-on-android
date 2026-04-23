@@ -18,14 +18,18 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import io.noties.markwon.Markwon
+import io.noties.markwon.ext.latex.JLatexMathPlugin
 import io.noties.markwon.ext.tables.TableAwareMovementMethod
 import io.noties.markwon.ext.tables.TablePlugin
+import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
+import kotlin.math.roundToInt
 
 class ChatAdapter(
     private var fontSizeSp: Float = 16f
 ) : ListAdapter<ChatTurn, ChatAdapter.MessageViewHolder>(DiffCallback) {
 
     private val expandedThoughtIds = mutableSetOf<String>()
+    private val markwonByTextSize = mutableMapOf<Int, Markwon>()
 
     companion object {
         private const val USER_BUBBLE_LEFT_SPACE_FRACTION = 0.15f
@@ -49,16 +53,12 @@ class ChatAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MessageViewHolder {
         val view = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_message, parent, false)
-        return MessageViewHolder(
-            view,
-            Markwon.builder(parent.context)
-                .usePlugin(TablePlugin.create(parent.context))
-                .build()
-        )
+        return MessageViewHolder(view)
     }
 
     override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
         val turn = getItem(position)
+        val markwon = markwonFor(holder.textView.context)
         val bubbleBackground = if (turn.isUser) R.drawable.bg_bubble_user else R.drawable.bg_bubble_bot
         val textColorAttr = if (turn.isUser) R.attr.colorUserText else R.attr.colorAssistantText
         val messageLayoutParams = holder.bubbleFrame.layoutParams as LinearLayout.LayoutParams
@@ -115,7 +115,7 @@ class ChatAdapter(
         }
         holder.thoughtView.visibility = if (isThoughtExpanded) View.VISIBLE else View.GONE
         if (isThoughtExpanded) {
-            holder.markwon.setMarkdown(holder.thoughtView, thoughtText.orEmpty())
+            markwon.setMarkdown(holder.thoughtView, normalizeEquationDelimiters(thoughtText.orEmpty()))
             holder.thoughtView.setTextSize(TypedValue.COMPLEX_UNIT_SP, (fontSizeSp - 1f).coerceAtLeast(12f))
         } else {
             holder.thoughtView.text = ""
@@ -136,7 +136,7 @@ class ChatAdapter(
             dp(holder.textView, BUBBLE_VERTICAL_PADDING_DP)
         )
         if (holder.textView.visibility == View.VISIBLE && !turn.isUser && turn.renderAsMarkdown) {
-            holder.markwon.setMarkdown(holder.textView, bubbleText)
+            markwon.setMarkdown(holder.textView, normalizeEquationDelimiters(bubbleText))
             holder.textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp)
         } else {
             holder.textView.text = bubbleText
@@ -150,6 +150,37 @@ class ChatAdapter(
         } else {
             holder.copyButton.setOnClickListener(null)
         }
+    }
+
+    private fun markwonFor(context: Context): Markwon {
+        val textSizeKey = (fontSizeSp * 10f).roundToInt()
+        return markwonByTextSize.getOrPut(textSizeKey) {
+            val textSizePx = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP,
+                fontSizeSp,
+                context.resources.displayMetrics
+            )
+            Markwon.builder(context)
+                .usePlugin(TablePlugin.create(context))
+                .usePlugin(MarkwonInlineParserPlugin.create())
+                .usePlugin(
+                    JLatexMathPlugin.create(textSizePx) { builder ->
+                        builder.inlinesEnabled(true)
+                        builder.errorHandler { _, _ -> null }
+                    }
+                )
+                .build()
+        }
+    }
+
+    private fun normalizeEquationDelimiters(markdown: String): String {
+        return markdown
+            .replace(Regex("""\\\[(.+?)\\\]""", RegexOption.DOT_MATCHES_ALL)) { match ->
+                "\n$$\n${match.groupValues[1].trim()}\n$$\n"
+            }
+            .replace(Regex("""\\\((.+?)\\\)""")) { match ->
+                "$$${match.groupValues[1].trim()}$$"
+            }
     }
 
     private fun buildThoughtText(turn: ChatTurn): String? {
@@ -243,7 +274,7 @@ class ChatAdapter(
         Toast.makeText(context, R.string.response_copied, Toast.LENGTH_SHORT).show()
     }
 
-    class MessageViewHolder(view: View, val markwon: Markwon) : RecyclerView.ViewHolder(view) {
+    class MessageViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val container: LinearLayout = view.findViewById(R.id.messageContainer)
         val preResponseStatusContainer: LinearLayout = view.findViewById(R.id.preResponseStatusContainer)
         val preResponseStatusView: TextView = view.findViewById(R.id.preResponseStatusView)
