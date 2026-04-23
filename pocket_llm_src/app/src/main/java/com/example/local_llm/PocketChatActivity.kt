@@ -5,15 +5,19 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ImageDecoder
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
 import android.text.format.Formatter
 import android.text.util.Linkify
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -67,7 +71,10 @@ import kotlin.math.max
 open class PocketChatActivity : AppCompatActivity() {
 
     companion object {
+        private const val TAG = "PocketChatActivity"
         private const val FAST_VLM_MAX_IMAGE_DIMENSION = 1024
+        private const val FAST_VLM_MIN_NORMALIZED_DIMENSION = 256
+        private const val FAST_VLM_EXTREME_ASPECT_RATIO = 4f
         private const val FAST_VLM_JPEG_QUALITY = 90
     }
 
@@ -80,6 +87,11 @@ open class PocketChatActivity : AppCompatActivity() {
     private data class ComposerPrompt(
         val modelText: String,
         val displayText: String
+    )
+
+    private data class ImagePreprocessingResult(
+        val text: String,
+        val tempFilePath: String?
     )
 
     private data class ComposerDraft(
@@ -668,6 +680,12 @@ open class PocketChatActivity : AppCompatActivity() {
         source: OcrInput.Source,
         tempFilePath: String? = null
     ) {
+        if (isImagePreprocessingForSend) {
+            tempFilePath?.let { runCatching { File(it).delete() } }
+            showTransientMessage(getString(R.string.image_input_processing))
+            return
+        }
+
         val imageModel = currentImageModel
         if (imageModel != null) {
             if (!modelFileResolver.isModelAvailable(imageModel)) {
@@ -704,9 +722,10 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         val draft = captureComposerDraft()
-        val shouldPreprocessAfterSend = pendingImageInputs.any { it.status == PendingImageStatus.PENDING }
+        val imagesForSend = pendingImageInputs.toList()
+        val shouldPreprocessAfterSend = imagesForSend.any { it.status == PendingImageStatus.PENDING }
         if (!shouldPreprocessAfterSend) {
-            val prompt = buildComposerPrompt(draft) ?: return
+            val prompt = buildComposerPrompt(draft, imagesForSend) ?: return
             if (prompt.modelText.isBlank() || isModelOperationInProgress) {
                 return
             }
@@ -720,7 +739,7 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
-        val displayText = buildComposerDisplayText(draft.typedText, pendingImageInputs.size)
+        val displayText = buildComposerDisplayText(draft.typedText, imagesForSend.size)
         if (displayText.isBlank()) {
             return
         }
@@ -735,27 +754,33 @@ open class PocketChatActivity : AppCompatActivity() {
         }
         clearSpeechInputState()
         inputEditText.text.clear()
+        detachPendingImageInputs()
         applyChatState(controller.state.value)
 
         imagePreprocessingJob = lifecycleScope.launch {
             var promptStarted = false
+            var processedImagesForSend = imagesForSend
             try {
-                if (!preprocessPendingImagesForSend()) {
+                val processedImages = preprocessImagesForSend(imagesForSend)
+                if (processedImages == null) {
                     controller.cancelPromptPreparation()
                     restoreComposerDraft(draft)
                     return@launch
                 }
+                processedImagesForSend = processedImages
                 isImagePreprocessingForSend = false
                 chatController?.let { applyChatState(it.state.value) }
 
-                val prompt = buildComposerPrompt(draft) ?: run {
+                val prompt = buildComposerPrompt(draft, processedImagesForSend) ?: run {
                     controller.cancelPromptPreparation()
                     restoreComposerDraft(draft)
+                    restorePendingImageInputs(processedImagesForSend)
                     return@launch
                 }
                 if (prompt.modelText.isBlank() || isModelOperationInProgress) {
                     controller.cancelPromptPreparation()
                     restoreComposerDraft(draft)
+                    restorePendingImageInputs(processedImagesForSend)
                     return@launch
                 }
 
@@ -763,20 +788,23 @@ open class PocketChatActivity : AppCompatActivity() {
                 if (!promptStarted) {
                     controller.cancelPromptPreparation()
                     restoreComposerDraft(draft)
+                    restorePendingImageInputs(processedImagesForSend)
                     return@launch
                 }
-                clearPendingImageInputs()
+                deletePendingImageTempFiles(imagesForSend + processedImagesForSend)
                 refreshDrawerSessions()
             } catch (_: CancellationException) {
                 if (!promptStarted) {
                     controller.cancelPromptPreparation()
                     restoreComposerDraft(draft)
+                    restorePendingImageInputs(processedImagesForSend)
                 }
                 // Activity shutdown or a future explicit cancellation stops preprocessing.
             } catch (error: Exception) {
                 if (!promptStarted) {
                     controller.cancelPromptPreparation()
                     restoreComposerDraft(draft)
+                    restorePendingImageInputs(processedImagesForSend)
                 }
                 showTransientMessage(error.message ?: getString(R.string.image_input_processing_failed))
             } finally {
@@ -791,66 +819,89 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun preprocessPendingImagesForSend(): Boolean {
-        val imagesToProcess = pendingImageInputs.filter { it.status == PendingImageStatus.PENDING }
-        if (imagesToProcess.isEmpty()) {
-            return true
+    private suspend fun preprocessImagesForSend(imagesForSend: List<PendingImageInput>): List<PendingImageInput>? {
+        val processedImages = imagesForSend.toMutableList()
+        if (processedImages.none { it.status == PendingImageStatus.PENDING }) {
+            return processedImages
         }
 
         isImagePreprocessingForSend = true
         chatController?.let { applyChatState(it.state.value) }
 
-        for (input in imagesToProcess) {
-            if (pendingImageInputs.none { it.id == input.id }) {
+        for (index in processedImages.indices) {
+            val input = processedImages[index]
+            if (input.status != PendingImageStatus.PENDING) {
                 continue
             }
 
-            updatePendingImageInput(
-                requestId = input.id,
+            val readingInput = input.copy(
                 status = PendingImageStatus.READING,
                 recognizedText = null,
                 errorMessage = null
             )
+            processedImages[index] = readingInput
 
-            val processedText = when (input.contextSource) {
+            val result = when (readingInput.contextSource) {
                 ImageInputContextSource.OCR -> runCatching {
-                    preprocessImageWithOcr(input)
+                    preprocessImageWithOcr(readingInput)
                 }.getOrElse { error ->
-                    markImagePreprocessingFailed(input, error)
-                    return false
+                    markImagePreprocessingFailed(processedImages, index, readingInput, error)
+                    return null
                 }
                 ImageInputContextSource.FAST_VLM -> runCatching {
-                    preprocessImageWithFastVlm(input)
+                    preprocessImageWithFastVlm(readingInput)
                 }.getOrElse { error ->
-                    markImagePreprocessingFailed(input, error)
-                    return false
+                    markImagePreprocessingFailed(processedImages, index, readingInput, error)
+                    return null
                 }
             }
 
-            if (processedText.isBlank()) {
-                val message = if (input.contextSource == ImageInputContextSource.OCR) {
+            if (result.text.isBlank()) {
+                val message = if (readingInput.contextSource == ImageInputContextSource.OCR) {
                     getString(R.string.ocr_no_text)
                 } else {
                     getString(R.string.fast_vlm_no_description)
                 }
-                markPendingImageInputFailed(input.id, message)
+                processedImages[index] = readingInput.copy(
+                    status = PendingImageStatus.FAILED,
+                    recognizedText = null,
+                    errorMessage = message,
+                    tempFilePath = result.tempFilePath
+                )
+                restorePendingImageInputs(processedImages)
                 showTransientMessage(message)
-                return false
+                return null
             }
 
-            updatePendingImageInput(
-                requestId = input.id,
+            processedImages[index] = readingInput.copy(
                 status = PendingImageStatus.READY,
-                recognizedText = processedText,
-                errorMessage = null
+                recognizedText = result.text,
+                errorMessage = null,
+                tempFilePath = result.tempFilePath
             )
         }
 
-        return true
+        return processedImages
     }
 
-    private fun markImagePreprocessingFailed(input: PendingImageInput, error: Throwable) {
-        val message = when {
+    private fun markImagePreprocessingFailed(
+        processedImages: MutableList<PendingImageInput>,
+        index: Int,
+        input: PendingImageInput,
+        error: Throwable
+    ) {
+        val message = imagePreprocessingErrorMessage(input, error)
+        processedImages[index] = input.copy(
+            status = PendingImageStatus.FAILED,
+            recognizedText = null,
+            errorMessage = message
+        )
+        restorePendingImageInputs(processedImages)
+        showTransientMessage(message)
+    }
+
+    private fun imagePreprocessingErrorMessage(input: PendingImageInput, error: Throwable): String {
+        return when {
             input.contextSource == ImageInputContextSource.FAST_VLM &&
                 error is FastVlmImageInput.FastVlmNoUsableOutputException -> error.message
                     ?: getString(R.string.fast_vlm_no_description)
@@ -860,18 +911,18 @@ open class PocketChatActivity : AppCompatActivity() {
                 ?: getString(R.string.ocr_no_text)
             else -> error.message ?: getString(R.string.image_input_processing_failed)
         }
-
-        markPendingImageInputFailed(input.id, message)
-        showTransientMessage(message)
     }
 
-    private suspend fun preprocessImageWithOcr(input: PendingImageInput): String {
+    private suspend fun preprocessImageWithOcr(input: PendingImageInput): ImagePreprocessingResult {
         val rawText = ocrInput?.recognizeImageUriText(input.uri)
             ?: throw IllegalStateException("OCR is not available.")
-        return PromptPreprocessor.normalize(rawText)
+        return ImagePreprocessingResult(
+            text = PromptPreprocessor.normalize(rawText),
+            tempFilePath = input.tempFilePath
+        )
     }
 
-    private suspend fun preprocessImageWithFastVlm(input: PendingImageInput): String {
+    private suspend fun preprocessImageWithFastVlm(input: PendingImageInput): ImagePreprocessingResult {
         val imageModel = ImageModelRegistry.fastVlm
         if (!modelFileResolver.isModelAvailable(imageModel)) {
             promptDownloadImageModel(imageModel)
@@ -879,48 +930,10 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         val imageFile = prepareFastVlmImageFile(input.uri, input.tempFilePath)
-        if (input.tempFilePath != imageFile.absolutePath) {
-            updatePendingImageTempFile(input.id, imageFile.absolutePath)
-        }
-
-        return ensureFastVlmImageInput(imageModel).describeImageFile(imageFile)
-    }
-
-    private fun markPendingImageInputFailed(requestId: Long, message: String) {
-        updatePendingImageInput(
-            requestId = requestId,
-            status = PendingImageStatus.FAILED,
-            recognizedText = null,
-            errorMessage = message
+        return ImagePreprocessingResult(
+            text = ensureFastVlmImageInput(imageModel).describeImageFile(imageFile),
+            tempFilePath = imageFile.absolutePath
         )
-    }
-
-    private fun updatePendingImageInput(
-        requestId: Long,
-        status: PendingImageStatus,
-        recognizedText: String?,
-        errorMessage: String?
-    ) {
-        val index = pendingImageInputs.indexOfFirst { it.id == requestId }
-        if (index == -1) {
-            return
-        }
-
-        pendingImageInputs[index] = pendingImageInputs[index].copy(
-            status = status,
-            recognizedText = recognizedText,
-            errorMessage = errorMessage
-        )
-        renderPendingImageInputs()
-    }
-
-    private fun updatePendingImageTempFile(requestId: Long, tempFilePath: String) {
-        val index = pendingImageInputs.indexOfFirst { it.id == requestId }
-        if (index == -1) {
-            return
-        }
-
-        pendingImageInputs[index] = pendingImageInputs[index].copy(tempFilePath = tempFilePath)
     }
 
     private fun removePendingImageInput(requestId: Long) {
@@ -956,6 +969,21 @@ open class PocketChatActivity : AppCompatActivity() {
         releaseFastVlmProcessorIfIdle()
     }
 
+    private fun detachPendingImageInputs() {
+        pendingImageInputs.clear()
+        renderPendingImageInputs()
+    }
+
+    private fun restorePendingImageInputs(inputs: List<PendingImageInput>) {
+        pendingImageInputs.clear()
+        pendingImageInputs.addAll(inputs)
+        renderPendingImageInputs()
+    }
+
+    private fun deletePendingImageTempFiles(inputs: List<PendingImageInput>) {
+        inputs.forEach(::deletePendingImageTempFile)
+    }
+
     private fun deletePendingImageTempFile(input: PendingImageInput) {
         input.tempFilePath?.let { path ->
             runCatching { File(path).delete() }
@@ -979,25 +1007,10 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun normalizeImageForFastVlm(uri: Uri, sourceFile: File?): File {
-        val bounds = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
-        openFastVlmImageInput(uri, sourceFile).use { input ->
-            BitmapFactory.decodeStream(input, null, bounds)
-        }
-
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-            throw IOException(getString(R.string.fast_vlm_image_decode_failed))
-        }
-
-        val decodeOptions = BitmapFactory.Options().apply {
-            inSampleSize = calculateFastVlmSampleSize(bounds.outWidth, bounds.outHeight)
-        }
-        val decodedBitmap = openFastVlmImageInput(uri, sourceFile).use { input ->
-            BitmapFactory.decodeStream(input, null, decodeOptions)
-        } ?: throw IOException(getString(R.string.fast_vlm_image_decode_failed))
-
-        val normalizedBitmap = scaleBitmapForFastVlm(decodedBitmap)
+        val decodedBitmap = decodeBitmapForFastVlm(uri, sourceFile)
+        val decodedWidth = decodedBitmap.width
+        val decodedHeight = decodedBitmap.height
+        val normalizedBitmap = normalizeBitmapForFastVlmJpeg(decodedBitmap)
         if (normalizedBitmap !== decodedBitmap) {
             decodedBitmap.recycle()
         }
@@ -1005,6 +1018,11 @@ open class PocketChatActivity : AppCompatActivity() {
         val directory = File(cacheDir, "fast_vlm_images").apply { mkdirs() }
         val outputFile = File.createTempFile("fast_vlm_input_", ".jpg", directory)
         try {
+            Log.d(
+                TAG,
+                "FastVLM normalized image: ${decodedWidth}x${decodedHeight} -> " +
+                    "${normalizedBitmap.width}x${normalizedBitmap.height}, source=${fastVlmSourceLabel(sourceFile)}"
+            )
             FileOutputStream(outputFile).use { output ->
                 val compressed = normalizedBitmap.compress(
                     Bitmap.CompressFormat.JPEG,
@@ -1027,6 +1045,62 @@ open class PocketChatActivity : AppCompatActivity() {
         } finally {
             normalizedBitmap.recycle()
         }
+    }
+
+    private fun decodeBitmapForFastVlm(uri: Uri, sourceFile: File?): Bitmap {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            decodeBitmapWithImageDecoder(uri, sourceFile)
+                .onSuccess { return it }
+                .onFailure { error ->
+                    Log.w(TAG, "ImageDecoder could not decode FastVLM image; falling back to BitmapFactory.", error)
+                }
+        }
+
+        return decodeBitmapWithBitmapFactory(uri, sourceFile)
+    }
+
+    private fun decodeBitmapWithImageDecoder(uri: Uri, sourceFile: File?): Result<Bitmap> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return Result.failure(UnsupportedOperationException("ImageDecoder requires Android 9 or newer."))
+        }
+
+        return runCatching {
+            val source = if (sourceFile != null && sourceFile.exists()) {
+                ImageDecoder.createSource(sourceFile)
+            } else {
+                ImageDecoder.createSource(contentResolver, uri)
+            }
+
+            ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                val width = info.size.width
+                val height = info.size.height
+                if (width > 0 && height > 0) {
+                    val (targetWidth, targetHeight) = fastVlmTargetSize(width, height)
+                    decoder.setTargetSize(targetWidth, targetHeight)
+                }
+            }
+        }
+    }
+
+    private fun decodeBitmapWithBitmapFactory(uri: Uri, sourceFile: File?): Bitmap {
+        val bounds = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        openFastVlmImageInput(uri, sourceFile).use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
+        }
+
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            throw IOException(getString(R.string.fast_vlm_image_decode_failed))
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = calculateFastVlmSampleSize(bounds.outWidth, bounds.outHeight)
+        }
+        return openFastVlmImageInput(uri, sourceFile).use { input ->
+            BitmapFactory.decodeStream(input, null, decodeOptions)
+        } ?: throw IOException(getString(R.string.fast_vlm_image_decode_failed))
     }
 
     private fun openFastVlmImageInput(uri: Uri, sourceFile: File?): java.io.InputStream {
@@ -1052,6 +1126,17 @@ open class PocketChatActivity : AppCompatActivity() {
         return sampleSize.coerceAtLeast(1)
     }
 
+    private fun fastVlmTargetSize(width: Int, height: Int): Pair<Int, Int> {
+        val largestDimension = max(width, height)
+        if (largestDimension <= FAST_VLM_MAX_IMAGE_DIMENSION) {
+            return width.coerceAtLeast(1) to height.coerceAtLeast(1)
+        }
+
+        val scale = FAST_VLM_MAX_IMAGE_DIMENSION.toFloat() / largestDimension.toFloat()
+        return (width * scale).toInt().coerceAtLeast(1) to
+            (height * scale).toInt().coerceAtLeast(1)
+    }
+
     private fun scaleBitmapForFastVlm(bitmap: Bitmap): Bitmap {
         val largestDimension = max(bitmap.width, bitmap.height)
         if (largestDimension <= FAST_VLM_MAX_IMAGE_DIMENSION) {
@@ -1062,6 +1147,51 @@ open class PocketChatActivity : AppCompatActivity() {
         val targetWidth = (bitmap.width * scale).toInt().coerceAtLeast(1)
         val targetHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
         return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+    }
+
+    private fun normalizeBitmapForFastVlmJpeg(bitmap: Bitmap): Bitmap {
+        val scaledBitmap = scaleBitmapForFastVlm(bitmap)
+        val outputBitmap = if (shouldPadBitmapForFastVlm(scaledBitmap)) {
+            val canvasSize = max(scaledBitmap.width, scaledBitmap.height)
+                .coerceAtLeast(FAST_VLM_MIN_NORMALIZED_DIMENSION)
+                .coerceAtMost(FAST_VLM_MAX_IMAGE_DIMENSION)
+            Bitmap.createBitmap(canvasSize, canvasSize, Bitmap.Config.ARGB_8888).also { canvasBitmap ->
+                val canvas = Canvas(canvasBitmap)
+                canvas.drawColor(Color.WHITE)
+                canvas.drawBitmap(
+                    scaledBitmap,
+                    ((canvasSize - scaledBitmap.width) / 2f).coerceAtLeast(0f),
+                    ((canvasSize - scaledBitmap.height) / 2f).coerceAtLeast(0f),
+                    null
+                )
+            }
+        } else if (scaledBitmap.hasAlpha()) {
+            Bitmap.createBitmap(scaledBitmap.width, scaledBitmap.height, Bitmap.Config.ARGB_8888).also { canvasBitmap ->
+                val canvas = Canvas(canvasBitmap)
+                canvas.drawColor(Color.WHITE)
+                canvas.drawBitmap(scaledBitmap, 0f, 0f, null)
+            }
+        } else {
+            scaledBitmap
+        }
+
+        if (outputBitmap !== scaledBitmap && scaledBitmap !== bitmap) {
+            scaledBitmap.recycle()
+        }
+        return outputBitmap
+    }
+
+    private fun shouldPadBitmapForFastVlm(bitmap: Bitmap): Boolean {
+        val smallerDimension = minOf(bitmap.width, bitmap.height).coerceAtLeast(1)
+        val largerDimension = max(bitmap.width, bitmap.height).coerceAtLeast(1)
+        return smallerDimension < FAST_VLM_MIN_NORMALIZED_DIMENSION &&
+            largerDimension.toFloat() / smallerDimension.toFloat() > FAST_VLM_EXTREME_ASPECT_RATIO
+    }
+
+    private fun fastVlmSourceLabel(sourceFile: File?): String {
+        return sourceFile?.let { file ->
+            "${file.name} (${file.length()} bytes)"
+        } ?: "content uri"
     }
 
     private fun ensureFastVlmImageInput(spec: FastVlmLiteRtSpec): FastVlmImageInput {
@@ -1253,17 +1383,20 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
-    private fun buildComposerPrompt(draft: ComposerDraft = captureComposerDraft()): ComposerPrompt? {
-        if (pendingImageInputs.any { it.status == PendingImageStatus.PENDING || it.status == PendingImageStatus.READING }) {
+    private fun buildComposerPrompt(
+        draft: ComposerDraft = captureComposerDraft(),
+        images: List<PendingImageInput> = pendingImageInputs
+    ): ComposerPrompt? {
+        if (images.any { it.status == PendingImageStatus.PENDING || it.status == PendingImageStatus.READING }) {
             showTransientMessage(getString(R.string.image_input_processing))
             return null
         }
-        if (pendingImageInputs.any { it.status == PendingImageStatus.FAILED }) {
+        if (images.any { it.status == PendingImageStatus.FAILED }) {
             showTransientMessage(getString(R.string.image_input_remove_failed))
             return null
         }
 
-        val readyImages = pendingImageInputs.filter {
+        val readyImages = images.filter {
             it.status == PendingImageStatus.READY && !it.recognizedText.isNullOrBlank()
         }
         val modelText = buildSourceAwareModelText(
