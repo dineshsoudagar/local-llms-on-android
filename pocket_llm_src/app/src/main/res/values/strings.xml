@@ -104,6 +104,8 @@
     <string name="accent_indigo">Indigo</string>
     <string name="accent_green">Green</string>
     <string name="accent_violet">Violet</string>
+    <string name="accent_amber">Amber</string>
+    <string name="accent_coral">Coral</string>
     <string name="font_size_label">Chat Font Size</string>
     <string name="font_size_preview">Preview text for the chat bubbles</string>
     <string name="save">Save</string>

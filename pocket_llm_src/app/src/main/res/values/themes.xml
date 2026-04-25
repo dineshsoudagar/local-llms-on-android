@@ -21,6 +21,10 @@
         <item name="colorSendStroke">@color/send_button_stroke</item>
         <item name="colorStopFill">@color/stop_button_fill</item>
         <item name="colorStopStroke">@color/stop_button_stroke</item>
+        <item name="colorAssistantGradientStart">@color/bot_bubble</item>
+        <item name="colorAssistantGradientEnd">@color/bot_bubble</item>
+        <item name="colorAccentGradientStart">@color/send_button_fill</item>
+        <item name="colorAccentGradientEnd">@color/send_button_fill</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">?attr/colorAppBackground</item>
     </style>
@@ -43,6 +47,10 @@
         <item name="colorInputText">@color/light_input_text</item>
         <item name="colorInputHint">@color/light_input_hint</item>
         <item name="colorStatusText">@color/light_status_text</item>
+        <item name="colorAssistantGradientStart">@color/light_user_bubble</item>
+        <item name="colorAssistantGradientEnd">@color/light_user_bubble</item>
+        <item name="colorAccentGradientStart">@color/send_button_fill</item>
+        <item name="colorAccentGradientEnd">@color/send_button_fill</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">?attr/colorAppBackground</item>
     </style>
@@ -56,6 +64,10 @@
         <item name="colorSendStroke">@color/midnight_send_stroke</item>
         <item name="colorStopFill">@color/midnight_stop_fill</item>
         <item name="colorStopStroke">@color/midnight_stop_stroke</item>
+        <item name="colorAssistantGradientStart">@color/midnight_assistant_bubble</item>
+        <item name="colorAssistantGradientEnd">@color/midnight_assistant_bubble</item>
+        <item name="colorAccentGradientStart">@color/midnight_send_fill</item>
+        <item name="colorAccentGradientEnd">@color/midnight_send_fill</item>
     </style>
 
     <style name="Theme.local_llm.Midnight.Light" parent="Theme.local_llm.Light">
@@ -64,6 +76,10 @@
         <item name="colorSendStroke">@color/midnight_send_stroke</item>
         <item name="colorStopFill">@color/midnight_stop_fill</item>
         <item name="colorStopStroke">@color/midnight_stop_stroke</item>
+        <item name="colorAssistantGradientStart">@color/light_midnight_user_bubble</item>
+        <item name="colorAssistantGradientEnd">@color/light_midnight_user_bubble</item>
+        <item name="colorAccentGradientStart">@color/midnight_send_fill</item>
+        <item name="colorAccentGradientEnd">@color/midnight_send_fill</item>
     </style>
 
     <style name="Theme.local_llm.Forest" parent="Theme.local_llm">
@@ -75,6 +91,10 @@
         <item name="colorSendStroke">@color/forest_send_stroke</item>
         <item name="colorStopFill">@color/forest_stop_fill</item>
         <item name="colorStopStroke">@color/forest_stop_stroke</item>
+        <item name="colorAssistantGradientStart">@color/forest_assistant_bubble</item>
+        <item name="colorAssistantGradientEnd">@color/forest_assistant_bubble</item>
+        <item name="colorAccentGradientStart">@color/forest_send_fill</item>
+        <item name="colorAccentGradientEnd">@color/forest_send_fill</item>
     </style>
 
     <style name="Theme.local_llm.Forest.Light" parent="Theme.local_llm.Light">
@@ -83,6 +103,10 @@
         <item name="colorSendStroke">@color/forest_send_stroke</item>
         <item name="colorStopFill">@color/forest_stop_fill</item>
         <item name="colorStopStroke">@color/forest_stop_stroke</item>
+        <item name="colorAssistantGradientStart">@color/light_forest_user_bubble</item>
+        <item name="colorAssistantGradientEnd">@color/light_forest_user_bubble</item>
+        <item name="colorAccentGradientStart">@color/forest_send_fill</item>
+        <item name="colorAccentGradientEnd">@color/forest_send_fill</item>
     </style>
 
     <style name="Theme.local_llm.Violet" parent="Theme.local_llm">
@@ -94,6 +118,10 @@
         <item name="colorSendStroke">@color/violet_send_stroke</item>
         <item name="colorStopFill">@color/violet_stop_fill</item>
         <item name="colorStopStroke">@color/violet_stop_stroke</item>
+        <item name="colorAssistantGradientStart">@color/violet_assistant_gradient_start</item>
+        <item name="colorAssistantGradientEnd">@color/violet_assistant_gradient_end</item>
+        <item name="colorAccentGradientStart">@color/violet_accent_gradient_start</item>
+        <item name="colorAccentGradientEnd">@color/violet_accent_gradient_end</item>
     </style>
 
     <style name="Theme.local_llm.Violet.Light" parent="Theme.local_llm.Light">
@@ -102,5 +130,59 @@
         <item name="colorSendStroke">@color/violet_send_stroke</item>
         <item name="colorStopFill">@color/violet_stop_fill</item>
         <item name="colorStopStroke">@color/violet_stop_stroke</item>
+        <item name="colorAssistantGradientStart">@color/light_violet_user_bubble</item>
+        <item name="colorAssistantGradientEnd">@color/light_violet_user_bubble</item>
+        <item name="colorAccentGradientStart">@color/violet_accent_gradient_start</item>
+        <item name="colorAccentGradientEnd">@color/violet_accent_gradient_end</item>
+    </style>
+
+    <style name="Theme.local_llm.Amber" parent="Theme.local_llm">
+        <item name="colorAssistantBubble">@color/amber_assistant_bubble</item>
+        <item name="colorStatusText">@color/amber_status_text</item>
+        <item name="colorSendFill">@color/amber_send_fill</item>
+        <item name="colorSendStroke">@color/amber_send_stroke</item>
+        <item name="colorStopFill">@color/amber_stop_fill</item>
+        <item name="colorStopStroke">@color/amber_stop_stroke</item>
+        <item name="colorAssistantGradientStart">@color/amber_assistant_bubble</item>
+        <item name="colorAssistantGradientEnd">@color/amber_assistant_bubble</item>
+        <item name="colorAccentGradientStart">@color/amber_send_fill</item>
+        <item name="colorAccentGradientEnd">@color/amber_send_fill</item>
+    </style>
+
+    <style name="Theme.local_llm.Amber.Light" parent="Theme.local_llm.Light">
+        <item name="colorAssistantBubble">@color/light_amber_user_bubble</item>
+        <item name="colorSendFill">@color/amber_send_fill</item>
+        <item name="colorSendStroke">@color/amber_send_stroke</item>
+        <item name="colorStopFill">@color/amber_stop_fill</item>
+        <item name="colorStopStroke">@color/amber_stop_stroke</item>
+        <item name="colorAssistantGradientStart">@color/light_amber_user_bubble</item>
+        <item name="colorAssistantGradientEnd">@color/light_amber_user_bubble</item>
+        <item name="colorAccentGradientStart">@color/amber_send_fill</item>
+        <item name="colorAccentGradientEnd">@color/amber_send_fill</item>
+    </style>
+
+    <style name="Theme.local_llm.Coral" parent="Theme.local_llm">
+        <item name="colorAssistantBubble">@color/coral_assistant_bubble</item>
+        <item name="colorStatusText">@color/coral_status_text</item>
+        <item name="colorSendFill">@color/coral_send_fill</item>
+        <item name="colorSendStroke">@color/coral_send_stroke</item>
+        <item name="colorStopFill">@color/coral_stop_fill</item>
+        <item name="colorStopStroke">@color/coral_stop_stroke</item>
+        <item name="colorAssistantGradientStart">@color/coral_assistant_gradient_start</item>
+        <item name="colorAssistantGradientEnd">@color/coral_assistant_gradient_end</item>
+        <item name="colorAccentGradientStart">@color/coral_accent_gradient_start</item>
+        <item name="colorAccentGradientEnd">@color/coral_accent_gradient_end</item>
+    </style>
+
+    <style name="Theme.local_llm.Coral.Light" parent="Theme.local_llm.Light">
+        <item name="colorAssistantBubble">@color/light_coral_user_bubble</item>
+        <item name="colorSendFill">@color/coral_send_fill</item>
+        <item name="colorSendStroke">@color/coral_send_stroke</item>
+        <item name="colorStopFill">@color/coral_stop_fill</item>
+        <item name="colorStopStroke">@color/coral_stop_stroke</item>
+        <item name="colorAssistantGradientStart">@color/light_coral_user_bubble</item>
+        <item name="colorAssistantGradientEnd">@color/light_coral_user_bubble</item>
+        <item name="colorAccentGradientStart">@color/coral_accent_gradient_start</item>
+        <item name="colorAccentGradientEnd">@color/coral_accent_gradient_end</item>
     </style>
 </resources>

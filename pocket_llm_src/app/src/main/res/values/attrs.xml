@@ -14,4 +14,8 @@
     <attr name="colorSendStroke" format="color" />
     <attr name="colorStopFill" format="color" />
     <attr name="colorStopStroke" format="color" />
+    <attr name="colorAssistantGradientStart" format="color" />
+    <attr name="colorAssistantGradientEnd" format="color" />
+    <attr name="colorAccentGradientStart" format="color" />
+    <attr name="colorAccentGradientEnd" format="color" />
 </resources>

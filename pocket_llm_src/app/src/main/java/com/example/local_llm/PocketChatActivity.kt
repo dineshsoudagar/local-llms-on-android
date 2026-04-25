@@ -79,6 +79,8 @@ open class PocketChatActivity : AppCompatActivity() {
         private const val FAST_VLM_JPEG_QUALITY = 90
         private const val CAMERA_CROP_MAX_IMAGE_DIMENSION = 1600
         private const val CAMERA_CROP_JPEG_QUALITY = 95
+        private const val SETTINGS_STATE_ORIGINAL_PREFIX = "settings_preview_original"
+        private const val SETTINGS_STATE_DRAFT_PREFIX = "settings_preview_draft"
     }
 
     private data class ModelDialogViews(
@@ -104,6 +106,18 @@ open class PocketChatActivity : AppCompatActivity() {
         val typedTextWithoutVoice: String,
         val voiceText: String?
     )
+
+    private data class SettingsDialogPreviewState(
+        val originalSettings: AppSettings,
+        val draftSettings: AppSettings
+    ) {
+        fun previewThemeSettings(): AppSettings {
+            return originalSettings.copy(
+                accent = draftSettings.accent,
+                appearance = draftSettings.appearance
+            )
+        }
+    }
 
     private enum class PendingImageStatus {
         PENDING,
@@ -132,6 +146,9 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private lateinit var settingsStore: AppSettingsStore
     private lateinit var currentSettings: AppSettings
+    private var settingsDialogPreviewState: SettingsDialogPreviewState? = null
+    private var isRecreatingForSettingsPreview = false
+    private var reopenSettingsDialogOnStart = false
     private lateinit var modelInstructionStore: ModelInstructionStore
     private lateinit var modelSelectionStore: ModelSelectionStore
     private lateinit var modelFileResolver: ModelFileResolver
@@ -243,7 +260,9 @@ open class PocketChatActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         settingsStore = AppSettingsStore(this)
-        currentSettings = settingsStore.load()
+        settingsDialogPreviewState = restoreSettingsDialogPreviewState(savedInstanceState)
+        currentSettings = settingsDialogPreviewState?.previewThemeSettings() ?: settingsStore.load()
+        reopenSettingsDialogOnStart = settingsDialogPreviewState != null
         modelInstructionStore = ModelInstructionStore(this)
         modelSelectionStore = ModelSelectionStore(this)
         modelFileResolver = ModelFileResolver(this)
@@ -384,7 +403,12 @@ open class PocketChatActivity : AppCompatActivity() {
         applyModelDownloadState(ModelDownloadStateStore.state.value)
         refreshDrawerSessions()
 
-        if (chatController == null) {
+        if (reopenSettingsDialogOnStart) {
+            chatRecyclerView.post {
+                reopenSettingsDialogOnStart = false
+                showSettingsDialog()
+            }
+        } else if (chatController == null) {
             chatRecyclerView.post {
                 showModelSelectionDialog(forceSelection = true)
             }
@@ -409,6 +433,14 @@ open class PocketChatActivity : AppCompatActivity() {
         clearPendingImageInputs()
         modelDialogViews?.dialog?.dismiss()
         super.onDestroy()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        settingsDialogPreviewState?.let { previewState ->
+            saveAppSettings(outState, SETTINGS_STATE_ORIGINAL_PREFIX, previewState.originalSettings)
+            saveAppSettings(outState, SETTINGS_STATE_DRAFT_PREFIX, previewState.draftSettings)
+        }
+        super.onSaveInstanceState(outState)
     }
 
     private fun requireUsableController(): PersistentChatController? {
@@ -2719,35 +2751,82 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun showSettingsDialog() {
         val dialogBuilder = MaterialAlertDialogBuilder(this)
-        val dialogView = LayoutInflater.from(dialogBuilder.context)
+        val dialogContext = dialogBuilder.context
+        val dialogView = LayoutInflater.from(dialogContext)
             .inflate(R.layout.dialog_settings, null)
+        val previewState = settingsDialogPreviewState
+        val originalSettings = previewState?.originalSettings ?: currentSettings
+        var draftSettings = previewState?.draftSettings ?: currentSettings
+        val accentOptions = AppAccentOption.entries.toList()
         val appearanceModeGroup: RadioGroup = dialogView.findViewById(R.id.appearanceModeGroup)
-        val accentColorGroup: RadioGroup = dialogView.findViewById(R.id.accentColorGroup)
+        val accentColorSpinner: AppCompatSpinner = dialogView.findViewById(R.id.accentColorSpinner)
         val fontSizeValue: TextView = dialogView.findViewById(R.id.fontSizeValue)
         val fontSizePreview: TextView = dialogView.findViewById(R.id.fontSizePreview)
         val fontSizeSeekBar: SeekBar = dialogView.findViewById(R.id.fontSizeSeekBar)
         val cancelButton: Button = dialogView.findViewById(R.id.settingsCancelButton)
         val saveButton: Button = dialogView.findViewById(R.id.settingsSaveButton)
 
-        when (currentSettings.appearance) {
+        val accentAdapter = ArrayAdapter(
+            dialogContext,
+            R.layout.item_instruction_preset_spinner,
+            accentOptions.map { dialogContext.getString(it.labelResId) }
+        ).apply {
+            setDropDownViewResource(R.layout.item_instruction_preset_dropdown)
+        }
+        accentColorSpinner.adapter = accentAdapter
+
+        when (draftSettings.appearance) {
             AppAppearanceMode.LIGHT -> appearanceModeGroup.check(R.id.appearanceLight)
             AppAppearanceMode.DARK -> appearanceModeGroup.check(R.id.appearanceDark)
         }
+        val initialAccentIndex = accentOptions.indexOf(draftSettings.accent).coerceAtLeast(0)
+        accentColorSpinner.setSelection(initialAccentIndex, false)
 
-        when (currentSettings.accent) {
-            AppAccentOption.OCEAN -> accentColorGroup.check(R.id.themeOcean)
-            AppAccentOption.MIDNIGHT -> accentColorGroup.check(R.id.themeMidnight)
-            AppAccentOption.FOREST -> accentColorGroup.check(R.id.themeForest)
-            AppAccentOption.VIOLET -> accentColorGroup.check(R.id.themeViolet)
+        val initialProgress = (draftSettings.chatFontSizeSp - 13f).toInt().coerceIn(0, 11)
+        fontSizeSeekBar.progress = initialProgress
+        updateFontSizePreview(fontSizeValue, fontSizePreview, draftSettings.chatFontSizeSp)
+
+        appearanceModeGroup.setOnCheckedChangeListener { _, checkedId ->
+            val selectedAppearance = when (checkedId) {
+                R.id.appearanceLight -> AppAppearanceMode.LIGHT
+                else -> AppAppearanceMode.DARK
+            }
+            if (draftSettings.appearance == selectedAppearance) {
+                return@setOnCheckedChangeListener
+            }
+            draftSettings = draftSettings.copy(appearance = selectedAppearance)
+            previewSettingsFromDialog(originalSettings, draftSettings)
         }
 
-        val initialProgress = (currentSettings.chatFontSizeSp - 13f).toInt().coerceIn(0, 11)
-        fontSizeSeekBar.progress = initialProgress
-        updateFontSizePreview(fontSizeValue, fontSizePreview, currentSettings.chatFontSizeSp)
+        var ignoreInitialAccentSelection = true
+        accentColorSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
+                if (ignoreInitialAccentSelection && position == initialAccentIndex) {
+                    ignoreInitialAccentSelection = false
+                    return
+                }
+                ignoreInitialAccentSelection = false
+                val selectedAccent = accentOptions.getOrNull(position) ?: return
+                if (draftSettings.accent == selectedAccent) {
+                    return
+                }
+                draftSettings = draftSettings.copy(accent = selectedAccent)
+                previewSettingsFromDialog(originalSettings, draftSettings)
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
 
         fontSizeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                updateFontSizePreview(fontSizeValue, fontSizePreview, 13f + progress)
+                val updatedFontSize = 13f + progress
+                draftSettings = draftSettings.copy(chatFontSizeSp = updatedFontSize)
+                updateFontSizePreview(fontSizeValue, fontSizePreview, updatedFontSize)
             }
 
             override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
@@ -2758,30 +2837,30 @@ open class PocketChatActivity : AppCompatActivity() {
         val dialog = dialogBuilder
             .setView(dialogView)
             .create()
+        var saveConfirmed = false
 
         cancelButton.setOnClickListener {
             dialog.dismiss()
         }
 
+        dialog.setOnDismissListener {
+            if (!saveConfirmed && !isRecreatingForSettingsPreview && !isChangingConfigurations) {
+                rollbackSettingsPreviewIfNeeded()
+            }
+        }
+
         saveButton.setOnClickListener {
-            val selectedAppearance = when (appearanceModeGroup.checkedRadioButtonId) {
-                R.id.appearanceLight -> AppAppearanceMode.LIGHT
-                else -> AppAppearanceMode.DARK
-            }
-            val selectedAccent = when (accentColorGroup.checkedRadioButtonId) {
-                R.id.themeMidnight -> AppAccentOption.MIDNIGHT
-                R.id.themeForest -> AppAccentOption.FOREST
-                R.id.themeViolet -> AppAccentOption.VIOLET
-                else -> AppAccentOption.OCEAN
-            }
-            val selectedFontSize = 13f + fontSizeSeekBar.progress
-            val updatedSettings = AppSettings(
+            val selectedAccent = accentOptions
+                .getOrNull(accentColorSpinner.selectedItemPosition)
+                ?: draftSettings.accent
+            val updatedSettings = draftSettings.copy(
                 accent = selectedAccent,
-                appearance = selectedAppearance,
-                chatFontSizeSp = selectedFontSize
+                chatFontSizeSp = 13f + fontSizeSeekBar.progress
             )
             val visualThemeChanged = updatedSettings.accent != currentSettings.accent ||
                 updatedSettings.appearance != currentSettings.appearance
+            saveConfirmed = true
+            settingsDialogPreviewState = null
             currentSettings = updatedSettings
             settingsStore.save(updatedSettings)
             dialog.dismiss()
@@ -2998,6 +3077,74 @@ open class PocketChatActivity : AppCompatActivity() {
     private fun showPanelDialog(dialog: AlertDialog) {
         dialog.show()
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+    }
+
+    private fun previewSettingsFromDialog(
+        originalSettings: AppSettings,
+        draftSettings: AppSettings
+    ) {
+        settingsDialogPreviewState = SettingsDialogPreviewState(
+            originalSettings = originalSettings,
+            draftSettings = draftSettings
+        )
+        val previewThemeSettings = settingsDialogPreviewState?.previewThemeSettings() ?: return
+        val visualThemeChanged = previewThemeSettings.accent != currentSettings.accent ||
+            previewThemeSettings.appearance != currentSettings.appearance
+        if (!visualThemeChanged) {
+            return
+        }
+        currentSettings = previewThemeSettings
+        isRecreatingForSettingsPreview = true
+        recreate()
+    }
+
+    private fun rollbackSettingsPreviewIfNeeded() {
+        val previewState = settingsDialogPreviewState ?: return
+        settingsDialogPreviewState = null
+        reopenSettingsDialogOnStart = false
+        val originalSettings = previewState.originalSettings
+        val visualThemeChanged = currentSettings.accent != originalSettings.accent ||
+            currentSettings.appearance != originalSettings.appearance
+        currentSettings = originalSettings
+        if (visualThemeChanged) {
+            recreate()
+        }
+    }
+
+    private fun restoreSettingsDialogPreviewState(savedInstanceState: Bundle?): SettingsDialogPreviewState? {
+        savedInstanceState ?: return null
+        val originalSettings = restoreAppSettings(savedInstanceState, SETTINGS_STATE_ORIGINAL_PREFIX)
+            ?: return null
+        val draftSettings = restoreAppSettings(savedInstanceState, SETTINGS_STATE_DRAFT_PREFIX)
+            ?: return null
+        return SettingsDialogPreviewState(
+            originalSettings = originalSettings,
+            draftSettings = draftSettings
+        )
+    }
+
+    private fun saveAppSettings(
+        outState: Bundle,
+        prefix: String,
+        settings: AppSettings
+    ) {
+        outState.putString("${prefix}_accent", settings.accent.name)
+        outState.putString("${prefix}_appearance", settings.appearance.name)
+        outState.putFloat("${prefix}_font_size", settings.chatFontSizeSp)
+    }
+
+    private fun restoreAppSettings(savedInstanceState: Bundle, prefix: String): AppSettings? {
+        val accentName = savedInstanceState.getString("${prefix}_accent") ?: return null
+        val appearanceName = savedInstanceState.getString("${prefix}_appearance") ?: return null
+        return AppSettings(
+            accent = AppAccentOption.fromStoredName(accentName),
+            appearance = runCatching {
+                AppAppearanceMode.valueOf(appearanceName)
+            }.getOrDefault(AppAppearanceMode.DARK),
+            chatFontSizeSp = savedInstanceState
+                .getFloat("${prefix}_font_size", 16f)
+                .coerceIn(13f, 24f)
+        )
     }
 
     private fun resolveThemeColor(attrId: Int): Int {

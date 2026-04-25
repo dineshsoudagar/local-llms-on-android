@@ -61,45 +61,15 @@
         android:textSize="16sp"
         android:textStyle="bold" />
 
-    <RadioGroup
-        android:id="@+id/accentColorGroup"
+    <androidx.appcompat.widget.AppCompatSpinner
+        android:id="@+id/accentColorSpinner"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:orientation="vertical">
-
-        <RadioButton
-            android:id="@+id/themeOcean"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:buttonTint="?attr/colorSendFill"
-            android:text="@string/accent_blue"
-            android:textColor="?attr/colorAssistantText" />
-
-        <RadioButton
-            android:id="@+id/themeMidnight"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:buttonTint="?attr/colorSendFill"
-            android:text="@string/accent_indigo"
-            android:textColor="?attr/colorAssistantText" />
-
-        <RadioButton
-            android:id="@+id/themeForest"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:buttonTint="?attr/colorSendFill"
-            android:text="@string/accent_green"
-            android:textColor="?attr/colorAssistantText" />
-
-        <RadioButton
-            android:id="@+id/themeViolet"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:buttonTint="?attr/colorSendFill"
-            android:text="@string/accent_violet"
-            android:textColor="?attr/colorAssistantText" />
-    </RadioGroup>
+        android:layout_height="48dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/rounded_edittext"
+        android:paddingHorizontal="12dp"
+        android:popupBackground="?attr/colorFrameBackground"
+        android:spinnerMode="dropdown" />
 
     <TextView
         android:id="@+id/fontSizeLabel"
