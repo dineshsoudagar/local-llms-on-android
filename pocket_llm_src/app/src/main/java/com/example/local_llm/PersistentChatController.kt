@@ -60,6 +60,7 @@ class PersistentChatController(
     private var currentSessionId: String? = null
     private var currentSessionCreatedAtMillis: Long = 0L
     private var preparedPromptUserTurnId: String? = null
+    private var preparedPromptTurnIds: Set<String> = emptySet()
     private var lastPublishedMarkdownWordCount: Int = 0
     private var lastPublishedMarkdownTextLength: Int = 0
     private var currentGenerationStartedAtMillis: Long? = null
@@ -130,10 +131,14 @@ class PersistentChatController(
         )
     }
 
-    fun beginPromptPreparation(displayText: String, statusText: String): Boolean {
+    fun beginPromptPreparation(
+        displayText: String,
+        statusText: String,
+        leadingTurns: List<ChatTurn> = emptyList()
+    ): Boolean {
         val displayPrompt = PromptPreprocessor.normalize(displayText)
         if (
-            displayPrompt.isEmpty() ||
+            (displayPrompt.isEmpty() && leadingTurns.isEmpty()) ||
             generationJob != null ||
             preparedPromptUserTurnId != null ||
             !_state.value.isReady
@@ -142,12 +147,15 @@ class PersistentChatController(
         }
 
         ensureActiveSession()
+        committedTurns += leadingTurns
         val userTurn = ChatTurn(
             role = ChatRole.USER,
-            text = displayPrompt
+            text = displayPrompt,
+            displayText = displayPrompt
         )
         committedTurns += userTurn
         preparedPromptUserTurnId = userTurn.id
+        preparedPromptTurnIds = (leadingTurns.map { it.id } + userTurn.id).toSet()
         streamingAssistantTurn = ChatTurn(
             role = ChatRole.ASSISTANT,
             text = "",
@@ -159,9 +167,12 @@ class PersistentChatController(
     }
 
     fun cancelPromptPreparation() {
-        val preparedUserTurnId = preparedPromptUserTurnId ?: return
-        committedTurns.removeAll { it.id == preparedUserTurnId }
+        if (preparedPromptTurnIds.isEmpty()) {
+            return
+        }
+        committedTurns.removeAll { it.id in preparedPromptTurnIds }
         preparedPromptUserTurnId = null
+        preparedPromptTurnIds = emptySet()
         streamingAssistantTurn = null
         publishState()
     }
@@ -169,9 +180,11 @@ class PersistentChatController(
     fun sendPreparedPrompt(
         text: String,
         displayText: String = text,
-        imageFilePaths: List<String> = emptyList()
+        imageFilePaths: List<String> = emptyList(),
+        leadingTurns: List<ChatTurn> = emptyList()
     ): Boolean {
-        val preparedUserTurnId = preparedPromptUserTurnId ?: return sendPrompt(text, displayText, imageFilePaths)
+        val preparedUserTurnId = preparedPromptUserTurnId
+            ?: return sendPrompt(text, displayText, imageFilePaths, leadingTurns)
         val prompt = text.trim()
         if (prompt.isEmpty() || generationJob != null || !_state.value.isReady) {
             return false
@@ -179,18 +192,20 @@ class PersistentChatController(
 
         val preparedUserTurnIndex = committedTurns.indexOfFirst { it.id == preparedUserTurnId }
         if (preparedUserTurnIndex == -1) {
+            committedTurns.removeAll { it.id in preparedPromptTurnIds }
             preparedPromptUserTurnId = null
+            preparedPromptTurnIds = emptySet()
             streamingAssistantTurn = null
-            return sendPrompt(text, displayText, imageFilePaths)
+            return sendPrompt(text, displayText, imageFilePaths, leadingTurns)
         }
 
-        val displayPrompt = PromptPreprocessor.normalize(displayText)
-            .takeIf { it.isNotBlank() && it != prompt }
+        val displayPrompt = normalizeDisplayPrompt(displayText, prompt)
         committedTurns[preparedUserTurnIndex] = committedTurns[preparedUserTurnIndex].copy(
             text = prompt,
             displayText = displayPrompt
         )
         preparedPromptUserTurnId = null
+        preparedPromptTurnIds = emptySet()
         persistCurrentSession()
 
         return startGeneration(imageFilePaths)
@@ -199,7 +214,8 @@ class PersistentChatController(
     fun sendPrompt(
         text: String,
         displayText: String = text,
-        imageFilePaths: List<String> = emptyList()
+        imageFilePaths: List<String> = emptyList(),
+        leadingTurns: List<ChatTurn> = emptyList()
     ): Boolean {
         val prompt = text.trim()
         if (prompt.isEmpty() || generationJob != null || !_state.value.isReady) {
@@ -207,14 +223,15 @@ class PersistentChatController(
         }
 
         ensureActiveSession()
-        val displayPrompt = PromptPreprocessor.normalize(displayText)
-            .takeIf { it.isNotBlank() && it != prompt }
+        committedTurns += leadingTurns
+        val displayPrompt = normalizeDisplayPrompt(displayText, prompt)
         committedTurns += ChatTurn(
             role = ChatRole.USER,
             text = prompt,
             displayText = displayPrompt
         )
         preparedPromptUserTurnId = null
+        preparedPromptTurnIds = emptySet()
         persistCurrentSession()
 
         return startGeneration(imageFilePaths)
@@ -395,6 +412,7 @@ class PersistentChatController(
             liveMarkdownEnabled = false
             currentGenerationId = 0L
             preparedPromptUserTurnId = null
+            preparedPromptTurnIds = emptySet()
             resetGenerationTimer()
             lastPublishedMarkdownWordCount = 0
             lastPublishedMarkdownTextLength = 0
@@ -434,6 +452,7 @@ class PersistentChatController(
         liveMarkdownEnabled = false
         currentGenerationId = 0L
         preparedPromptUserTurnId = null
+        preparedPromptTurnIds = emptySet()
         deleteTransientImageFiles(currentGenerationImageFilePaths)
         currentGenerationImageFilePaths = emptyList()
         resetGenerationTimer()
@@ -447,6 +466,7 @@ class PersistentChatController(
         liveMarkdownEnabled = false
         currentGenerationId = 0L
         preparedPromptUserTurnId = null
+        preparedPromptTurnIds = emptySet()
         currentSessionId = null
         currentSessionCreatedAtMillis = 0L
         resetGenerationTimer()
@@ -496,6 +516,7 @@ class PersistentChatController(
         liveMarkdownEnabled = false
         currentGenerationId = 0L
         preparedPromptUserTurnId = null
+        preparedPromptTurnIds = emptySet()
         resetGenerationTimer()
         lastPublishedMarkdownWordCount = 0
         lastPublishedMarkdownTextLength = 0
@@ -536,6 +557,18 @@ class PersistentChatController(
 
     private fun currentModelInstruction(): String {
         return modelInstructionStore.loadInstruction(modelDescriptor)
+    }
+
+    private fun normalizeDisplayPrompt(
+        displayText: String,
+        prompt: String
+    ): String? {
+        val normalizedDisplay = PromptPreprocessor.normalize(displayText)
+        return if (normalizedDisplay == prompt && normalizedDisplay.isNotBlank()) {
+            null
+        } else {
+            normalizedDisplay
+        }
     }
 
     private fun shouldEnableLiveMarkdown(partial: BackendResponse): Boolean {

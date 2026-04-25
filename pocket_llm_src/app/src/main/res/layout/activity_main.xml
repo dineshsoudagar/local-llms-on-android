@@ -494,54 +494,70 @@
             android:textSize="22sp"
             android:textStyle="bold" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:layout_marginBottom="10dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="20dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:includeFontPadding="false"
-                android:text="@string/previous_chats"
-                android:textAllCaps="true"
-                android:textColor="?attr/colorStatusText"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_marginStart="10dp"
-                android:layout_weight="1"
-                android:alpha="0.22"
-                android:background="?attr/colorStatusText" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/drawerChatsEmpty"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="20dp"
-            android:paddingBottom="8dp"
-            android:text="@string/no_saved_chats"
-            android:textColor="?attr/colorStatusText"
-            android:textSize="14sp"
-            android:visibility="gone" />
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/drawerChatsRecyclerView"
+        <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:clipToPadding="false"
-            android:overScrollMode="always"
-            android:paddingBottom="8dp"
-            android:paddingHorizontal="12dp" />
+            android:fillViewport="true"
+            android:overScrollMode="ifContentScrolls">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="18dp"
+                    android:layout_marginBottom="10dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="20dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:includeFontPadding="false"
+                        android:text="@string/previous_chats"
+                        android:textAllCaps="true"
+                        android:textColor="?attr/colorStatusText"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_marginStart="10dp"
+                        android:layout_weight="1"
+                        android:alpha="0.22"
+                        android:background="?attr/colorStatusText" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/drawerChatsEmpty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="20dp"
+                    android:paddingBottom="8dp"
+                    android:text="@string/no_saved_chats"
+                    android:textColor="?attr/colorStatusText"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/drawerChatsRecyclerView"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
+                    android:overScrollMode="never"
+                    android:paddingBottom="8dp"
+                    android:paddingHorizontal="12dp" />
+
+            </LinearLayout>
+        </androidx.core.widget.NestedScrollView>
 
         <View
             android:layout_width="match_parent"
@@ -575,6 +591,35 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="14dp"
                 android:text="@string/settings"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/drawerImagesRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:minHeight="52dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="20dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_image_24"
+                android:tint="?attr/colorStatusText" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:text="@string/images_section_title"
                 android:textColor="?attr/colorAssistantText"
                 android:textSize="16sp"
                 android:textStyle="bold" />

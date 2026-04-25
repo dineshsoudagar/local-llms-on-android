@@ -47,10 +47,16 @@
         <item name="colorInputText">@color/light_input_text</item>
         <item name="colorInputHint">@color/light_input_hint</item>
         <item name="colorStatusText">@color/light_status_text</item>
+        <item name="colorSendStroke">@color/light_control_stroke</item>
+        <item name="colorStopStroke">@color/light_stop_stroke</item>
         <item name="colorAssistantGradientStart">@color/light_user_bubble</item>
         <item name="colorAssistantGradientEnd">@color/light_user_bubble</item>
         <item name="colorAccentGradientStart">@color/send_button_fill</item>
         <item name="colorAccentGradientEnd">@color/send_button_fill</item>
+        <item name="colorControlActivated">?attr/colorSendFill</item>
+        <item name="colorControlNormal">?attr/colorSendStroke</item>
+        <item name="android:colorControlActivated">?attr/colorSendFill</item>
+        <item name="android:colorControlNormal">?attr/colorSendStroke</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">?attr/colorAppBackground</item>
     </style>

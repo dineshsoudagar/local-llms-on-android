@@ -11,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -22,10 +23,12 @@ import io.noties.markwon.ext.latex.JLatexMathPlugin
 import io.noties.markwon.ext.tables.TableAwareMovementMethod
 import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.inlineparser.MarkwonInlineParserPlugin
+import java.io.File
 import kotlin.math.roundToInt
 
 class ChatAdapter(
-    private var fontSizeSp: Float = 16f
+    private var fontSizeSp: Float = 16f,
+    private val onImageTurnSelected: (ChatTurn) -> Unit = {}
 ) : ListAdapter<ChatTurn, ChatAdapter.MessageViewHolder>(DiffCallback) {
 
     private val expandedThoughtIds = mutableSetOf<String>()
@@ -38,6 +41,8 @@ class ChatAdapter(
         private const val COPY_BUTTON_RESERVED_END_PADDING_DP = 36
         private const val THOUGHT_COLLAPSED_ICON = "\u25B8"
         private const val THOUGHT_EXPANDED_ICON = "\u25BE"
+        private const val IMAGE_BUBBLE_MAX_HEIGHT_DP = 320
+        private const val IMAGE_BUBBLE_MAX_WIDTH_FRACTION = 0.66f
     }
 
     fun submitTurns(turns: List<ChatTurn>) {
@@ -67,6 +72,7 @@ class ChatAdapter(
         val thoughtLayoutParams = holder.thoughtContainer.layoutParams as LinearLayout.LayoutParams
 
         holder.textView.setBackgroundResource(bubbleBackground)
+        holder.messageImage.setBackgroundResource(bubbleBackground)
         holder.textView.setTextColor(resolveThemeColor(holder.textView, textColorAttr))
         holder.textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp)
         holder.preResponseStatusView.setTextColor(resolveThemeColor(holder.preResponseStatusView, R.attr.colorStatusText))
@@ -121,9 +127,17 @@ class ChatAdapter(
             holder.thoughtView.text = ""
         }
 
+        if (turn.isImage) {
+            bindImageTurn(holder, turn, bubbleBackground)
+            return
+        }
+
         val bubbleText = buildBubbleText(turn)
         val hasBubbleText = bubbleText.isNotBlank()
         val canCopyResponse = !turn.isUser && hasBubbleText && !turn.isStreaming
+        holder.messageImage.visibility = View.GONE
+        holder.messageImage.setImageDrawable(null)
+        holder.bubbleFrame.setOnClickListener(null)
         holder.bubbleFrame.visibility = if (hasBubbleText) View.VISIBLE else View.GONE
         holder.textView.visibility = if (hasBubbleText) View.VISIBLE else View.GONE
         holder.textView.setPaddingRelative(
@@ -149,6 +163,56 @@ class ChatAdapter(
             }
         } else {
             holder.copyButton.setOnClickListener(null)
+        }
+    }
+
+    private fun bindImageTurn(
+        holder: MessageViewHolder,
+        turn: ChatTurn,
+        bubbleBackground: Int
+    ) {
+        holder.copyButton.visibility = View.GONE
+        holder.copyButton.setOnClickListener(null)
+        holder.bubbleFrame.visibility = View.VISIBLE
+        holder.messageImage.visibility = View.VISIBLE
+        holder.textView.visibility = View.GONE
+        holder.messageImage.setBackgroundResource(bubbleBackground)
+        holder.messageImage.maxWidth = calculateImageBubbleMaxWidth(holder)
+        holder.messageImage.maxHeight = dp(holder.messageImage, IMAGE_BUBBLE_MAX_HEIGHT_DP)
+        holder.textView.setPaddingRelative(
+            dp(holder.textView, BUBBLE_HORIZONTAL_PADDING_DP),
+            dp(holder.textView, BUBBLE_VERTICAL_PADDING_DP),
+            dp(holder.textView, BUBBLE_HORIZONTAL_PADDING_DP),
+            dp(holder.textView, BUBBLE_VERTICAL_PADDING_DP)
+        )
+
+        val imageFile = turn.imagePath?.let(::File)
+        if (imageFile == null || !imageFile.exists()) {
+            holder.messageImage.visibility = View.GONE
+            holder.textView.visibility = View.VISIBLE
+            holder.textView.setBackgroundResource(bubbleBackground)
+            holder.textView.text = holder.itemView.context.getString(R.string.saved_image_missing)
+            holder.bubbleFrame.setOnClickListener(null)
+            return
+        }
+
+        val previewBitmap = ImageBitmapLoader.decodeSampledBitmap(
+            imageFile = imageFile,
+            requestedWidth = holder.messageImage.maxWidth.coerceAtLeast(1),
+            requestedHeight = holder.messageImage.maxHeight.coerceAtLeast(1)
+        )
+        if (previewBitmap == null) {
+            holder.messageImage.visibility = View.GONE
+            holder.textView.visibility = View.VISIBLE
+            holder.textView.setBackgroundResource(bubbleBackground)
+            holder.textView.text = holder.itemView.context.getString(R.string.saved_image_missing)
+            holder.bubbleFrame.setOnClickListener(null)
+            return
+        }
+
+        holder.messageImage.setImageBitmap(previewBitmap)
+        holder.bubbleFrame.setOnClickListener {
+            onImageTurnSelected(turn)
         }
     }
 
@@ -207,7 +271,7 @@ class ChatAdapter(
 
     private fun buildBubbleText(turn: ChatTurn): String {
         if (turn.isUser) {
-            return turn.displayText ?: turn.text
+            return turn.transcriptText
         }
 
         return buildString {
@@ -251,6 +315,12 @@ class ChatAdapter(
             .coerceAtLeast(1)
     }
 
+    private fun calculateImageBubbleMaxWidth(holder: MessageViewHolder): Int {
+        return (availableMessageWidth(holder) * IMAGE_BUBBLE_MAX_WIDTH_FRACTION)
+            .toInt()
+            .coerceAtLeast(dp(holder.itemView, 140))
+    }
+
     private fun availableMessageWidth(holder: MessageViewHolder): Int {
         val containerWidth = holder.container.width.takeIf { it > 0 }
             ?: holder.itemView.resources.displayMetrics.widthPixels
@@ -282,6 +352,7 @@ class ChatAdapter(
         val thoughtHeaderView: TextView = view.findViewById(R.id.thoughtHeaderView)
         val thoughtView: TextView = view.findViewById(R.id.thoughtView)
         val bubbleFrame: FrameLayout = view.findViewById(R.id.messageBubbleFrame)
+        val messageImage: ImageView = view.findViewById(R.id.messageImage)
         val textView: TextView = view.findViewById(R.id.messageText)
         val copyButton: ImageButton = view.findViewById(R.id.copyResponseButton)
 

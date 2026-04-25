@@ -37,6 +37,10 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
         <activity
+            android:name=".ImageViewerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.local_llm" />
+        <activity
             android:name=".PocketChatActivity"
             android:exported="true"
             android:theme="@style/Theme.local_llm"

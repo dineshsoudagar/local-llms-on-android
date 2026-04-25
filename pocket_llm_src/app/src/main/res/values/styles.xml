@@ -83,4 +83,12 @@
         <item name="backgroundTint">?attr/colorFrameBackground</item>
     </style>
 
+    <style name="AppSeekBar" parent="Widget.AppCompat.SeekBar">
+        <item name="android:thumbTint">?attr/colorSendFill</item>
+        <item name="android:progressTint">?attr/colorSendFill</item>
+        <item name="android:secondaryProgressTint">?attr/colorSendStroke</item>
+        <item name="android:progressBackgroundTint">?attr/colorSendStroke</item>
+        <item name="android:splitTrack">false</item>
+    </style>
+
 </resources>

@@ -94,12 +94,16 @@ class ChatSessionStore(context: Context) {
                                 put("id", turn.id)
                                 put("role", turn.role.name)
                                 put("text", turn.text)
-                                turn.displayText?.let { put("displayText", it) }
+                                if (turn.displayText != null) {
+                                    put("displayText", turn.displayText)
+                                }
                                 turn.thinkingText?.let { put("thinkingText", it) }
                                 turn.thinkingDurationMillis?.let { put("thinkingDurationMillis", it) }
                                 put("stopped", turn.stopped)
                                 put("renderAsMarkdown", turn.renderAsMarkdown)
                                 put("isStreaming", turn.isStreaming)
+                                put("contentType", turn.contentType.name)
+                                turn.imagePath?.let { put("imagePath", it) }
                             }
                         )
                     }
@@ -118,13 +122,19 @@ class ChatSessionStore(context: Context) {
                         id = turnJson.optString("id").ifBlank { java.util.UUID.randomUUID().toString() },
                         role = ChatRole.valueOf(turnJson.getString("role")),
                         text = turnJson.optString("text"),
-                        displayText = turnJson.optString("displayText").takeIf { it.isNotBlank() },
+                        displayText = if (turnJson.has("displayText")) turnJson.getString("displayText") else null,
                         thinkingText = turnJson.optString("thinkingText").takeIf { it.isNotBlank() },
                         thinkingDurationMillis = turnJson.optLong("thinkingDurationMillis")
                             .takeIf { turnJson.has("thinkingDurationMillis") },
                         stopped = turnJson.optBoolean("stopped"),
                         renderAsMarkdown = turnJson.optBoolean("renderAsMarkdown", true),
-                        isStreaming = turnJson.optBoolean("isStreaming", false)
+                        isStreaming = turnJson.optBoolean("isStreaming", false),
+                        contentType = runCatching {
+                            ChatTurnContentType.valueOf(
+                                turnJson.optString("contentType", ChatTurnContentType.TEXT.name)
+                            )
+                        }.getOrDefault(ChatTurnContentType.TEXT),
+                        imagePath = if (turnJson.has("imagePath")) turnJson.getString("imagePath") else null
                     )
                 )
             }
@@ -143,15 +153,15 @@ class ChatSessionStore(context: Context) {
 
     private fun buildPreview(turns: List<ChatTurn>): String {
         return turns.lastOrNull { !it.isUser && it.text.isNotBlank() }?.text
-            ?: turns.firstOrNull { it.text.isNotBlank() }
-                ?.let { it.displayText ?: it.text }
+            ?: turns.firstOrNull { it.transcriptText.isNotBlank() }
+                ?.transcriptText
             ?: ""
     }
 }
 
 fun buildChatSessionTitle(turns: List<ChatTurn>): String {
     val compactPrompt = turns.lastOrNull { it.isUser }
-        ?.let { it.displayText ?: it.text }
+        ?.transcriptText
         .orEmpty()
         .lineSequence()
         .joinToString(" ")

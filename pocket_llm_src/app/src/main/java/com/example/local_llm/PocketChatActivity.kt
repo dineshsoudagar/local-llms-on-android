@@ -1,6 +1,7 @@
 package com.example.local_llm
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
@@ -55,14 +56,17 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -92,7 +96,8 @@ open class PocketChatActivity : AppCompatActivity() {
     private data class ComposerPrompt(
         val modelText: String,
         val displayText: String,
-        val imageFilePaths: List<String> = emptyList()
+        val imageFilePaths: List<String> = emptyList(),
+        val imageTurns: List<ChatTurn> = emptyList()
     )
 
     private data class ImagePreprocessingResult(
@@ -134,6 +139,8 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private data class PendingImageInput(
         val id: Long,
+        val savedImageId: String,
+        val savedImagePath: String,
         val uri: Uri,
         val source: OcrInput.Source,
         val contextSource: ImageInputContextSource,
@@ -153,6 +160,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var modelSelectionStore: ModelSelectionStore
     private lateinit var modelFileResolver: ModelFileResolver
     private lateinit var chatSessionStore: ChatSessionStore
+    private lateinit var savedImageStore: SavedImageStore
     private lateinit var retainedState: PocketChatViewModel
     private var currentModel: ModelDescriptor? = null
     private var currentImageInputMode: ImageInputMode = ImageInputMode.OCR
@@ -254,7 +262,7 @@ open class PocketChatActivity : AppCompatActivity() {
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         uri?.let { selectedImage ->
-            addPendingImageInput(selectedImage, OcrInput.Source.GALLERY)
+            importAndAddPendingImage(selectedImage, OcrInput.Source.GALLERY)
         }
     }
 
@@ -267,6 +275,7 @@ open class PocketChatActivity : AppCompatActivity() {
         modelSelectionStore = ModelSelectionStore(this)
         modelFileResolver = ModelFileResolver(this)
         chatSessionStore = ChatSessionStore(this)
+        savedImageStore = SavedImageStore(this)
         setTheme(currentSettings.accent.styleFor(currentSettings.appearance))
         super.onCreate(savedInstanceState)
         retainedState = ViewModelProvider(this)[PocketChatViewModel::class.java]
@@ -305,7 +314,12 @@ open class PocketChatActivity : AppCompatActivity() {
         toolbarSubtitleView.text = getString(R.string.model_picker_empty_subtitle)
         configureDrawer()
 
-        chatAdapter = ChatAdapter(currentSettings.chatFontSizeSp)
+        chatAdapter = ChatAdapter(
+            fontSizeSp = currentSettings.chatFontSizeSp,
+            onImageTurnSelected = { turn ->
+                turn.imagePath?.let(::openImageViewer)
+            }
+        )
         chatRecyclerView.layoutManager = LinearLayoutManager(this)
         chatRecyclerView.adapter = chatAdapter
         chatRecyclerView.itemAnimator = null
@@ -868,7 +882,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun attachCameraPhoto(photoFile: File) {
-        addPendingImageInput(
+        importAndAddPendingImage(
             uri = Uri.fromFile(photoFile),
             source = OcrInput.Source.CAMERA,
             tempFilePath = photoFile.absolutePath
@@ -930,8 +944,9 @@ open class PocketChatActivity : AppCompatActivity() {
         val options = BitmapFactory.Options().apply {
             inSampleSize = calculateCameraCropSampleSize(bounds.outWidth, bounds.outHeight)
         }
-        return BitmapFactory.decodeFile(imageFile.absolutePath, options)
+        val decodedBitmap = BitmapFactory.decodeFile(imageFile.absolutePath, options)
             ?: throw IOException(getString(R.string.camera_crop_failed))
+        return ImageBitmapLoader.applyExifOrientation(decodedBitmap, imageFile)
     }
 
     private fun cameraCropTargetSize(width: Int, height: Int): Pair<Int, Int> {
@@ -1008,13 +1023,34 @@ open class PocketChatActivity : AppCompatActivity() {
         cameraImageCapture = null
     }
 
-    private fun addPendingImageInput(
+    private fun importAndAddPendingImage(
         uri: Uri,
         source: OcrInput.Source,
         tempFilePath: String? = null
     ) {
+        lifecycleScope.launch {
+            val savedImage = runCatching {
+                withContext(Dispatchers.IO) {
+                    savedImageStore.importImage(uri, source, tempFilePath)
+                }
+            }.getOrElse { error ->
+                tempFilePath?.let { path -> runCatching { File(path).delete() } }
+                showTransientMessage(error.message ?: getString(R.string.image_input_file_error))
+                return@launch
+            }
+
+            tempFilePath?.let { path ->
+                if (path != savedImage.filePath) {
+                    runCatching { File(path).delete() }
+                }
+            }
+            addPendingImageInput(savedImage)
+            refreshDrawerSessions()
+        }
+    }
+
+    private fun addPendingImageInput(savedImage: SavedImageEntry) {
         if (isImagePreprocessingForSend) {
-            tempFilePath?.let { runCatching { File(it).delete() } }
             showTransientMessage(getString(R.string.image_input_processing))
             return
         }
@@ -1024,13 +1060,11 @@ open class PocketChatActivity : AppCompatActivity() {
         val imageModel = currentImageModel.takeIf { imageContextSource == ImageInputContextSource.FAST_VLM }
         if (imageModel != null) {
             if (!modelFileResolver.isModelAvailable(imageModel)) {
-                tempFilePath?.let { runCatching { File(it).delete() } }
                 promptDownloadImageModel(imageModel)
                 return
             }
         }
         if (imageContextSource == ImageInputContextSource.GEMMA_DIRECT && !isGemmaDirectImageInputAvailable()) {
-            tempFilePath?.let { runCatching { File(it).delete() } }
             showTransientMessage(getString(R.string.gemma_direct_image_model_unavailable))
             return
         }
@@ -1038,10 +1072,12 @@ open class PocketChatActivity : AppCompatActivity() {
         val requestId = nextPendingImageInputId++
         pendingImageInputs += PendingImageInput(
             id = requestId,
-            uri = uri,
-            source = source,
+            savedImageId = savedImage.imageId,
+            savedImagePath = savedImage.filePath,
+            uri = Uri.fromFile(File(savedImage.filePath)),
+            source = savedImage.source,
             contextSource = imageContextSource,
-            tempFilePath = tempFilePath
+            tempFilePath = null
         )
         renderPendingImageInputs()
     }
@@ -1071,7 +1107,14 @@ open class PocketChatActivity : AppCompatActivity() {
             }
 
             clearSpeechInputState()
-            if (controller.sendPrompt(prompt.modelText, prompt.displayText, prompt.imageFilePaths)) {
+            if (
+                controller.sendPrompt(
+                    prompt.modelText,
+                    prompt.displayText,
+                    prompt.imageFilePaths,
+                    prompt.imageTurns
+                )
+            ) {
                 inputEditText.text.clear()
                 clearPendingImageInputs(keepTempFilePaths = prompt.imageFilePaths.toSet())
                 refreshDrawerSessions()
@@ -1079,14 +1122,20 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
-        val displayText = buildComposerDisplayText(draft.typedText, imagesForSend.size)
-        if (displayText.isBlank()) {
+        val displayText = buildComposerDisplayText(draft.typedText)
+        if (displayText.isBlank() && imagesForSend.isEmpty()) {
             return
         }
 
         isImagePreprocessingForSend = true
         autoScrollDuringGeneration = true
-        if (!controller.beginPromptPreparation(displayText, getString(R.string.image_input_processing_status))) {
+        if (
+            !controller.beginPromptPreparation(
+                displayText = displayText,
+                statusText = getString(R.string.image_input_processing_status),
+                leadingTurns = buildImageChatTurns(imagesForSend)
+            )
+        ) {
             isImagePreprocessingForSend = false
             autoScrollDuringGeneration = false
             applyChatState(controller.state.value)
@@ -1448,15 +1497,21 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun decodeBitmapForFastVlm(uri: Uri, sourceFile: File?): Bitmap {
+        val orientationSourceFile = resolveImageSourceFile(uri, sourceFile)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             decodeBitmapWithImageDecoder(uri, sourceFile)
-                .onSuccess { return it }
+                .onSuccess { bitmap ->
+                    return ImageBitmapLoader.applyExifOrientation(bitmap, orientationSourceFile)
+                }
                 .onFailure { error ->
                     Log.w(TAG, "ImageDecoder could not decode FastVLM image; falling back to BitmapFactory.", error)
                 }
         }
 
-        return decodeBitmapWithBitmapFactory(uri, sourceFile)
+        return ImageBitmapLoader.applyExifOrientation(
+            decodeBitmapWithBitmapFactory(uri, sourceFile),
+            orientationSourceFile
+        )
     }
 
     private fun decodeBitmapWithImageDecoder(uri: Uri, sourceFile: File?): Result<Bitmap> {
@@ -1510,6 +1565,18 @@ open class PocketChatActivity : AppCompatActivity() {
 
         return contentResolver.openInputStream(uri)
             ?: throw IOException(getString(R.string.image_input_file_error))
+    }
+
+    private fun resolveImageSourceFile(uri: Uri, sourceFile: File?): File? {
+        if (sourceFile != null && sourceFile.exists()) {
+            return sourceFile
+        }
+
+        if (uri.scheme.equals("file", ignoreCase = true)) {
+            return uri.path?.let(::File)?.takeIf { it.exists() }
+        }
+
+        return null
     }
 
     private fun calculateFastVlmSampleSize(width: Int, height: Int): Int {
@@ -1670,7 +1737,16 @@ open class PocketChatActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(dp(34), dp(34))
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 setBackgroundColor(Color.BLACK)
-                setImageURI(input.uri)
+                val previewBitmap = ImageBitmapLoader.decodeSampledBitmap(
+                    imageFile = File(input.savedImagePath),
+                    requestedWidth = dp(34),
+                    requestedHeight = dp(34)
+                )
+                if (previewBitmap != null) {
+                    setImageBitmap(previewBitmap)
+                } else {
+                    setImageResource(R.drawable.ic_image_24)
+                }
             }
         )
 
@@ -1808,7 +1884,6 @@ open class PocketChatActivity : AppCompatActivity() {
                     !it.directImageFilePath.isNullOrBlank()
             }
             .mapNotNull { it.directImageFilePath }
-        val readyImageCount = readyTextImages.size + directGemmaImagePaths.size
         val modelText = buildSourceAwareModelText(
             typedText = draft.typedTextWithoutVoice,
             voiceText = draft.voiceText,
@@ -1827,8 +1902,9 @@ open class PocketChatActivity : AppCompatActivity() {
 
         return ComposerPrompt(
             modelText = modelText,
-            displayText = buildComposerDisplayText(draft.typedText, readyImageCount),
-            imageFilePaths = directGemmaImagePaths
+            displayText = buildComposerDisplayText(draft.typedText),
+            imageFilePaths = directGemmaImagePaths,
+            imageTurns = buildImageChatTurns(images)
         )
     }
 
@@ -1920,20 +1996,18 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
-    private fun buildComposerDisplayText(typedText: String, imageCount: Int): String {
-        if (imageCount <= 0) {
-            return typedText
-        }
+    private fun buildComposerDisplayText(typedText: String): String {
+        return typedText
+    }
 
-        val imageSummary = if (imageCount == 1) {
-            getString(R.string.image_input_display_one)
-        } else {
-            getString(R.string.image_input_display_many, imageCount)
-        }
-
-        return when {
-            typedText.isBlank() -> imageSummary
-            else -> "$typedText\n\n$imageSummary"
+    private fun buildImageChatTurns(images: List<PendingImageInput>): List<ChatTurn> {
+        return images.map { input ->
+            ChatTurn(
+                role = ChatRole.USER,
+                text = "",
+                contentType = ChatTurnContentType.IMAGE,
+                imagePath = input.savedImagePath
+            )
         }
     }
 
@@ -2471,6 +2545,13 @@ open class PocketChatActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<View>(R.id.drawerImagesRow).setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            drawerLayout.post {
+                showImageLibraryDialog()
+            }
+        }
+
         findViewById<View>(R.id.drawerModelSettingsRow).setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             drawerLayout.post {
@@ -2515,6 +2596,141 @@ open class PocketChatActivity : AppCompatActivity() {
             applyDeleteConfirmationButtonColors(dialog)
         }
         dialog.show()
+    }
+
+    private fun showImageLibraryDialog() {
+        val dialogBuilder = MaterialAlertDialogBuilder(this)
+        val dialogView = LayoutInflater.from(dialogBuilder.context)
+            .inflate(R.layout.dialog_image_library, null)
+        val subtitleView: TextView = dialogView.findViewById(R.id.imageLibrarySubtitle)
+        val emptyView: TextView = dialogView.findViewById(R.id.imageLibraryEmpty)
+        val recyclerView: RecyclerView = dialogView.findViewById(R.id.imageLibraryRecyclerView)
+        val closeButton: Button = dialogView.findViewById(R.id.imageLibraryCloseButton)
+        val deleteButton: Button = dialogView.findViewById(R.id.imageLibraryDeleteButton)
+        val images = savedImageStore.list()
+        val spanCount = ((resources.displayMetrics.widthPixels / resources.displayMetrics.density) / 120f)
+            .toInt()
+            .coerceAtLeast(2)
+
+        val dialog = dialogBuilder
+            .setView(dialogView)
+            .create()
+        val gridAdapter = SavedImageGridAdapter(
+            fontSizeSp = currentSettings.chatFontSizeSp,
+            onOpenImage = { image ->
+                dialog.dismiss()
+                openImageViewer(image.filePath)
+            },
+            onSelectionChanged = { selectedCount ->
+                subtitleView.text = if (selectedCount > 0) {
+                    getString(R.string.image_library_selection_count, selectedCount)
+                } else {
+                    getString(R.string.image_library_hint)
+                }
+                deleteButton.isEnabled = selectedCount > 0
+                deleteButton.text = if (selectedCount > 0) {
+                    getString(R.string.delete_selected_images_count, selectedCount)
+                } else {
+                    getString(R.string.delete_selected_images)
+                }
+            }
+        )
+
+        recyclerView.layoutManager = GridLayoutManager(this, spanCount)
+        recyclerView.adapter = gridAdapter
+        gridAdapter.submitImages(images)
+        emptyView.visibility = if (images.isEmpty()) View.VISIBLE else View.GONE
+        recyclerView.visibility = if (images.isEmpty()) View.GONE else View.VISIBLE
+
+        closeButton.setOnClickListener {
+            dialog.dismiss()
+        }
+        deleteButton.setOnClickListener {
+            val selectedIds = gridAdapter.selectedIds()
+            if (selectedIds.isEmpty()) {
+                return@setOnClickListener
+            }
+            confirmDeleteSavedImages(selectedIds, dialog)
+        }
+
+        showPanelDialog(dialog)
+    }
+
+    private fun confirmDeleteSavedImages(
+        imageIds: Set<String>,
+        parentDialog: AlertDialog? = null
+    ) {
+        if (isImagePreprocessingForSend && pendingImageInputs.any { it.savedImageId in imageIds }) {
+            showTransientMessage(getString(R.string.image_input_processing))
+            return
+        }
+
+        val confirmationMessage = if (imageIds.size == 1) {
+            getString(R.string.delete_image_confirmation)
+        } else {
+            getString(R.string.delete_images_confirmation, imageIds.size)
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.delete_image))
+            .setMessage(confirmationMessage)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(getString(R.string.delete)) { _, _ ->
+                parentDialog?.dismiss()
+                deleteSavedImages(imageIds)
+            }
+            .create()
+
+        dialog.setOnShowListener {
+            applyDeleteConfirmationButtonColors(dialog)
+        }
+        dialog.show()
+    }
+
+    private fun deleteSavedImages(imageIds: Set<String>) {
+        imageIds.forEach(::removePendingInputsForSavedImage)
+        val deletedCount = imageIds.count { imageId -> savedImageStore.delete(imageId) }
+        if (deletedCount <= 0) {
+            return
+        }
+
+        chatController?.let { applyChatState(it.state.value) }
+        chatAdapter.notifyDataSetChanged()
+        showTransientMessage(
+            if (deletedCount == 1) {
+                getString(R.string.image_deleted)
+            } else {
+                getString(R.string.images_deleted, deletedCount)
+            }
+        )
+    }
+
+    private fun removePendingInputsForSavedImage(imageId: String) {
+        val removedInputs = pendingImageInputs
+            .filter { it.savedImageId == imageId }
+            .toList()
+        if (removedInputs.isEmpty()) {
+            return
+        }
+
+        removedInputs.forEach { input ->
+            deletePendingImageTempFile(input)
+        }
+        pendingImageInputs.removeAll { it.savedImageId == imageId }
+        renderPendingImageInputs()
+        releaseFastVlmProcessorIfIdle()
+    }
+
+    private fun openImageViewer(imagePath: String) {
+        val imageFile = File(imagePath)
+        if (!imageFile.exists()) {
+            showTransientMessage(getString(R.string.saved_image_missing))
+            return
+        }
+
+        startActivity(
+            Intent(this, ImageViewerActivity::class.java)
+                .putExtra(ImageViewerActivity.EXTRA_IMAGE_PATH, imagePath)
+        )
     }
 
     private fun confirmDeleteModel(descriptor: ModelDescriptor) {

@@ -28,6 +28,8 @@
     <color name="light_input_text">#172033</color>
     <color name="light_input_hint">#788493</color>
     <color name="light_status_text">#607086</color>
+    <color name="light_control_stroke">#7D8FA6</color>
+    <color name="light_stop_stroke">#A77267</color>
     <color name="light_user_bubble">#D8EAFF</color>
     <color name="light_assistant_bubble">#F5EEE7</color>
     <color name="light_user_text">#10243F</color>

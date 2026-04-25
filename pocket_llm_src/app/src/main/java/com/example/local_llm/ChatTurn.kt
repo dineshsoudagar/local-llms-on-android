@@ -7,6 +7,11 @@ enum class ChatRole {
     ASSISTANT
 }
 
+enum class ChatTurnContentType {
+    TEXT,
+    IMAGE
+}
+
 data class ChatTurn(
     val id: String = UUID.randomUUID().toString(),
     val role: ChatRole,
@@ -17,13 +22,25 @@ data class ChatTurn(
     val thinkingDurationMillis: Long? = null,
     val stopped: Boolean = false,
     val renderAsMarkdown: Boolean = false,
-    val isStreaming: Boolean = false
+    val isStreaming: Boolean = false,
+    val contentType: ChatTurnContentType = ChatTurnContentType.TEXT,
+    val imagePath: String? = null
 ) {
     val isUser: Boolean
         get() = role == ChatRole.USER
+
+    val isImage: Boolean
+        get() = contentType == ChatTurnContentType.IMAGE
+
+    val transcriptText: String
+        get() = if (isImage) "" else displayText ?: text
 }
 
-fun ChatTurn.asModelMemoryTurn(): ChatTurn {
+fun ChatTurn.asModelMemoryTurn(): ChatTurn? {
+    if (isImage) {
+        return null
+    }
+
     return copy(
         displayText = null,
         preResponseStatusText = null,
@@ -31,10 +48,12 @@ fun ChatTurn.asModelMemoryTurn(): ChatTurn {
         thinkingDurationMillis = null,
         stopped = false,
         renderAsMarkdown = false,
-        isStreaming = false
+        isStreaming = false,
+        contentType = ChatTurnContentType.TEXT,
+        imagePath = null
     )
 }
 
 fun List<ChatTurn>.asModelMemoryTurns(): List<ChatTurn> {
-    return map { it.asModelMemoryTurn() }
+    return mapNotNull { it.asModelMemoryTurn() }
 }
