@@ -37,7 +37,7 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 ---
 
-✨ Features
+## ✨ Features
 
 - 📱 Fully on-device LLM chat for private offline use
 - 🎙️ Voice input for faster prompting
@@ -59,7 +59,7 @@ A privacy-first offline document intelligence system with persistent local RAG, 
   <tr>
     <td align="center">
       <img src="data/Chat.gif" alt="Model Output 1" width="260"/><br/>
-      <sub><b>Chat inference</b></sub>
+      <sub><b>Chat Inference</b></sub>
     </td>
     <td align="center">
       <img src="data/Image support.gif" alt="Model Output 2" width="260"/><br/>
@@ -73,7 +73,7 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 </table>
 
 <p align="center">
-  <em>Figure: App interface showing local LLM chat and streaming responses on Android.</em>
+  <em>Figure: Pocket LLM showing offline chat, image input, and the updated Android UI.</em>
 </p>
 
 ---
