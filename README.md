@@ -17,7 +17,7 @@ The app ships as a small base APK. Users download only the models they want, swi
 Pocket LLM now supports richer local input workflows beyond text chat.
 
 - 🎙️ Added voice input for faster prompting
-- 🖼️ Added image input with OCR, Gemma direct image input, and FastVLM image description support
+- 🖼️ Added image input with OCR and Gemma direct image input
 - 📷 Added camera capture with retake, crop, and photo review
 - 🗂️ Added a side panel for quick access to previous chats
 - 🗑️ Added easier chat deletion from the history panel
@@ -41,7 +41,7 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 - 📱 Fully on-device LLM chat for private offline use
 - 🎙️ Voice input for faster prompting
-- 🖼️ Image input with OCR, Gemma vision, and FastVLM support
+- 🖼️ Image input with OCR and Gemma native image support
 - 📷 Camera capture with retake, crop, and photo review
 - 💬 Persistent multi-turn chat with local history
 - 📦 Download, switch, and delete models inside the app
@@ -99,8 +99,7 @@ You can download **multiple models**, switch between them inside the app, and de
 ### Image input support
 
 - **OCR mode** - Extract text from images
-- **Gemma vision mode** - Use Gemma direct image input on supported models
-- **FastVLM mode** - Use lightweight image description for non-Gemma models
+- **Gemma native image mode** - Send images directly to supported Gemma models
 - **Camera capture** - Take a photo, retake, crop, review, and send it as input
 
 > Note: internet is required only for downloading models. Chat, OCR, image input, camera workflows, and inference remain fully on-device after the required models are installed.

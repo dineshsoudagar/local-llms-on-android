@@ -90,25 +90,6 @@ data class QwenLiteRtSpec(
     downloadFiles = downloadArtifacts
 )
 
-data class FastVlmLiteRtSpec(
-    val modelName: String,
-    val modelAssetName: String,
-    val displayNameOverride: String = modelName,
-    val downloadSizeLabel: String,
-    val recommendationLabel: String,
-    val estimatedDownloadBytes: Long,
-    val downloadArtifacts: List<ModelDownloadFile>
-) : ModelDescriptor(
-    id = modelName.lowercase(),
-    displayName = displayNameOverride,
-    supportsThinking = false,
-    backendLabel = "LiteRT VLM",
-    sizeLabel = downloadSizeLabel,
-    deviceRecommendation = recommendationLabel,
-    approxDownloadBytes = estimatedDownloadBytes,
-    downloadFiles = downloadArtifacts
-)
-
 object ModelRegistry {
     private const val TOKENIZER_ASSET = "tokenizer.json"
     private const val QWEN_MODEL_ASSET = "model.onnx"
@@ -239,39 +220,9 @@ object ModelRegistry {
     }
 }
 
-object ImageModelRegistry {
-    private const val FAST_VLM_MODEL_ASSET = "FastVLM-0.5B.litertlm"
-    private const val HF_BASE = "https://huggingface.co"
-
-    val fastVlm = FastVlmLiteRtSpec(
-        modelName = "FastVLM_0_5B",
-        modelAssetName = FAST_VLM_MODEL_ASSET,
-        displayNameOverride = "FastVLM 0.5B LiteRT",
-        downloadSizeLabel = "1.16 GB",
-        recommendationLabel = "Use only for image descriptions\nBest for mid to high-end devices",
-        estimatedDownloadBytes = 1_160_000_000L,
-        downloadArtifacts = listOf(
-            ModelDownloadFile(
-                localFileName = FAST_VLM_MODEL_ASSET,
-                downloadUrl = "$HF_BASE/litert-community/FastVLM-0.5B/resolve/main/FastVLM-0.5B.litertlm?download=true"
-            )
-        )
-    )
-
-    val all = listOf(fastVlm)
-
-    fun findById(id: String?): FastVlmLiteRtSpec? {
-        if (id.isNullOrBlank()) {
-            return null
-        }
-
-        return all.firstOrNull { it.id == id }
-    }
-}
-
 object DownloadableModelRegistry {
     fun findById(id: String?): ModelDescriptor? {
-        return ModelRegistry.findById(id) ?: ImageModelRegistry.findById(id)
+        return ModelRegistry.findById(id)
     }
 }
 
@@ -280,7 +231,6 @@ val ModelDescriptor.primaryModelFileName: String
         is OnnxQwenSpec -> modelAssetName
         is GemmaLiteRtSpec -> modelAssetName
         is QwenLiteRtSpec -> modelAssetName
-        is FastVlmLiteRtSpec -> modelAssetName
     }
 
 val ModelDescriptor.defaultInstruction: String
@@ -288,5 +238,4 @@ val ModelDescriptor.defaultInstruction: String
         is OnnxQwenSpec -> defaultSystemPrompt
         is GemmaLiteRtSpec -> defaultSystemInstruction
         is QwenLiteRtSpec -> defaultSystemInstruction
-        is FastVlmLiteRtSpec -> ""
     }

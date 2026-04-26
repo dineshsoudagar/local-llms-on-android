@@ -153,11 +153,7 @@ class ModelDownloadService : Service() {
                 }
 
                 val selectionStore = ModelSelectionStore(applicationContext)
-                if (descriptor is FastVlmLiteRtSpec) {
-                    selectionStore.saveSelectedImageModel(descriptor.id)
-                } else {
-                    selectionStore.saveSelectedModel(descriptor.id)
-                }
+                selectionStore.saveSelectedModel(descriptor.id)
                 val completedState = ModelDownloadState.Completed(
                     modelId = descriptor.id,
                     modelName = descriptor.displayName

@@ -11,8 +11,6 @@
     <string name="voice_input">Voice input</string>
     <string name="gallery_ocr_input">Read text from image</string>
     <string name="camera_ocr_input">Read text with camera</string>
-    <string name="gallery_vlm_input">Describe image with %1$s</string>
-    <string name="camera_vlm_input">Describe camera image with %1$s</string>
     <string name="gallery_gemma_direct_input">Send image directly to Gemma</string>
     <string name="camera_gemma_direct_input">Send camera image directly to Gemma</string>
     <string name="speech_listening">Listening</string>
@@ -45,7 +43,6 @@
     <string name="photo_input_label">Photo</string>
     <string name="image_input_pending">Attached</string>
     <string name="image_input_reading">Reading</string>
-    <string name="image_input_describing">Describing</string>
     <string name="image_input_preparing">Preparing</string>
     <string name="image_input_ready">Ready</string>
     <string name="image_input_failed">No text</string>
@@ -59,14 +56,9 @@
     <string name="remove_image_input">Remove image input</string>
     <string name="image_input_error_title">Image processing result</string>
     <string name="image_input_file_error">Could not prepare that image.</string>
-    <string name="fast_vlm_processing_failed">Could not describe that image with FastVLM.</string>
-    <string name="fast_vlm_no_description">FastVLM did not return an image description.</string>
-    <string name="fast_vlm_image_decode_failed">Could not decode this image for FastVLM. Try a JPEG or PNG image.</string>
     <string name="gemma_direct_default_prompt">Describe the attached image.</string>
     <string name="gemma_direct_image_processing_failed">Could not prepare that image for Gemma.</string>
     <string name="gemma_direct_image_model_unavailable">Direct Gemma image input requires the selected chat model to be Gemma.</string>
-    <string name="fast_vlm_download_required_title">Download image model</string>
-    <string name="fast_vlm_download_required_message">%1$s must be downloaded before it can describe images.</string>
     <string name="cancel">Cancel</string>
     <string name="back">Back</string>
     <string name="delete">Delete</string>
@@ -113,12 +105,11 @@
     <string name="model_picker_empty_subtitle">Choose a model</string>
     <string name="model_picker_title">Select Models</string>
     <string name="model_picker_required_intro">Choose a chat model before chatting offline.\nThe image input mode converts attached images into context before sending.</string>
-    <string name="model_picker_optional_intro">Pick chat and image input modes anytime.\nOCR extracts text; FastVLM describes images; Gemma can use direct image input.</string>
+    <string name="model_picker_optional_intro">Pick chat and image input modes anytime.\nNon-Gemma models use OCR; Gemma can use OCR or direct image input.</string>
     <string name="model_picker_meta_format">%1$s - %2$s download</string>
     <string name="model_picker_compact_detail_format">%1$s - %2$s - %3$s - %4$s</string>
     <string name="chat_model_section_title">Chat model</string>
     <string name="image_model_section_title">Image Input Mode</string>
-    <string name="fast_vlm_image_model_detail">Image description for non-Gemma models. Experimental.</string>
     <string name="ocr_image_model_name">OCR text extraction</string>
     <string name="ocr_image_model_meta">Built in - no download</string>
     <string name="ocr_image_model_detail">Extracts readable text only - %1$s</string>
@@ -127,7 +118,6 @@
     <string name="gemma_direct_image_model_detail">Sends the image directly to Gemma - %1$s</string>
     <string name="ocr_image_model_selected">Image input will use OCR.</string>
     <string name="gemma_direct_image_model_selected">Image input will go directly to Gemma.</string>
-    <string name="image_model_selected">Image input will use %1$s.</string>
     <string name="model_required_message">Choose a model to continue.</string>
     <string name="model_missing_message">%1$s is not available on this device yet. Download it or choose another model.</string>
     <string name="model_loading_message">Wait for the selected model to finish loading.</string>
@@ -148,7 +138,6 @@
     <string name="delete_model">Delete model</string>
     <string name="delete_model_confirmation">Delete the downloaded files for %1$s? You can download them again later.</string>
     <string name="delete_model_current_blocked">Switch to another model before deleting this one.</string>
-    <string name="delete_image_model_processing_blocked">Wait for image processing to finish before deleting this image model.</string>
     <string name="delete_model_failed">Could not delete %1$s.</string>
     <string name="model_deleted_message">%1$s deleted.</string>
     <string name="model_download_preparing">Preparing download for %1$s...</string>
