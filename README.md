@@ -12,15 +12,19 @@ Unlike older builds, the app now ships as a **small base APK**. Users choose and
 
 ---
 
-## 🆕 New in v1.4.0
+## 🆕 New in v1.5.0
 
-- Switched to a **smaller base APK**
-- Models are **no longer bundled inside the APK**
-- Added **first-launch model selection** with on-device model downloads
-- Added support for **downloading multiple models**
-- Added support for **switching between downloaded models** inside the app
-- Retained thinking text in a **collapsible section** for supported models
-- Added **basic UI and usability improvements**
+Pocket LLM now supports richer local input workflows beyond text chat.
+
+- 🎙️ Added voice input for faster prompting
+- 🖼️ Added image input with OCR, Gemma direct image input, and FastVLM image description support
+- 📷 Added camera capture with retake, crop, and photo review
+- 🗂️ Added a side panel for quick access to previous chats
+- 🗑️ Added easier chat deletion from the history panel
+- 💾 Added downloaded model deletion to free device storage
+- ⚙️ Added editable model instructions with presets and custom prompts
+- 🎨 Added dark mode, light mode, accent colors, and chat font-size control
+- 📋 Added copy button for assistant responses
 
 #### ➡️ [See all releases](https://github.com/dineshsoudagar/local-llms-on-android/releases)
 
@@ -33,23 +37,19 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 ---
 
-## ✨ Features
+✨ Features
 
-- 📱 Fully on-device LLM inference for private offline use
-- 📦 Smaller base APK with **on-demand model downloads**
-- 📥 **First-launch model picker** after install
-- 🔁 Download **multiple models** and switch between them inside the app
-- 🧠 Supports **Qwen2.5**, **Qwen3**, **Qwen3 LiteRT**, **Gemma 4 E2B**, and **Gemma 4 E4B**
-- ⚡ Supports **ONNX** and **LiteRT** backends
-- 🚀 Hardware-accelerated **LiteRT** inference on supported devices
-- 🔤 Hugging Face-compatible tokenizer support for ONNX Qwen models
-- 💬 Persistent multi-turn chat with **local history** and **Previous Chats**
-- 📝 Markdown rendering for assistant replies, including table support
-- 🤔 **Thinking Mode** for supported models
-- 🗂️ Retained thinking text in a **collapsible section**
-- 🎨 Built-in themes and adjustable chat font size
-- 🛑 Stop-generation support
-- 🔐 Offline after model download, with **no telemetry**
+- 📱 Fully on-device LLM chat for private offline use
+- 🎙️ Voice input for faster prompting
+- 🖼️ Image input with OCR, Gemma vision, and FastVLM support
+- 📷 Camera capture with retake, crop, and photo review
+- 💬 Persistent multi-turn chat with local history
+- 📦 Download, switch, and delete models inside the app
+- 🧠 Supports Qwen2.5, Qwen3, Qwen3 LiteRT, and Gemma 4 LiteRT models
+- ⚡ ONNX and LiteRT backend support
+- 🎛️ Editable model instructions with presets and custom prompts
+- 🎨 Light mode, dark mode, accent colors, and adjustable chat font size
+- 🔐 Offline after model download, with no telemetry
 
 ---
 
