@@ -58,15 +58,15 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 <table align="center">
   <tr>
     <td align="center">
-      <img src="data/Gemma4chat.gif" alt="Model Output 1" width="260"/><br/>
+      <img src="data/Chat.gif" alt="Model Output 1" width="260"/><br/>
       <sub><b>Chat inference</b></sub>
     </td>
     <td align="center">
-      <img src="data/Themes.gif" alt="Model Output 2" width="260"/><br/>
+      <img src="data/Image support.gif" alt="Model Output 2" width="260"/><br/>
       <sub><b>Theme switching</b></sub>
     </td>
     <td align="center">
-      <img src="data/Gemma4 thinking.gif" alt="Chat UI Preview" width="260"/><br/>
+      <img src="data/New ui.gif" alt="Chat UI Preview" width="260"/><br/>
       <sub><b>Thinking mode</b></sub>
     </td>
   </tr>
