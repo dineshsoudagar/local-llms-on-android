@@ -45,6 +45,18 @@ class ChatAdapter(
         private const val IMAGE_BUBBLE_MAX_WIDTH_FRACTION = 0.66f
     }
 
+    enum class TextRenderMode {
+        PLAIN,
+        MARKDOWN
+    }
+
+    data class TextRenderKey(
+        val turnId: String,
+        val mode: TextRenderMode,
+        val textSizeKey: Int,
+        val text: String
+    )
+
     fun submitTurns(turns: List<ChatTurn>) {
         expandedThoughtIds.retainAll(turns.mapTo(mutableSetOf<String>()) { it.id })
         submitList(turns.toList())
@@ -121,10 +133,14 @@ class ChatAdapter(
         }
         holder.thoughtView.visibility = if (isThoughtExpanded) View.VISIBLE else View.GONE
         if (isThoughtExpanded) {
-            markwon.setMarkdown(holder.thoughtView, normalizeEquationDelimiters(thoughtText.orEmpty()))
-            holder.thoughtView.setTextSize(TypedValue.COMPLEX_UNIT_SP, (fontSizeSp - 1f).coerceAtLeast(12f))
+            setThoughtMarkdown(
+                holder,
+                turn.id,
+                normalizeEquationDelimiters(thoughtText.orEmpty()),
+                markwon
+            )
         } else {
-            holder.thoughtView.text = ""
+            setThoughtPlainText(holder, turn.id, "")
         }
 
         if (turn.isImage) {
@@ -150,10 +166,9 @@ class ChatAdapter(
             dp(holder.textView, BUBBLE_VERTICAL_PADDING_DP)
         )
         if (holder.textView.visibility == View.VISIBLE && !turn.isUser && turn.renderAsMarkdown) {
-            markwon.setMarkdown(holder.textView, normalizeEquationDelimiters(bubbleText))
-            holder.textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp)
+            setMessageMarkdown(holder, turn.id, normalizeEquationDelimiters(bubbleText), markwon)
         } else {
-            holder.textView.text = bubbleText
+            setMessagePlainText(holder, turn.id, bubbleText)
         }
 
         holder.copyButton.visibility = if (canCopyResponse) View.VISIBLE else View.GONE
@@ -176,6 +191,7 @@ class ChatAdapter(
         holder.bubbleFrame.visibility = View.VISIBLE
         holder.messageImage.visibility = View.VISIBLE
         holder.textView.visibility = View.GONE
+        holder.messageTextRenderKey = null
         holder.messageImage.setBackgroundResource(bubbleBackground)
         holder.messageImage.maxWidth = calculateImageBubbleMaxWidth(holder)
         holder.messageImage.maxHeight = dp(holder.messageImage, IMAGE_BUBBLE_MAX_HEIGHT_DP)
@@ -191,7 +207,11 @@ class ChatAdapter(
             holder.messageImage.visibility = View.GONE
             holder.textView.visibility = View.VISIBLE
             holder.textView.setBackgroundResource(bubbleBackground)
-            holder.textView.text = holder.itemView.context.getString(R.string.saved_image_missing)
+            setMessagePlainText(
+                holder,
+                turn.id,
+                holder.itemView.context.getString(R.string.saved_image_missing)
+            )
             holder.bubbleFrame.setOnClickListener(null)
             return
         }
@@ -205,7 +225,11 @@ class ChatAdapter(
             holder.messageImage.visibility = View.GONE
             holder.textView.visibility = View.VISIBLE
             holder.textView.setBackgroundResource(bubbleBackground)
-            holder.textView.text = holder.itemView.context.getString(R.string.saved_image_missing)
+            setMessagePlainText(
+                holder,
+                turn.id,
+                holder.itemView.context.getString(R.string.saved_image_missing)
+            )
             holder.bubbleFrame.setOnClickListener(null)
             return
         }
@@ -216,8 +240,62 @@ class ChatAdapter(
         }
     }
 
+    private fun setMessageMarkdown(
+        holder: MessageViewHolder,
+        turnId: String,
+        markdown: String,
+        markwon: Markwon
+    ) {
+        val key = TextRenderKey(turnId, TextRenderMode.MARKDOWN, textSizeKey(fontSizeSp), markdown)
+        if (holder.messageTextRenderKey != key) {
+            markwon.setMarkdown(holder.textView, markdown)
+            holder.messageTextRenderKey = key
+        }
+        holder.textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp)
+    }
+
+    private fun setMessagePlainText(
+        holder: MessageViewHolder,
+        turnId: String,
+        text: String
+    ) {
+        val key = TextRenderKey(turnId, TextRenderMode.PLAIN, textSizeKey(fontSizeSp), text)
+        if (holder.messageTextRenderKey != key) {
+            holder.textView.text = text
+            holder.messageTextRenderKey = key
+        }
+    }
+
+    private fun setThoughtMarkdown(
+        holder: MessageViewHolder,
+        turnId: String,
+        markdown: String,
+        markwon: Markwon
+    ) {
+        val thoughtTextSizeSp = thoughtTextSizeSp()
+        val key = TextRenderKey(turnId, TextRenderMode.MARKDOWN, textSizeKey(thoughtTextSizeSp), markdown)
+        if (holder.thoughtTextRenderKey != key) {
+            markwon.setMarkdown(holder.thoughtView, markdown)
+            holder.thoughtTextRenderKey = key
+        }
+        holder.thoughtView.setTextSize(TypedValue.COMPLEX_UNIT_SP, thoughtTextSizeSp)
+    }
+
+    private fun setThoughtPlainText(
+        holder: MessageViewHolder,
+        turnId: String,
+        text: String
+    ) {
+        val thoughtTextSizeSp = thoughtTextSizeSp()
+        val key = TextRenderKey(turnId, TextRenderMode.PLAIN, textSizeKey(thoughtTextSizeSp), text)
+        if (holder.thoughtTextRenderKey != key) {
+            holder.thoughtView.text = text
+            holder.thoughtTextRenderKey = key
+        }
+    }
+
     private fun markwonFor(context: Context): Markwon {
-        val textSizeKey = (fontSizeSp * 10f).roundToInt()
+        val textSizeKey = textSizeKey(fontSizeSp)
         return markwonByTextSize.getOrPut(textSizeKey) {
             val textSizePx = TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_SP,
@@ -235,6 +313,14 @@ class ChatAdapter(
                 )
                 .build()
         }
+    }
+
+    private fun textSizeKey(sizeSp: Float): Int {
+        return (sizeSp * 10f).roundToInt()
+    }
+
+    private fun thoughtTextSizeSp(): Float {
+        return (fontSizeSp - 1f).coerceAtLeast(12f)
     }
 
     private fun normalizeEquationDelimiters(markdown: String): String {
@@ -355,6 +441,8 @@ class ChatAdapter(
         val messageImage: ImageView = view.findViewById(R.id.messageImage)
         val textView: TextView = view.findViewById(R.id.messageText)
         val copyButton: ImageButton = view.findViewById(R.id.copyResponseButton)
+        var messageTextRenderKey: TextRenderKey? = null
+        var thoughtTextRenderKey: TextRenderKey? = null
 
         init {
             textView.movementMethod = runCatching {

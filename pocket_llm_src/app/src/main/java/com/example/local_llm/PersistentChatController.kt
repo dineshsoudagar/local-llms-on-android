@@ -32,7 +32,16 @@ class PersistentChatController(
         private const val MARKDOWN_STREAM_CHAR_THRESHOLD = 40
         private const val TABLE_MARKDOWN_UPDATE_WORD_STEP = 50
         private const val TABLE_MARKDOWN_UPDATE_CHAR_STEP = 220
+        private const val MATH_MARKDOWN_UPDATE_WORD_STEP = 24
+        private const val MATH_MARKDOWN_UPDATE_CHAR_STEP = 180
+        private const val MATH_MARKDOWN_UPDATE_MIN_INTERVAL_MS = 650L
         private val TABLE_SEPARATOR_REGEX = Regex("^\\|?(?:\\s*:?-{3,}:?\\s*\\|)+\\s*:?-{3,}:?\\s*\\|?$")
+        private val LATEX_DELIMITER_REGEX = Regex(
+            """\\\[|\\\]|\\\(|\\\)|\${'$'}\${'$'}|(?<!\\)\${'$'}(?=\S*[A-Za-z\\_^{}=+\-*/<>])"""
+        )
+        private val LATEX_COMMAND_REGEX = Regex(
+            """\\(?:begin|end|frac|sqrt|sum|prod|int|lim|left|right|cdot|times|div|pm|mp|leq|geq|neq|approx|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|omega|infty)\b"""
+        )
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -63,6 +72,7 @@ class PersistentChatController(
     private var preparedPromptTurnIds: Set<String> = emptySet()
     private var lastPublishedMarkdownWordCount: Int = 0
     private var lastPublishedMarkdownTextLength: Int = 0
+    private var lastPublishedMarkdownAtMillis: Long = 0L
     private var currentGenerationStartedAtMillis: Long? = null
     private var currentThinkingStartedAtMillis: Long? = null
     private var currentThinkingFinishedAtMillis: Long? = null
@@ -245,9 +255,7 @@ class PersistentChatController(
         val generationId = currentGenerationId + 1L
         currentGenerationId = generationId
         startGenerationTimer()
-        liveMarkdownEnabled = false
-        lastPublishedMarkdownWordCount = 0
-        lastPublishedMarkdownTextLength = 0
+        resetLiveMarkdownState()
         streamingAssistantTurn = ChatTurn(role = ChatRole.ASSISTANT, text = "", isStreaming = true)
         publishState(statusMessage = "", isGenerating = true)
         currentGenerationImageFilePaths = imageFilePaths
@@ -314,9 +322,7 @@ class PersistentChatController(
 
                 currentGenerationId = 0L
                 streamingAssistantTurn = null
-                liveMarkdownEnabled = false
-                lastPublishedMarkdownWordCount = 0
-                lastPublishedMarkdownTextLength = 0
+                resetLiveMarkdownState()
                 resetGenerationTimer()
                 publishState(isGenerating = false)
             } catch (_: CancellationException) {
@@ -324,9 +330,7 @@ class PersistentChatController(
                     currentGenerationId = 0L
                 }
                 commitStoppedAssistantTurn()
-                liveMarkdownEnabled = false
-                lastPublishedMarkdownWordCount = 0
-                lastPublishedMarkdownTextLength = 0
+                resetLiveMarkdownState()
                 resetGenerationTimer()
                 publishState(statusMessage = "Generation stopped.", isGenerating = false)
             } catch (e: Exception) {
@@ -334,9 +338,7 @@ class PersistentChatController(
                     currentGenerationId = 0L
                 }
                 streamingAssistantTurn = null
-                liveMarkdownEnabled = false
-                lastPublishedMarkdownWordCount = 0
-                lastPublishedMarkdownTextLength = 0
+                resetLiveMarkdownState()
                 resetGenerationTimer()
                 publishState(
                     statusMessage = "Error: ${e.message ?: "Unknown error."}",
@@ -409,13 +411,11 @@ class PersistentChatController(
             committedTurns.clear()
             committedTurns += session.turns
             streamingAssistantTurn = null
-            liveMarkdownEnabled = false
             currentGenerationId = 0L
             preparedPromptUserTurnId = null
             preparedPromptTurnIds = emptySet()
             resetGenerationTimer()
-            lastPublishedMarkdownWordCount = 0
-            lastPublishedMarkdownTextLength = 0
+            resetLiveMarkdownState()
 
             try {
                 withContext(Dispatchers.IO) {
@@ -449,29 +449,25 @@ class PersistentChatController(
         committedTurns.clear()
         committedTurns += snapshot.turns
         streamingAssistantTurn = null
-        liveMarkdownEnabled = false
         currentGenerationId = 0L
         preparedPromptUserTurnId = null
         preparedPromptTurnIds = emptySet()
         deleteTransientImageFiles(currentGenerationImageFilePaths)
         currentGenerationImageFilePaths = emptyList()
         resetGenerationTimer()
-        lastPublishedMarkdownWordCount = 0
-        lastPublishedMarkdownTextLength = 0
+        resetLiveMarkdownState()
     }
 
     private fun clearActiveChatState() {
         committedTurns.clear()
         streamingAssistantTurn = null
-        liveMarkdownEnabled = false
         currentGenerationId = 0L
         preparedPromptUserTurnId = null
         preparedPromptTurnIds = emptySet()
         currentSessionId = null
         currentSessionCreatedAtMillis = 0L
         resetGenerationTimer()
-        lastPublishedMarkdownWordCount = 0
-        lastPublishedMarkdownTextLength = 0
+        resetLiveMarkdownState()
     }
 
     private fun ensureActiveSession() {
@@ -513,13 +509,11 @@ class PersistentChatController(
             persistCurrentSession()
         }
         streamingAssistantTurn = null
-        liveMarkdownEnabled = false
         currentGenerationId = 0L
         preparedPromptUserTurnId = null
         preparedPromptTurnIds = emptySet()
         resetGenerationTimer()
-        lastPublishedMarkdownWordCount = 0
-        lastPublishedMarkdownTextLength = 0
+        resetLiveMarkdownState()
     }
 
     private fun startGenerationTimer() {
@@ -576,22 +570,35 @@ class PersistentChatController(
     }
 
     private fun shouldPublishStreamingUpdate(partial: BackendResponse): Boolean {
-        if (!liveMarkdownEnabled || !containsMarkdownTable(partial.text)) {
+        val hasTable = containsMarkdownTable(partial.text)
+        val hasMath = containsLatexMath(partial.text)
+        if (!liveMarkdownEnabled || (!hasTable && !hasMath)) {
             lastPublishedMarkdownWordCount = countWords(partial.text)
             lastPublishedMarkdownTextLength = partial.text.length
+            lastPublishedMarkdownAtMillis = SystemClock.elapsedRealtime()
             return true
         }
 
+        val now = SystemClock.elapsedRealtime()
         val wordCount = countWords(partial.text)
         val wordDelta = wordCount - lastPublishedMarkdownWordCount
         val charDelta = partial.text.length - lastPublishedMarkdownTextLength
-        val shouldPublish = lastPublishedMarkdownTextLength == 0 ||
-            wordDelta >= TABLE_MARKDOWN_UPDATE_WORD_STEP ||
-            charDelta >= TABLE_MARKDOWN_UPDATE_CHAR_STEP
+        val elapsedMillis = now - lastPublishedMarkdownAtMillis
+        val shouldPublish = if (hasMath) {
+            lastPublishedMarkdownTextLength == 0 ||
+                wordDelta >= MATH_MARKDOWN_UPDATE_WORD_STEP ||
+                charDelta >= MATH_MARKDOWN_UPDATE_CHAR_STEP ||
+                elapsedMillis >= MATH_MARKDOWN_UPDATE_MIN_INTERVAL_MS
+        } else {
+            lastPublishedMarkdownTextLength == 0 ||
+                wordDelta >= TABLE_MARKDOWN_UPDATE_WORD_STEP ||
+                charDelta >= TABLE_MARKDOWN_UPDATE_CHAR_STEP
+        }
 
         if (shouldPublish) {
             lastPublishedMarkdownWordCount = wordCount
             lastPublishedMarkdownTextLength = partial.text.length
+            lastPublishedMarkdownAtMillis = now
         }
 
         return shouldPublish
@@ -608,8 +615,20 @@ class PersistentChatController(
         }
     }
 
+    private fun containsLatexMath(text: String): Boolean {
+        return LATEX_DELIMITER_REGEX.containsMatchIn(text) ||
+            LATEX_COMMAND_REGEX.containsMatchIn(text)
+    }
+
     private fun countWords(text: String): Int {
         return Regex("\\S+").findAll(text).count()
+    }
+
+    private fun resetLiveMarkdownState() {
+        liveMarkdownEnabled = false
+        lastPublishedMarkdownWordCount = 0
+        lastPublishedMarkdownTextLength = 0
+        lastPublishedMarkdownAtMillis = 0L
     }
 
     private fun deleteTransientImageFiles(paths: List<String>) {
