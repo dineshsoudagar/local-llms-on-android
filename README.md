@@ -78,17 +78,17 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 ---
 
-## 📦 Download APK - v1.4.0
+## 📦 Download APK - v1.5.0
 
-The app now ships as a **single smaller base APK**.
+The app ships as a **single smaller base APK**.
 
-#### ➡️ [Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.4.0/pocket_llm_v1.4.0.apk)
+#### ➡️ [Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.5.0/pocket_llm_v1.5.0.apk)
 
-Models are **not bundled inside the APK anymore**. After installation, the app prompts the user to select a model and download it directly on device.
+Models are **not bundled inside the APK**. After installation, choose and download the models you want directly on device.
 
-Users can download **multiple models** and switch between them later from inside the app, without reinstalling.
+You can download **multiple models**, switch between them inside the app, and delete unused downloaded models later to free storage.
 
-### Available models
+### Available chat models
 
 - **Gemma 4 E4B LiteRT** - Best for **flagship mobiles**
 - **Gemma 4 E2B LiteRT** - Best for **decent to mid-range mobiles**
@@ -96,7 +96,14 @@ Users can download **multiple models** and switch between them later from inside
 - **Qwen3 0.6B Q4F16 ONNX** - Good for **low to mid-range mobiles**
 - **Qwen2.5 0.5B ONNX** - Best for **mid to high-end mobiles**, **full precision**
 
-> Note: internet is required only for downloading models. Chat and inference remain fully on-device after the model is installed.
+### Image input support
+
+- **OCR mode** - Extract text from images
+- **Gemma vision mode** - Use Gemma direct image input on supported models
+- **FastVLM mode** - Use lightweight image description for non-Gemma models
+- **Camera capture** - Take a photo, retake, crop, review, and send it as input
+
+> Note: internet is required only for downloading models. Chat, OCR, image input, camera workflows, and inference remain fully on-device after the required models are installed.
 
 ---
 
