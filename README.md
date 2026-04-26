@@ -63,11 +63,11 @@ A privacy-first offline document intelligence system with persistent local RAG, 
     </td>
     <td align="center">
       <img src="data/Image support.gif" alt="Model Output 2" width="260"/><br/>
-      <sub><b>Theme switching</b></sub>
+      <sub><b>Image Support</b></sub>
     </td>
     <td align="center">
       <img src="data/New ui.gif" alt="Chat UI Preview" width="260"/><br/>
-      <sub><b>Thinking mode</b></sub>
+      <sub><b>New UI</b></sub>
     </td>
   </tr>
 </table>
