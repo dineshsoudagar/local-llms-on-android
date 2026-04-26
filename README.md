@@ -1,10 +1,10 @@
 # 🤖 Pocket LLM for Android (Offline, Private & Fast)
 
-An Android application that brings local LLM chat to your phone, fully on-device, private, and fast.
+An Android application that brings local LLM chat, voice input, image input, OCR, and camera-based prompting to your phone.
 
-It supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 models**, with streaming responses, persistent local chat history, markdown-rendered replies, downloadable on-device models, and in-app model switching.
+Pocket LLM runs fully on device after model download. It supports ONNX-based Qwen models, LiteRT-based Qwen 3 and Gemma 4 models, streaming responses, persistent local chat history, markdown-rendered replies, downloadable models, in-app model switching, editable model instructions, and multiple image input workflows.
 
-Unlike older builds, the app now ships as a **small base APK**. Users choose and download one or more models after installation, then switch between them later from inside the app.
+The app ships as a small base APK. Users download only the models they want, switch between them inside the app, and delete unused models later to save device storage.
 
 ---
 
