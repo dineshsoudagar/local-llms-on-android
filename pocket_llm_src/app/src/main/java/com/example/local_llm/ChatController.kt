@@ -94,10 +94,11 @@ class ChatController(
             try {
                 val response = withContext(Dispatchers.IO) {
                     backend.streamReply(
-                        history = committedTurns.asModelMemoryTurns(),
-                        thinkingEnabled = thinkingEnabled,
-                        modelInstruction = currentModelInstruction(),
-                        imageFilePaths = emptyList(),
+                        request = InferenceRequest(
+                            history = committedTurns.asModelMemoryTurns(),
+                            thinkingEnabled = thinkingEnabled,
+                            modelInstruction = currentModelInstruction()
+                        ),
                         onPartial = { partial ->
                             scope.launch {
                                 updateThinkingTimer(partial)
@@ -250,7 +251,8 @@ class ChatController(
             isReady = isReady,
             isGenerating = isGenerating,
             supportsThinking = modelDescriptor.supportsThinking,
-            supportsDirectImageInput = backend.supportsDirectImageInput
+            supportsDirectImageInput = backend.supportsDirectImageInput,
+            supportsNativeAudioInput = backend.supportsNativeAudioInput
         )
     }
 

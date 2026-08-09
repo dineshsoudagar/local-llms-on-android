@@ -191,4 +191,20 @@
     <string name="delete_selected_images_count">Delete (%1$d)</string>
     <string name="selected">Selected</string>
     <string name="close">Close</string>
+    <string name="add_attachment">Add document or audio</string>
+    <string name="attachment_document">Document or PDF</string>
+    <string name="attachment_audio_file">Audio file</string>
+    <string name="attachment_record_audio">Record audio</string>
+    <string name="detach_attachment">Detach attachment</string>
+    <string name="retry">Retry</string>
+    <string name="attachment_using">Using %1$s</string>
+    <string name="attachment_importing">Importing and preparing…</string>
+    <string name="attachment_ready">Ready</string>
+    <string name="attachment_failed">Failed: %1$s</string>
+    <string name="attachment_mixed_input_blocked">Document/audio and image inputs cannot be used in the same send yet.</string>
+    <string name="attachment_question_required">Ask a question or request a summary, translation, or rewrite for the attachment.</string>
+    <string name="gemma_audio_unavailable">Gemma native audio is unavailable on this device. Audio was not sent to Whisper.</string>
+    <string name="non_gemma_audio_download_required">This model needs the multilingual Whisper tiny transcription download before audio can be used.</string>
+    <string name="record_audio_coming_soon">Audio recording could not start.</string>
+    <string name="whisper_download_progress">Downloading transcription model: %1$d%%</string>
 </resources>

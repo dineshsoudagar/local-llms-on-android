@@ -1,8 +1,15 @@
 package com.example.local_llm
 
 interface ChatBackend : AutoCloseable {
+    val capabilities: BackendCapabilities
+
     val supportsDirectImageInput: Boolean
-        get() = false
+        get() = capabilities.supportsNativeImage
+
+    val supportsNativeAudioInput: Boolean
+        get() = capabilities.supportsNativeAudio
+
+    fun estimateTokens(text: String): Int = conservativeTokenEstimate(text)
 
     suspend fun initialize()
     suspend fun resetConversation(
@@ -12,10 +19,7 @@ interface ChatBackend : AutoCloseable {
     )
 
     suspend fun streamReply(
-        history: List<ChatTurn>,
-        thinkingEnabled: Boolean,
-        modelInstruction: String,
-        imageFilePaths: List<String> = emptyList(),
+        request: InferenceRequest,
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse
     fun cancelGeneration()

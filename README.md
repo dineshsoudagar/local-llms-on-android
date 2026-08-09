@@ -1,6 +1,6 @@
 # 🤖 Pocket LLM for Android (Offline, Private & Fast)
 
-An Android application that brings local LLM chat, voice input, image input, OCR, and camera-based prompting to your phone.
+An Android application that brings local LLM chat, voice input, image input, documents, PDF OCR, audio attachments, and camera-based prompting to your phone.
 
 Pocket LLM runs fully on device after model download. It supports ONNX-based Qwen models, LiteRT-based Qwen 3 and Gemma 4 models, streaming responses, persistent local chat history, markdown-rendered replies, downloadable models, in-app model switching, editable model instructions, and multiple image input workflows.
 
@@ -42,6 +42,8 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 - 📱 Fully on-device LLM chat for private offline use
 - 🎙️ Voice input for faster prompting
 - 🖼️ Image input with OCR and Gemma native image support
+- 📎 One active document, PDF, or audio attachment per chat, with persistent source references
+- 🔊 Native Gemma 4 audio understanding and on-device sherpa-onnx Whisper transcription for other models
 - 📷 Camera capture with retake, crop, and photo review
 - 💬 Persistent multi-turn chat with local history
 - 📦 Download, switch, and delete models inside the app
@@ -103,6 +105,16 @@ You can download **multiple models**, switch between them inside the app, and de
 - **Camera capture** - Take a photo, retake, crop, review, and send it as input
 
 > Note: internet is required only for downloading models. Chat, OCR, image input, camera workflows, and inference remain fully on-device after the required models are installed.
+
+## Document and audio attachments
+
+The paperclip menu accepts safe UTF-8/UTF-16 text files, embedded-text or scanned PDFs, Android-decodable audio files, and microphone recordings. Text and PDFs are limited to 16 MiB and 64 MiB/500 pages respectively. Audio is limited to 512 MiB/two hours and is normalized to private mono 16-kHz PCM WAV. Document/audio and image inputs cannot be mixed in one send in the first version.
+
+PDFBox extracts embedded text page by page; only pages without enough embedded text are rendered and passed through the existing on-device ML Kit OCR path. Questions use budget-fitting BM25 retrieval, while summaries and ordered transformations process all source chunks. Answers are prompted to preserve page, section, or timestamp markers.
+
+Gemma 4 E2B/E4B uses the LiteRT-LM native audio backend directly. Inputs longer than 30 seconds are processed as overlapping 28-second native-audio segments; a failed audio-backend initialization disables Gemma audio and never falls back silently to Whisper. Other chat models use sherpa-onnx 1.13.4 with multilingual Whisper tiny int8 after a separate, explicit roughly 100 MB download confirmation. They do not switch to Gemma.
+
+Attachment manifests, normalized sources, extracted text/transcripts, chunks, and indexes live beneath the owning private chat directory. Detach keeps that data and deleting the chat removes it. Long extraction and transcription run as cancellable foreground WorkManager jobs with visible progress; inference remains local, and raw attachment payloads are excluded from ordinary saved model history.
 
 ---
 

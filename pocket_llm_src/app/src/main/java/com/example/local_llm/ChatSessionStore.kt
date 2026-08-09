@@ -1,6 +1,7 @@
 package com.example.local_llm
 
 import android.content.Context
+import android.util.AtomicFile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -15,7 +16,8 @@ data class PersistedChatSession(
     val modelDisplayName: String,
     val createdAtMillis: Long,
     val updatedAtMillis: Long,
-    val turns: List<ChatTurn>
+    val turns: List<ChatTurn>,
+    val activeAttachmentId: String? = null
 )
 
 data class ChatSessionSummary(
@@ -30,9 +32,19 @@ data class ChatSessionSummary(
 class ChatSessionStore(context: Context) {
 
     private val sessionsDir = File(context.filesDir, "chat_sessions").apply { mkdirs() }
+    private val attachmentRepository = AttachmentRepository(context)
 
     fun save(session: PersistedChatSession) {
-        fileFor(session.sessionId).writeText(serializeSession(session).toString())
+        val target = fileFor(session.sessionId)
+        val atomicFile = AtomicFile(target)
+        val output = atomicFile.startWrite()
+        try {
+            output.write(serializeSession(session).toString().toByteArray(Charsets.UTF_8))
+            atomicFile.finishWrite(output)
+        } catch (error: Throwable) {
+            atomicFile.failWrite(output)
+            throw error
+        }
     }
 
     fun load(sessionId: String): PersistedChatSession? {
@@ -49,7 +61,9 @@ class ChatSessionStore(context: Context) {
     fun delete(sessionId: String): Boolean {
         return runCatching {
             val file = fileFor(sessionId)
-            !file.exists() || file.delete()
+            val sessionDeleted = !file.exists() || file.delete()
+            val attachmentsDeleted = attachmentRepository.deleteSession(sessionId)
+            sessionDeleted && attachmentsDeleted
         }.getOrDefault(false)
     }
 
@@ -85,6 +99,7 @@ class ChatSessionStore(context: Context) {
             put("modelDisplayName", session.modelDisplayName)
             put("createdAtMillis", session.createdAtMillis)
             put("updatedAtMillis", session.updatedAtMillis)
+            session.activeAttachmentId?.let { put("activeAttachmentId", it) }
             put(
                 "turns",
                 JSONArray().apply {
@@ -104,6 +119,12 @@ class ChatSessionStore(context: Context) {
                                 put("isStreaming", turn.isStreaming)
                                 put("contentType", turn.contentType.name)
                                 turn.imagePath?.let { put("imagePath", it) }
+                                turn.attachmentId?.let { put("attachmentId", it) }
+                                turn.attachmentName?.let { put("attachmentName", it) }
+                                turn.attachmentKind?.let { put("attachmentKind", it.name) }
+                                turn.attachmentProcessingRoute?.let {
+                                    put("attachmentProcessingRoute", it.name)
+                                }
                             }
                         )
                     }
@@ -134,7 +155,14 @@ class ChatSessionStore(context: Context) {
                                 turnJson.optString("contentType", ChatTurnContentType.TEXT.name)
                             )
                         }.getOrDefault(ChatTurnContentType.TEXT),
-                        imagePath = if (turnJson.has("imagePath")) turnJson.getString("imagePath") else null
+                        imagePath = if (turnJson.has("imagePath")) turnJson.getString("imagePath") else null,
+                        attachmentId = turnJson.optString("attachmentId").takeIf { it.isNotBlank() },
+                        attachmentName = turnJson.optString("attachmentName").takeIf { it.isNotBlank() },
+                        attachmentKind = turnJson.optString("attachmentKind").takeIf { it.isNotBlank() }
+                            ?.let { runCatching { AttachmentKind.valueOf(it) }.getOrNull() },
+                        attachmentProcessingRoute = turnJson.optString("attachmentProcessingRoute")
+                            .takeIf { it.isNotBlank() }
+                            ?.let { runCatching { AttachmentProcessingRoute.valueOf(it) }.getOrNull() }
                     )
                 )
             }
@@ -147,7 +175,8 @@ class ChatSessionStore(context: Context) {
             modelDisplayName = json.optString("modelDisplayName"),
             createdAtMillis = json.optLong("createdAtMillis"),
             updatedAtMillis = json.optLong("updatedAtMillis"),
-            turns = turns
+            turns = turns,
+            activeAttachmentId = json.optString("activeAttachmentId").takeIf { it.isNotBlank() }
         )
     }
 

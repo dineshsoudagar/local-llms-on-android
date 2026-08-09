@@ -19,7 +19,8 @@ import java.util.UUID
 data class ActiveChatSnapshot(
     val sessionId: String?,
     val createdAtMillis: Long,
-    val turns: List<ChatTurn>
+    val turns: List<ChatTurn>,
+    val activeAttachmentId: String? = null
 )
 
 class PersistentChatController(
@@ -79,6 +80,9 @@ class PersistentChatController(
     private var currentThinkingStartedAtMillis: Long? = null
     private var currentThinkingFinishedAtMillis: Long? = null
     private var currentGenerationImageFilePaths: List<String> = emptyList()
+    private var currentNativeAudioInputs: List<NativeAudioInput> = emptyList()
+    private var currentAttachmentContext: AttachmentContext? = null
+    private var activeAttachmentId: String? = null
 
     init {
         val modelFileResolver = ModelFileResolver(appContext)
@@ -159,8 +163,101 @@ class PersistentChatController(
         return ActiveChatSnapshot(
             sessionId = currentSessionId,
             createdAtMillis = currentSessionCreatedAtMillis,
-            turns = committedTurns.toList()
+            turns = committedTurns.toList(),
+            activeAttachmentId = activeAttachmentId
         )
+    }
+
+    fun ensureSessionId(): String {
+        ensureActiveSession()
+        return requireNotNull(currentSessionId)
+    }
+
+    fun setActiveAttachment(attachmentId: String?) {
+        activeAttachmentId = attachmentId
+        persistCurrentSession()
+        publishState()
+    }
+
+    fun buildAttachmentContext(
+        descriptor: AttachmentDescriptor,
+        chunks: List<AttachmentChunk>,
+        userPrompt: String
+    ): AttachmentContext {
+        val reservedText = buildString {
+            append(currentModelInstruction())
+            committedTurns.asModelMemoryTurns().forEach { append('\n').append(it.text) }
+            append('\n').append(userPrompt)
+            append("\nAttachment: ").append(descriptor.displayName)
+        }
+        val outputReserve = (backend.capabilities.contextWindowTokens / 4).coerceIn(128, 512)
+        val inputBudget = (
+            backend.capabilities.contextWindowTokens - backend.estimateTokens(reservedText) - outputReserve
+        ).coerceAtLeast(64)
+        val measuredChunks = chunks.map { chunk ->
+            chunk.copy(estimatedTokens = backend.estimateTokens(chunk.text))
+        }
+        val task = AttachmentTaskRouter.route(userPrompt)
+        val sourceTokens = measuredChunks.sumOf(AttachmentChunk::estimatedTokens)
+        require(task != AttachmentTask.SUMMARY || sourceTokens <= AttachmentLimits.MAX_SUMMARY_SOURCE_TOKENS) {
+            "Whole-document summaries are limited to 100,000 source tokens."
+        }
+        require(task != AttachmentTask.TRANSFORMATION || sourceTokens <= AttachmentLimits.MAX_TRANSFORMATION_SOURCE_TOKENS) {
+            "Whole-document transformations are limited to 25,000 source tokens."
+        }
+        val plan = AttachmentPromptPlanner().plan(measuredChunks, userPrompt, inputBudget)
+        return AttachmentContext(
+            attachmentId = descriptor.id,
+            displayName = descriptor.displayName,
+            route = descriptor.processingRoute,
+            contextText = plan.batches.firstOrNull()?.prompt.orEmpty(),
+            sourceRefs = plan.batches.flatMap { it.chunks }.map(AttachmentChunk::source).distinct(),
+            task = plan.task,
+            promptBatches = plan.batches.map(AttachmentPromptBatch::prompt),
+            requiresFinalSynthesis = plan.requiresFinalSynthesis
+        )
+    }
+
+    suspend fun <T> withRuntimeLease(work: suspend () -> T): T {
+        check(generationJob == null && initializationJob == null) {
+            "Attachment processing cannot start while model work is active."
+        }
+        publishState(
+            statusMessage = "Releasing the chat model for attachment processing…",
+            isLoading = true,
+            isReady = false
+        )
+        withContext(Dispatchers.IO) { backend.close() }
+        var workFailure: Throwable? = null
+        try {
+            return work()
+        } catch (error: Throwable) {
+            workFailure = error
+            throw error
+        } finally {
+            try {
+                withContext(Dispatchers.IO) {
+                    backend.initialize()
+                    backend.resetConversation(
+                        committedTurns.asModelMemoryTurns(),
+                        thinkingEnabled,
+                        currentModelInstruction()
+                    )
+                }
+                publishState(
+                    statusMessage = MODEL_READY_STATUS_MESSAGE,
+                    isLoading = false,
+                    isReady = true
+                )
+            } catch (restoreError: Throwable) {
+                if (workFailure != null) workFailure.addSuppressed(restoreError) else throw restoreError
+                publishState(
+                    statusMessage = "Error: the chat model could not be restored after attachment processing.",
+                    isLoading = false,
+                    isReady = false
+                )
+            }
+        }
     }
 
     fun beginPromptPreparation(
@@ -213,10 +310,19 @@ class PersistentChatController(
         text: String,
         displayText: String = text,
         imageFilePaths: List<String> = emptyList(),
+        nativeAudioInputs: List<NativeAudioInput> = emptyList(),
+        attachmentContext: AttachmentContext? = null,
         leadingTurns: List<ChatTurn> = emptyList()
     ): Boolean {
         val preparedUserTurnId = preparedPromptUserTurnId
-            ?: return sendPrompt(text, displayText, imageFilePaths, leadingTurns)
+            ?: return sendPrompt(
+                text,
+                displayText,
+                imageFilePaths,
+                nativeAudioInputs,
+                attachmentContext,
+                leadingTurns
+            )
         val prompt = text.trim()
         if (prompt.isEmpty() || generationJob != null || !_state.value.isReady) {
             return false
@@ -228,7 +334,14 @@ class PersistentChatController(
             preparedPromptUserTurnId = null
             preparedPromptTurnIds = emptySet()
             streamingAssistantTurn = null
-            return sendPrompt(text, displayText, imageFilePaths, leadingTurns)
+            return sendPrompt(
+                text,
+                displayText,
+                imageFilePaths,
+                nativeAudioInputs,
+                attachmentContext,
+                leadingTurns
+            )
         }
 
         val displayPrompt = normalizeDisplayPrompt(displayText, prompt)
@@ -240,13 +353,15 @@ class PersistentChatController(
         preparedPromptTurnIds = emptySet()
         persistCurrentSession()
 
-        return startGeneration(imageFilePaths)
+        return startGeneration(imageFilePaths, nativeAudioInputs, attachmentContext)
     }
 
     fun sendPrompt(
         text: String,
         displayText: String = text,
         imageFilePaths: List<String> = emptyList(),
+        nativeAudioInputs: List<NativeAudioInput> = emptyList(),
+        attachmentContext: AttachmentContext? = null,
         leadingTurns: List<ChatTurn> = emptyList()
     ): Boolean {
         val prompt = text.trim()
@@ -266,10 +381,14 @@ class PersistentChatController(
         preparedPromptTurnIds = emptySet()
         persistCurrentSession()
 
-        return startGeneration(imageFilePaths)
+        return startGeneration(imageFilePaths, nativeAudioInputs, attachmentContext)
     }
 
-    private fun startGeneration(imageFilePaths: List<String> = emptyList()): Boolean {
+    private fun startGeneration(
+        imageFilePaths: List<String> = emptyList(),
+        nativeAudioInputs: List<NativeAudioInput> = emptyList(),
+        attachmentContext: AttachmentContext? = null
+    ): Boolean {
         if (generationJob != null || !_state.value.isReady) {
             return false
         }
@@ -281,16 +400,22 @@ class PersistentChatController(
         streamingAssistantTurn = ChatTurn(role = ChatRole.ASSISTANT, text = "", isStreaming = true)
         publishState(statusMessage = "", isGenerating = true)
         currentGenerationImageFilePaths = imageFilePaths
+        currentNativeAudioInputs = nativeAudioInputs
+        currentAttachmentContext = attachmentContext
 
         generationJob = scope.launch {
             try {
                 val response = withContext(Dispatchers.IO) {
-                    backend.streamReply(
-                        committedTurns.asModelMemoryTurns(),
-                        thinkingEnabled,
-                        currentModelInstruction(),
-                        currentGenerationImageFilePaths,
-                        partialCallback@{ partial ->
+                    executeInferenceRequest(
+                        request = InferenceRequest(
+                            history = committedTurns.asModelMemoryTurns(),
+                            thinkingEnabled = thinkingEnabled,
+                            modelInstruction = currentModelInstruction(),
+                            imageFilePaths = currentGenerationImageFilePaths,
+                            nativeAudioInputs = currentNativeAudioInputs,
+                            attachmentContext = currentAttachmentContext
+                        ),
+                        onPartial = partialCallback@{ partial ->
                             if (generationId != currentGenerationId) {
                                 return@partialCallback
                             }
@@ -368,11 +493,185 @@ class PersistentChatController(
                 )
             } finally {
                 deleteTransientImageFiles(currentGenerationImageFilePaths)
+                currentAttachmentContext?.temporaryFiles?.forEach { path -> runCatching { File(path).delete() } }
                 currentGenerationImageFilePaths = emptyList()
+                currentNativeAudioInputs = emptyList()
+                currentAttachmentContext = null
                 generationJob = null
             }
         }
         return true
+    }
+
+    private suspend fun executeInferenceRequest(
+        request: InferenceRequest,
+        onPartial: (BackendResponse) -> Unit
+    ): BackendResponse {
+        val context = request.attachmentContext
+        if (request.nativeAudioInputs.isNotEmpty()) {
+            return executeNativeAudioRequest(request, context, onPartial)
+        }
+        val batches = context?.promptBatches.orEmpty()
+        if (batches.size <= 1) {
+            val prompt = batches.firstOrNull() ?: context?.contextText
+            return backend.streamReply(request.withUserPrompt(prompt), onPartial)
+        }
+
+        val results = batches.map { batch ->
+            backend.streamReply(
+                request.copy(
+                    history = request.history.replaceLastUserText(batch),
+                    attachmentContext = null
+                ),
+                onPartial = {}
+            ).text
+        }
+        if (context?.task == AttachmentTask.TRANSFORMATION) {
+            val merged = BackendResponse(text = results.joinToString("\n\n"))
+            onPartial(merged)
+            return merged
+        }
+        return synthesizeAttachmentResults(request, results, context, onPartial)
+    }
+
+    private suspend fun executeNativeAudioRequest(
+        request: InferenceRequest,
+        context: AttachmentContext?,
+        onPartial: (BackendResponse) -> Unit
+    ): BackendResponse {
+        require(backend.supportsNativeAudioInput) {
+            "Gemma native audio is unavailable on this device. Audio was not sent to Whisper."
+        }
+        val originalPrompt = request.history.lastOrNull { it.role == ChatRole.USER }?.text.orEmpty()
+        if (request.nativeAudioInputs.size == 1) {
+            val input = request.nativeAudioInputs.single()
+            require((input.endMillis ?: 0L) - input.startMillis <= AttachmentLimits.GEMMA_MAX_AUDIO_INPUT_MILLIS) {
+                "A Gemma native-audio segment may not exceed 30 seconds."
+            }
+            return backend.streamReply(request, onPartial)
+        }
+
+        val notes = request.nativeAudioInputs.mapIndexed { index, input ->
+            val segmentPrompt = buildString {
+                append("Analyze audio segment ${input.startMillis}-${input.endMillis ?: input.startMillis} ms. ")
+                append("Produce a timestamped transcript plus audible-event notes. Preserve the spoken language. ")
+                append("This is segment ${index + 1} of ${request.nativeAudioInputs.size}. User request: ")
+                append(originalPrompt)
+            }
+            backend.streamReply(
+                request.copy(
+                    history = request.history.replaceLastUserText(segmentPrompt),
+                    nativeAudioInputs = listOf(input),
+                    attachmentContext = null
+                ),
+                onPartial = {}
+            ).text
+        }.fold(mutableListOf<String>()) { merged, next ->
+            val deduplicated = merged.lastOrNull()?.let { deduplicateSegmentOverlap(it, next) } ?: next
+            merged += deduplicated
+            merged
+        }
+
+        if (context?.task == AttachmentTask.TRANSFORMATION) {
+            val merged = BackendResponse(text = notes.joinToString("\n\n"))
+            onPartial(merged)
+            return merged
+        }
+
+        val synthesisInputs = if (context?.task == AttachmentTask.QUESTION) {
+            val noteChunks = notes.mapIndexed { index, note ->
+                AttachmentChunk(
+                    ordinal = index,
+                    text = note,
+                    source = AttachmentSourceRef(
+                        startMillis = request.nativeAudioInputs[index].startMillis,
+                        endMillis = request.nativeAudioInputs[index].endMillis
+                    ),
+                    estimatedTokens = backend.estimateTokens(note)
+                )
+            }
+            val budget = (backend.capabilities.contextWindowTokens / 2).coerceAtLeast(128)
+            val relevant = Bm25AttachmentRetriever(noteChunks).retrieve(originalPrompt, budget)
+            relevant.map { chunk ->
+                val input = request.nativeAudioInputs[chunk.ordinal]
+                backend.streamReply(
+                    request.copy(
+                        history = request.history.replaceLastUserText(
+                            "Answer this request from the attached source audio segment ${chunk.source.label()}: $originalPrompt"
+                        ),
+                        nativeAudioInputs = listOf(input),
+                        attachmentContext = null
+                    ),
+                    onPartial = {}
+                ).text
+            }
+        } else {
+            notes
+        }
+        return synthesizeAttachmentResults(request, synthesisInputs, context, onPartial)
+    }
+
+    private suspend fun synthesizeAttachmentResults(
+        request: InferenceRequest,
+        results: List<String>,
+        context: AttachmentContext?,
+        onPartial: (BackendResponse) -> Unit
+    ): BackendResponse {
+        val originalPrompt = request.history.lastOrNull { it.role == ChatRole.USER }?.text.orEmpty()
+        var level = results.filter(String::isNotBlank)
+        while (level.size > 1) {
+            val groups = packTextsForSynthesis(level)
+            level = groups.mapIndexed { index, group ->
+                val synthesisPrompt = buildString {
+                    append("Combine these ordered intermediate results faithfully. Preserve source markers and do not invent facts.\n")
+                    append("Original user request: ").append(originalPrompt).append("\n")
+                    append("Group ${index + 1} of ${groups.size}:\n\n")
+                    append(group.joinToString("\n\n"))
+                }
+                backend.streamReply(
+                    request.copy(
+                        history = request.history.replaceLastUserText(synthesisPrompt),
+                        nativeAudioInputs = emptyList(),
+                        attachmentContext = null
+                    ),
+                    onPartial = if (groups.size == 1) onPartial else { _: BackendResponse -> }
+                ).text
+            }
+        }
+        if (level.isEmpty()) throw IllegalStateException("Attachment processing produced no result.")
+        val response = BackendResponse(text = level.single())
+        onPartial(response)
+        return response
+    }
+
+    private fun packTextsForSynthesis(texts: List<String>): List<List<String>> {
+        val budget = (backend.capabilities.contextWindowTokens / 2).coerceAtLeast(128)
+        val groups = mutableListOf<MutableList<String>>()
+        var used = 0
+        texts.forEach { text ->
+            val cost = backend.estimateTokens(text)
+            if (groups.isEmpty() || used + cost > budget) {
+                groups += mutableListOf<String>()
+                used = 0
+            }
+            groups.last() += text
+            used += cost
+        }
+        if (groups.size == texts.size && texts.size > 1) {
+            return texts.chunked(2)
+        }
+        return groups
+    }
+
+    private fun InferenceRequest.withUserPrompt(prompt: String?): InferenceRequest {
+        if (prompt.isNullOrBlank()) return this
+        return copy(history = history.replaceLastUserText(prompt), attachmentContext = null)
+    }
+
+    private fun List<ChatTurn>.replaceLastUserText(text: String): List<ChatTurn> {
+        val index = indexOfLast { it.role == ChatRole.USER }
+        require(index >= 0) { "Inference history must contain a user turn." }
+        return mapIndexed { turnIndex, turn -> if (turnIndex == index) turn.copy(text = text) else turn }
     }
 
     fun cancelGeneration() {
@@ -430,6 +729,7 @@ class PersistentChatController(
 
             currentSessionId = session.sessionId
             currentSessionCreatedAtMillis = session.createdAtMillis
+            activeAttachmentId = session.activeAttachmentId
             committedTurns.clear()
             committedTurns += session.turns
             streamingAssistantTurn = null
@@ -469,6 +769,7 @@ class PersistentChatController(
     private fun restoreActiveChat(snapshot: ActiveChatSnapshot) {
         currentSessionId = snapshot.sessionId
         currentSessionCreatedAtMillis = snapshot.createdAtMillis
+        activeAttachmentId = snapshot.activeAttachmentId
         committedTurns.clear()
         committedTurns += snapshot.turns
         streamingAssistantTurn = null
@@ -477,6 +778,8 @@ class PersistentChatController(
         preparedPromptTurnIds = emptySet()
         deleteTransientImageFiles(currentGenerationImageFilePaths)
         currentGenerationImageFilePaths = emptyList()
+        currentNativeAudioInputs = emptyList()
+        currentAttachmentContext = null
         resetGenerationTimer()
         resetLiveMarkdownState()
     }
@@ -489,6 +792,7 @@ class PersistentChatController(
         preparedPromptTurnIds = emptySet()
         currentSessionId = null
         currentSessionCreatedAtMillis = 0L
+        activeAttachmentId = null
         resetGenerationTimer()
         resetLiveMarkdownState()
     }
@@ -515,7 +819,8 @@ class PersistentChatController(
             modelDisplayName = modelDescriptor.displayName,
             createdAtMillis = currentSessionCreatedAtMillis.takeIf { it > 0 } ?: System.currentTimeMillis(),
             updatedAtMillis = System.currentTimeMillis(),
-            turns = committedTurns.toList()
+            turns = committedTurns.toList(),
+            activeAttachmentId = activeAttachmentId
         )
         sessionStore.save(session)
     }
@@ -674,7 +979,9 @@ class PersistentChatController(
             isReady = isReady,
             isGenerating = isGenerating,
             supportsThinking = modelDescriptor.supportsThinking,
-            supportsDirectImageInput = backend.supportsDirectImageInput
+            supportsDirectImageInput = backend.supportsDirectImageInput,
+            supportsNativeAudioInput = backend.supportsNativeAudioInput,
+            activeAttachmentId = activeAttachmentId
         )
     }
 

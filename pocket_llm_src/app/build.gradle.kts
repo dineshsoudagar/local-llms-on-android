@@ -34,6 +34,13 @@ android {
         compose = true
         viewBinding = true
     }
+    packaging {
+        jniLibs {
+            // sherpa's static-runtime AAR carries a fallback x86 copy. The app's pinned
+            // ONNX Runtime remains authoritative for the x86 emulator and Qwen backend.
+            pickFirsts += "lib/x86/libonnxruntime.so"
+        }
+    }
 }
 
 dependencies {
@@ -69,7 +76,10 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.4.2")
     implementation("androidx.camera:camera-view:1.4.2")
     implementation("com.google.mlkit:text-recognition:16.0.1")
-    implementation("com.google.ai.edge.litertlm:litertlm-android:0.10.2")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.14.0")
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
+    implementation("com.k2fsa.sherpa.onnx:sherpa-onnx-static-link-onnxruntime:1.13.4@aar")
 }
 
 // Android Studio may request this legacy Kotlin model task during sync. AGP 9

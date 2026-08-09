@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
 import android.graphics.drawable.ColorDrawable
+import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -34,6 +35,7 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.PopupMenu
 import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.TextView
@@ -97,7 +99,10 @@ open class PocketChatActivity : AppCompatActivity() {
         val modelText: String,
         val displayText: String,
         val imageFilePaths: List<String> = emptyList(),
-        val imageTurns: List<ChatTurn> = emptyList()
+        val nativeAudioInputs: List<NativeAudioInput> = emptyList(),
+        val attachmentContext: AttachmentContext? = null,
+        val imageTurns: List<ChatTurn> = emptyList(),
+        val attachmentTurns: List<ChatTurn> = emptyList()
     )
 
     private data class ImagePreprocessingResult(
@@ -164,6 +169,9 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var modelFileValidator: ModelFileValidator
     private lateinit var chatSessionStore: ChatSessionStore
     private lateinit var savedImageStore: SavedImageStore
+    private lateinit var attachmentRepository: AttachmentRepository
+    private lateinit var attachmentWorkerCoordinator: AttachmentWorkerCoordinator
+    private lateinit var whisperModelStore: WhisperModelStore
     private lateinit var retainedState: PocketChatViewModel
     private var currentModel: ModelDescriptor? = null
     private var currentImageInputMode: ImageInputMode = ImageInputMode.OCR
@@ -190,10 +198,17 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var sendButton: Button
     private lateinit var stopButton: Button
     private lateinit var micInputButton: MaterialButton
+    private lateinit var attachmentButton: MaterialButton
     private lateinit var galleryOcrButton: Button
     private lateinit var cameraOcrButton: Button
     private lateinit var pendingImageInputsScroll: HorizontalScrollView
     private lateinit var pendingImageInputsContainer: LinearLayout
+    private lateinit var activeAttachmentContainer: LinearLayout
+    private lateinit var activeAttachmentText: TextView
+    private lateinit var activeAttachmentProgress: ProgressBar
+    private lateinit var activeAttachmentRetry: MaterialButton
+    private lateinit var activeAttachmentCancel: MaterialButton
+    private lateinit var activeAttachmentDetach: MaterialButton
     private lateinit var statusView: TextView
     private lateinit var transientMessageView: TextView
     private var speechInput: SpeechInput? = null
@@ -211,6 +226,17 @@ open class PocketChatActivity : AppCompatActivity() {
     private val pendingImageInputs = mutableListOf<PendingImageInput>()
     private var nextPendingImageInputId = 1L
     private var imagePreprocessingJob: Job? = null
+    private var attachmentImportJob: Job? = null
+    private var audioPreparationJob: Job? = null
+    private var activeAttachment: AttachmentDescriptor? = null
+    private var attachmentImportInProgress = false
+    private var lastAttachmentUri: Uri? = null
+    private var lastAttachmentKind: AttachmentKind? = null
+    private var confirmedAttachmentOperationKey: String? = null
+    private var activeAttachmentWorkId: java.util.UUID? = null
+    private var attachmentRecorder: MediaRecorder? = null
+    private var attachmentRecordingFile: File? = null
+    private var pendingAttachmentRecordingStart = false
     private var isImagePreprocessingForSend = false
     private var autoScrollDuringGeneration = false
     private var autoScrollPendingFinalUpdate = false
@@ -289,6 +315,9 @@ open class PocketChatActivity : AppCompatActivity() {
         modelFileValidator = ModelFileValidator(modelFileResolver)
         chatSessionStore = ChatSessionStore(this)
         savedImageStore = SavedImageStore(this)
+        attachmentRepository = AttachmentRepository(this)
+        attachmentWorkerCoordinator = AttachmentWorkerCoordinator(this)
+        whisperModelStore = WhisperModelStore(this)
         setTheme(currentSettings.accent.styleFor(currentSettings.appearance))
         super.onCreate(savedInstanceState)
         retainedState = ViewModelProvider(this)[PocketChatViewModel::class.java]
@@ -312,10 +341,17 @@ open class PocketChatActivity : AppCompatActivity() {
         sendButton = findViewById(R.id.sendButton)
         stopButton = findViewById(R.id.stopButton)
         micInputButton = findViewById(R.id.micInputButton)
+        attachmentButton = findViewById(R.id.attachmentButton)
         galleryOcrButton = findViewById(R.id.galleryOcrButton)
         cameraOcrButton = findViewById(R.id.cameraOcrButton)
         pendingImageInputsScroll = findViewById(R.id.pendingImageInputsScroll)
         pendingImageInputsContainer = findViewById(R.id.pendingImageInputsContainer)
+        activeAttachmentContainer = findViewById(R.id.activeAttachmentContainer)
+        activeAttachmentText = findViewById(R.id.activeAttachmentText)
+        activeAttachmentProgress = findViewById(R.id.activeAttachmentProgress)
+        activeAttachmentRetry = findViewById(R.id.activeAttachmentRetry)
+        activeAttachmentCancel = findViewById(R.id.activeAttachmentCancel)
+        activeAttachmentDetach = findViewById(R.id.activeAttachmentDetach)
         statusView = findViewById(R.id.statusView)
         transientMessageView = findViewById(R.id.transientMessageView)
         chatRecyclerView = findViewById(R.id.chatRecyclerView)
@@ -335,7 +371,8 @@ open class PocketChatActivity : AppCompatActivity() {
             fontSizeSp = currentSettings.chatFontSizeSp,
             onImageTurnSelected = { turn ->
                 turn.imagePath?.let(::openImageViewer)
-            }
+            },
+            onAttachmentTurnSelected = ::reactivateAttachmentTurn
         )
         chatRecyclerView.layoutManager = LinearLayoutManager(this)
         chatRecyclerView.adapter = chatAdapter
@@ -354,7 +391,12 @@ open class PocketChatActivity : AppCompatActivity() {
         })
 
         toolbarModelSelector.setOnClickListener {
-            if (chatController?.state?.value?.isGenerating == true || isImagePreprocessingForSend) {
+            if (
+                chatController?.state?.value?.isGenerating == true ||
+                isImagePreprocessingForSend ||
+                attachmentImportInProgress ||
+                audioPreparationJob?.isActive == true
+            ) {
                 showTransientMessage(getString(R.string.model_switch_generation_blocked))
                 return@setOnClickListener
             }
@@ -368,6 +410,15 @@ open class PocketChatActivity : AppCompatActivity() {
         micInputButton.setOnClickListener {
             handleSpeechInputClick()
         }
+
+        attachmentButton.setOnClickListener(::showAttachmentMenu)
+        activeAttachmentDetach.setOnClickListener { detachActiveAttachment() }
+        activeAttachmentRetry.setOnClickListener {
+            val uri = lastAttachmentUri
+            val kind = lastAttachmentKind
+            if (uri != null && kind != null) importAttachment(uri, kind)
+        }
+        activeAttachmentCancel.setOnClickListener { cancelActiveAttachmentWork() }
 
         galleryOcrButton.setOnClickListener {
             galleryImagePickerLauncher.launch(
@@ -467,6 +518,12 @@ open class PocketChatActivity : AppCompatActivity() {
         controllerStateJob?.cancel()
         modelDownloadStateJob?.cancel()
         imagePreprocessingJob?.cancel()
+        attachmentImportJob?.cancel()
+        audioPreparationJob?.cancel()
+        runCatching { attachmentRecorder?.stop() }
+        runCatching { attachmentRecorder?.release() }
+        attachmentRecorder = null
+        attachmentRecordingFile?.delete()
         isImagePreprocessingForSend = false
         stopCameraOcr()
         cameraOcrDialog?.dismiss()
@@ -1120,6 +1177,10 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun addPendingImageInput(savedImage: SavedImageEntry) {
+        if (activeAttachment != null || attachmentImportInProgress) {
+            showTransientMessage(getString(R.string.attachment_mixed_input_blocked))
+            return
+        }
         if (isImagePreprocessingForSend) {
             showTransientMessage(getString(R.string.image_input_processing))
             return
@@ -1147,7 +1208,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun handleSendClick() {
         val controller = chatController ?: return
-        if (isImagePreprocessingForSend) {
+        if (isImagePreprocessingForSend || attachmentImportInProgress || audioPreparationJob?.isActive == true) {
             return
         }
 
@@ -1170,17 +1231,21 @@ open class PocketChatActivity : AppCompatActivity() {
             }
 
             clearSpeechInputState()
-            if (
-                controller.sendPrompt(
-                    prompt.modelText,
-                    prompt.displayText,
-                    prompt.imageFilePaths,
-                    prompt.imageTurns
-                )
-            ) {
+            val started = controller.sendPrompt(
+                prompt.modelText,
+                prompt.displayText,
+                prompt.imageFilePaths,
+                nativeAudioInputs = prompt.nativeAudioInputs,
+                attachmentContext = prompt.attachmentContext,
+                leadingTurns = prompt.imageTurns + prompt.attachmentTurns
+            )
+            if (started) {
+                confirmedAttachmentOperationKey = null
                 inputEditText.text.clear()
                 clearPendingImageInputs(keepTempFilePaths = prompt.imageFilePaths.toSet())
                 refreshDrawerSessions()
+            } else {
+                prompt.attachmentContext?.temporaryFiles?.forEach { File(it).delete() }
             }
             return
         }
@@ -1239,7 +1304,9 @@ open class PocketChatActivity : AppCompatActivity() {
                 promptStarted = controller.sendPreparedPrompt(
                     prompt.modelText,
                     prompt.displayText,
-                    prompt.imageFilePaths
+                    prompt.imageFilePaths,
+                    nativeAudioInputs = prompt.nativeAudioInputs,
+                    attachmentContext = prompt.attachmentContext
                 )
                 if (!promptStarted) {
                     controller.cancelPromptPreparation()
@@ -1846,6 +1913,19 @@ open class PocketChatActivity : AppCompatActivity() {
         draft: ComposerDraft = captureComposerDraft(),
         images: List<PendingImageInput> = pendingImageInputs
     ): ComposerPrompt? {
+        if (attachmentImportInProgress) {
+            showTransientMessage(getString(R.string.attachment_importing))
+            return null
+        }
+        val descriptor = activeAttachment
+        if (descriptor != null && images.isNotEmpty()) {
+            showTransientMessage(getString(R.string.attachment_mixed_input_blocked))
+            return null
+        }
+        if (descriptor?.status == AttachmentStatus.FAILED) {
+            showTransientMessage(descriptor.errorMessage ?: "Attachment preparation failed.")
+            return null
+        }
         if (images.any { it.status == PendingImageStatus.PENDING || it.status == PendingImageStatus.READING }) {
             showTransientMessage(getString(R.string.image_input_processing))
             return null
@@ -1879,15 +1959,142 @@ open class PocketChatActivity : AppCompatActivity() {
                 ""
             }
         }
+        if (descriptor != null && modelText.isBlank()) {
+            showTransientMessage(getString(R.string.attachment_question_required))
+            return null
+        }
         if (modelText.isBlank()) {
             return null
         }
+
+        val attachmentContext = descriptor?.let { buildActiveAttachmentContext(it, modelText) }
+            ?: if (descriptor != null) return null else null
 
         return ComposerPrompt(
             modelText = modelText,
             displayText = buildComposerDisplayText(draft.typedText),
             imageFilePaths = directGemmaImagePaths,
-            imageTurns = buildImageChatTurns(images)
+            nativeAudioInputs = attachmentContext?.nativeAudioInputs.orEmpty(),
+            attachmentContext = attachmentContext,
+            imageTurns = buildImageChatTurns(images),
+            attachmentTurns = descriptor?.let(::buildAttachmentChatTurn)?.let(::listOf).orEmpty()
+        )
+    }
+
+    private fun buildActiveAttachmentContext(
+        descriptor: AttachmentDescriptor,
+        userPrompt: String
+    ): AttachmentContext? {
+        val controller = chatController ?: return null
+        return when (descriptor.kind) {
+            AttachmentKind.TEXT, AttachmentKind.PDF -> {
+                val chunks = attachmentRepository.loadChunks(descriptor)
+                if (chunks.isEmpty()) {
+                    showTransientMessage("No extracted attachment text is available.")
+                    null
+                } else {
+                    buildPlannedAttachmentContext(controller, descriptor, chunks, userPrompt)
+                }
+            }
+
+            AttachmentKind.AUDIO -> {
+                if (currentModel is GemmaLiteRtSpec) {
+                    if (!controller.state.value.supportsNativeAudioInput) {
+                        showTransientMessage(getString(R.string.gemma_audio_unavailable))
+                        return null
+                    }
+                    val segmented = runCatching { GemmaAudioSegmenter(this).segment(descriptor) }
+                        .getOrElse { error ->
+                            showTransientMessage(error.message ?: "Audio segmentation failed.")
+                            return null
+                        }
+                    val confirmationKey = "${descriptor.id}:${userPrompt.hashCode()}:gemma-audio"
+                    if (
+                        segmented.inputs.size > 1 &&
+                        confirmedAttachmentOperationKey != confirmationKey
+                    ) {
+                        segmented.temporaryFiles.forEach { File(it).delete() }
+                        MaterialAlertDialogBuilder(this)
+                            .setTitle("Process the full audio?")
+                            .setMessage(
+                                "Gemma will analyze ${segmented.inputs.size} overlapping native-audio segments " +
+                                    "and then combine them. It may take several minutes."
+                            )
+                            .setPositiveButton("Continue") { _, _ ->
+                                confirmedAttachmentOperationKey = confirmationKey
+                                handleSendClick()
+                            }
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
+                        return null
+                    }
+                    AttachmentContext(
+                        attachmentId = descriptor.id,
+                        displayName = descriptor.displayName,
+                        route = AttachmentProcessingRoute.GEMMA_NATIVE_AUDIO,
+                        sourceRefs = segmented.inputs.map { input ->
+                            AttachmentSourceRef(startMillis = input.startMillis, endMillis = input.endMillis)
+                        },
+                        nativeAudioInputs = segmented.inputs,
+                        task = AttachmentTaskRouter.route(userPrompt),
+                        temporaryFiles = segmented.temporaryFiles
+                    )
+                } else {
+                    val transcriptChunks = attachmentRepository.loadChunks(descriptor)
+                    if (transcriptChunks.isEmpty()) {
+                        if (whisperModelStore.isAvailable()) {
+                            prepareWhisperTranscript(descriptor)
+                        } else {
+                            offerWhisperPreparation(descriptor)
+                        }
+                        showTransientMessage(getString(R.string.non_gemma_audio_download_required))
+                        null
+                    } else {
+                        buildPlannedAttachmentContext(controller, descriptor, transcriptChunks, userPrompt)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun buildPlannedAttachmentContext(
+        controller: PersistentChatController,
+        descriptor: AttachmentDescriptor,
+        chunks: List<AttachmentChunk>,
+        userPrompt: String
+    ): AttachmentContext? {
+        val context = runCatching { controller.buildAttachmentContext(descriptor, chunks, userPrompt) }
+            .getOrElse { error ->
+                showTransientMessage(error.message ?: "The attachment exceeds this model's prompt limits.")
+                return null
+            }
+        if (!context.requiresFinalSynthesis) return context
+        val confirmationKey = "${descriptor.id}:${userPrompt.hashCode()}:${context.task}"
+        if (confirmedAttachmentOperationKey == confirmationKey) return context
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Process the full attachment?")
+            .setMessage(
+                "This ${context.task.name.lowercase()} needs ${context.promptBatches.size} on-device passes " +
+                    "plus final combination. It may take several minutes."
+            )
+            .setPositiveButton("Continue") { _, _ ->
+                confirmedAttachmentOperationKey = confirmationKey
+                handleSendClick()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+        return null
+    }
+
+    private fun buildAttachmentChatTurn(descriptor: AttachmentDescriptor): ChatTurn {
+        return ChatTurn(
+            role = ChatRole.USER,
+            text = "",
+            contentType = ChatTurnContentType.ATTACHMENT,
+            attachmentId = descriptor.id,
+            attachmentName = descriptor.displayName,
+            attachmentKind = descriptor.kind,
+            attachmentProcessingRoute = descriptor.processingRoute
         )
     }
 
@@ -1996,6 +2203,365 @@ open class PocketChatActivity : AppCompatActivity() {
     private fun setPromptInputText(text: String) {
         inputEditText.setText(text)
         inputEditText.setSelection(inputEditText.text.length)
+    }
+
+    private fun showAttachmentMenu(anchor: View) {
+        if (pendingImageInputs.isNotEmpty()) {
+            showTransientMessage(getString(R.string.attachment_mixed_input_blocked))
+            return
+        }
+        PopupMenu(this, anchor).apply {
+            menu.add(getString(R.string.attachment_document)).setOnMenuItemClickListener {
+                documentPickerLauncher.launch(
+                    arrayOf(
+                        "application/pdf",
+                        "text/*",
+                        "application/json",
+                        "application/xml",
+                        "application/yaml"
+                    )
+                )
+                true
+            }
+            menu.add(getString(R.string.attachment_audio_file)).setOnMenuItemClickListener {
+                audioPickerLauncher.launch(arrayOf("audio/*", "video/mp4"))
+                true
+            }
+            menu.add(getString(R.string.attachment_record_audio)).setOnMenuItemClickListener {
+                showAudioRecordingDialog()
+                true
+            }
+            show()
+        }
+    }
+
+    private val attachmentRecordingPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val shouldStart = pendingAttachmentRecordingStart
+        pendingAttachmentRecordingStart = false
+        if (granted && shouldStart) startAttachmentRecording()
+        else if (!granted) showTransientMessage(getString(R.string.speech_permission_denied))
+    }
+
+    private fun importAttachment(uri: Uri, requestedKind: AttachmentKind) {
+        if (pendingImageInputs.isNotEmpty()) {
+            showTransientMessage(getString(R.string.attachment_mixed_input_blocked))
+            return
+        }
+        val controller = requireUsableController() ?: return
+        if (controller.state.value.isGenerating || attachmentImportJob?.isActive == true) return
+        runCatching {
+            contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        lastAttachmentUri = uri
+        lastAttachmentKind = requestedKind
+        attachmentImportInProgress = true
+        activeAttachment = null
+        renderActiveAttachment()
+        val sessionId = controller.ensureSessionId()
+        attachmentImportJob = lifecycleScope.launch {
+            try {
+                val workId = attachmentWorkerCoordinator.enqueueImport(
+                    sessionId = sessionId,
+                    uri = uri,
+                    kind = requestedKind,
+                    gemmaAudio = currentModel is GemmaLiteRtSpec
+                )
+                activeAttachmentWorkId = workId
+                val workInfo = attachmentWorkerCoordinator.await(workId)
+                val attachmentId = workInfo.outputData.getString(AttachmentPreparationWorker.KEY_ATTACHMENT_ID)
+                val descriptor = attachmentId?.let { attachmentRepository.loadDescriptor(sessionId, it) }
+                if (workInfo.state != androidx.work.WorkInfo.State.SUCCEEDED || descriptor == null) {
+                    val message = workInfo.outputData.getString(AttachmentPreparationWorker.KEY_ERROR)
+                        ?: descriptor?.errorMessage
+                        ?: "Attachment preparation failed."
+                    if (descriptor != null) {
+                        activeAttachment = descriptor
+                        controller.setActiveAttachment(descriptor.id)
+                    }
+                    throw IOException(message)
+                }
+                activeAttachment = descriptor
+                controller.setActiveAttachment(descriptor.id)
+            } catch (_: CancellationException) {
+                // Cancel/detach owns the resulting attachment UI state.
+            } catch (error: Throwable) {
+                showTransientMessage(error.message ?: "Attachment import failed.")
+            } finally {
+                deleteRecordedAttachmentInput(uri)
+                activeAttachmentWorkId = null
+                attachmentImportInProgress = false
+                attachmentImportJob = null
+                renderActiveAttachment()
+                activeAttachment?.takeIf {
+                    it.kind == AttachmentKind.AUDIO &&
+                        it.status == AttachmentStatus.READY &&
+                        currentModel !is GemmaLiteRtSpec
+                }?.let(::offerWhisperPreparation)
+            }
+        }
+    }
+
+    private fun deleteRecordedAttachmentInput(uri: Uri) {
+        if (uri.scheme != "file") return
+        val file = uri.path?.let(::File) ?: return
+        val recordingsDirectory = File(cacheDir, "attachment_recordings")
+        val safe = runCatching {
+            file.canonicalPath.startsWith(recordingsDirectory.canonicalPath + File.separator)
+        }.getOrDefault(false)
+        if (safe) file.delete()
+    }
+
+    private fun offerWhisperPreparation(descriptor: AttachmentDescriptor) {
+        if (whisperModelStore.isAvailable()) {
+            prepareWhisperTranscript(descriptor)
+            return
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Download multilingual transcription model?")
+            .setMessage(
+                "This non-Gemma model uses sherpa-onnx Whisper tiny int8 (${WhisperModelStore.DOWNLOAD_SIZE_LABEL}). " +
+                    "It downloads only after your confirmation and stays on this device."
+            )
+            .setPositiveButton("Download") { _, _ -> downloadWhisperAndPrepare(descriptor) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun downloadWhisperAndPrepare(descriptor: AttachmentDescriptor) {
+        if (audioPreparationJob?.isActive == true) return
+        attachmentImportInProgress = true
+        renderActiveAttachment()
+        audioPreparationJob = lifecycleScope.launch {
+            try {
+                whisperModelStore.download { downloaded, total ->
+                    runOnUiThread {
+                        activeAttachmentText.text = getString(
+                            R.string.whisper_download_progress,
+                            (downloaded * 100L / total.coerceAtLeast(1L)).coerceIn(0L, 100L)
+                        )
+                    }
+                }
+                attachmentImportInProgress = false
+                audioPreparationJob = null
+                prepareWhisperTranscript(descriptor)
+            } catch (_: CancellationException) {
+                // Cancel/detach owns the resulting attachment UI state.
+            } catch (error: Throwable) {
+                attachmentImportInProgress = false
+                audioPreparationJob = null
+                showTransientMessage(error.message ?: "Could not download the transcription model.")
+                renderActiveAttachment()
+            }
+        }
+    }
+
+    private fun prepareWhisperTranscript(descriptor: AttachmentDescriptor) {
+        if (audioPreparationJob?.isActive == true) return
+        val controller = chatController ?: return
+        val processing = descriptor.copy(
+            status = AttachmentStatus.PROCESSING,
+            updatedAtMillis = System.currentTimeMillis(),
+            errorMessage = null
+        )
+        activeAttachment = processing
+        attachmentRepository.saveDescriptor(processing)
+        renderActiveAttachment()
+        audioPreparationJob = lifecycleScope.launch {
+            try {
+                val workId = attachmentWorkerCoordinator.enqueueWhisper(
+                    processing.sessionId,
+                    processing.id
+                )
+                activeAttachmentWorkId = workId
+                val workInfo = controller.withRuntimeLease {
+                    attachmentWorkerCoordinator.await(workId)
+                }
+                require(workInfo.state == androidx.work.WorkInfo.State.SUCCEEDED) {
+                    workInfo.outputData.getString(AttachmentPreparationWorker.KEY_ERROR)
+                        ?: "Audio transcription failed."
+                }
+                val ready = attachmentRepository.loadDescriptor(processing.sessionId, processing.id)
+                    ?: throw IOException("The transcription result could not be loaded.")
+                activeAttachment = ready
+            } catch (_: CancellationException) {
+                // Cancel/detach owns the resulting attachment UI state.
+            } catch (error: Throwable) {
+                val failed = attachmentRepository.loadDescriptor(processing.sessionId, processing.id)
+                    ?: processing.copy(
+                        status = AttachmentStatus.FAILED,
+                        updatedAtMillis = System.currentTimeMillis(),
+                        errorMessage = error.message ?: "Audio transcription failed."
+                    ).also(attachmentRepository::saveDescriptor)
+                activeAttachment = failed
+                showTransientMessage(failed.errorMessage.orEmpty())
+            } finally {
+                activeAttachmentWorkId = null
+                audioPreparationJob = null
+                renderActiveAttachment()
+            }
+        }
+    }
+
+    private fun showAudioRecordingDialog() {
+        if (!hasPermission(Manifest.permission.RECORD_AUDIO)) {
+            pendingAttachmentRecordingStart = true
+            attachmentRecordingPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        startAttachmentRecording()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun startAttachmentRecording() {
+        if (attachmentRecorder != null || chatController?.state?.value?.isGenerating == true) return
+        val directory = File(cacheDir, "attachment_recordings").apply { mkdirs() }
+        val outputFile = File.createTempFile("audio_attachment_", ".m4a", directory)
+        val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            MediaRecorder(this)
+        } else {
+            MediaRecorder()
+        }
+        try {
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setAudioSamplingRate(44_100)
+            recorder.setAudioEncodingBitRate(128_000)
+            recorder.setMaxDuration(AttachmentLimits.MAX_AUDIO_DURATION_MILLIS.toInt())
+            recorder.setOutputFile(outputFile.absolutePath)
+            recorder.prepare()
+            recorder.start()
+            attachmentRecorder = recorder
+            attachmentRecordingFile = outputFile
+        } catch (error: Throwable) {
+            runCatching { recorder.release() }
+            outputFile.delete()
+            showTransientMessage(error.message ?: getString(R.string.record_audio_coming_soon))
+            return
+        }
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.attachment_record_audio))
+            .setMessage("Recording… The dictation microphone remains a separate input.")
+            .setPositiveButton("Use recording", null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                finishAttachmentRecording(useRecording = true)
+                dialog.dismiss()
+            }
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+                finishAttachmentRecording(useRecording = false)
+                dialog.dismiss()
+            }
+        }
+        dialog.setOnCancelListener { finishAttachmentRecording(useRecording = false) }
+        dialog.show()
+    }
+
+    private fun finishAttachmentRecording(useRecording: Boolean) {
+        val recorder = attachmentRecorder ?: return
+        val file = attachmentRecordingFile
+        attachmentRecorder = null
+        attachmentRecordingFile = null
+        val stopped = runCatching { recorder.stop() }.isSuccess
+        runCatching { recorder.release() }
+        if (useRecording && stopped && file != null && file.length() > 0L) {
+            importAttachment(Uri.fromFile(file), AttachmentKind.AUDIO)
+        } else {
+            file?.delete()
+        }
+    }
+
+    private fun detachActiveAttachment() {
+        activeAttachmentWorkId?.let(attachmentWorkerCoordinator::cancel)
+        activeAttachmentWorkId = null
+        attachmentImportJob?.cancel()
+        attachmentImportJob = null
+        audioPreparationJob?.cancel()
+        audioPreparationJob = null
+        attachmentImportInProgress = false
+        activeAttachment = null
+        confirmedAttachmentOperationKey = null
+        chatController?.setActiveAttachment(null)
+        renderActiveAttachment()
+    }
+
+    private fun cancelActiveAttachmentWork() {
+        activeAttachmentWorkId?.let(attachmentWorkerCoordinator::cancel)
+        activeAttachmentWorkId = null
+        attachmentImportJob?.cancel()
+        attachmentImportJob = null
+        audioPreparationJob?.cancel()
+        audioPreparationJob = null
+        attachmentImportInProgress = false
+        activeAttachment = activeAttachment?.copy(
+            status = AttachmentStatus.FAILED,
+            updatedAtMillis = System.currentTimeMillis(),
+            errorMessage = "Processing cancelled. Retry or detach the attachment."
+        )?.also(attachmentRepository::saveDescriptor)
+        renderActiveAttachment()
+    }
+
+    private fun reactivateAttachmentTurn(turn: ChatTurn) {
+        val controller = chatController ?: return
+        if (controller.state.value.isGenerating || attachmentImportInProgress) return
+        val attachmentId = turn.attachmentId ?: return
+        val sessionId = controller.snapshotActiveChat().sessionId ?: return
+        val descriptor = attachmentRepository.loadDescriptor(sessionId, attachmentId)
+        if (descriptor == null) {
+            showTransientMessage("That attachment is no longer available.")
+            return
+        }
+        if (pendingImageInputs.isNotEmpty()) clearPendingImageInputs()
+        activeAttachment = descriptor
+        controller.setActiveAttachment(descriptor.id)
+        renderActiveAttachment()
+    }
+
+    private fun restoreActiveAttachmentIfNeeded(attachmentId: String?) {
+        if (attachmentId == null) {
+            if (!attachmentImportInProgress) activeAttachment = null
+            renderActiveAttachment()
+            return
+        }
+        if (activeAttachment?.id == attachmentId) return
+        val snapshot = chatController?.snapshotActiveChat() ?: return
+        val sessionId = snapshot.sessionId ?: return
+        activeAttachment = attachmentRepository.loadDescriptor(sessionId, attachmentId)
+        renderActiveAttachment()
+    }
+
+    private fun renderActiveAttachment() {
+        if (!::activeAttachmentContainer.isInitialized) return
+        val descriptor = activeAttachment
+        activeAttachmentContainer.visibility = if (attachmentImportInProgress || descriptor != null) {
+            View.VISIBLE
+        } else {
+            View.GONE
+        }
+        activeAttachmentProgress.visibility = if (
+            attachmentImportInProgress || descriptor?.status == AttachmentStatus.PROCESSING || descriptor?.status == AttachmentStatus.IMPORTING
+        ) View.VISIBLE else View.GONE
+        activeAttachmentRetry.visibility = if (descriptor?.status == AttachmentStatus.FAILED) View.VISIBLE else View.GONE
+        activeAttachmentCancel.visibility = if (
+            attachmentImportInProgress || descriptor?.status == AttachmentStatus.PROCESSING || descriptor?.status == AttachmentStatus.IMPORTING
+        ) View.VISIBLE else View.GONE
+        activeAttachmentText.text = when {
+            attachmentImportInProgress -> getString(R.string.attachment_importing)
+            descriptor == null -> ""
+            descriptor.status == AttachmentStatus.FAILED -> getString(
+                R.string.attachment_failed,
+                descriptor.errorMessage.orEmpty()
+            )
+            descriptor.status == AttachmentStatus.PROCESSING ->
+                getString(R.string.attachment_using, descriptor.displayName) + " · Transcribing…"
+            else -> getString(R.string.attachment_using, descriptor.displayName) + " · " +
+                getString(R.string.attachment_ready)
+        }
     }
 
     private fun clearSpeechInputState() {
@@ -2158,6 +2724,14 @@ open class PocketChatActivity : AppCompatActivity() {
             }
         }
     }
+
+    private val documentPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { importAttachment(it, AttachmentKind.TEXT) } }
+
+    private val audioPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { importAttachment(it, AttachmentKind.AUDIO) } }
 
     private fun requestModelLoad(
         descriptor: ModelDescriptor,
@@ -2329,6 +2903,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun applyChatState(state: ChatUiState) {
+        restoreActiveAttachmentIfNeeded(state.activeAttachmentId)
         val generationStarted = state.isGenerating && !wasGenerating
         val generationFinished = !state.isGenerating && wasGenerating
 
@@ -2357,6 +2932,8 @@ open class PocketChatActivity : AppCompatActivity() {
         stopButton.visibility = if (state.isGenerating) View.VISIBLE else View.GONE
         newChatButton.isEnabled = state.isReady && !state.isGenerating && !isImagePreprocessingForSend
         sendButton.isEnabled = state.isReady && !state.isGenerating && !isImagePreprocessingForSend
+        attachmentButton.isEnabled = state.isReady && !state.isGenerating &&
+            !attachmentImportInProgress && audioPreparationJob?.isActive != true
         stopButton.isEnabled = state.isGenerating
 
         val effectiveStatus = modelOperationStatusMessage ?: state.statusMessage
@@ -3122,7 +3699,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun startNewChatFromUi() {
-        if (isImagePreprocessingForSend) {
+        if (isImagePreprocessingForSend || attachmentImportInProgress || audioPreparationJob?.isActive == true) {
             showTransientMessage(getString(R.string.image_input_processing))
             return
         }
@@ -3135,6 +3712,8 @@ open class PocketChatActivity : AppCompatActivity() {
         inputEditText.text.clear()
         clearSpeechInputState()
         clearPendingImageInputs()
+        activeAttachment = null
+        renderActiveAttachment()
         controller.startNewChat()
         refreshDrawerSessions()
     }

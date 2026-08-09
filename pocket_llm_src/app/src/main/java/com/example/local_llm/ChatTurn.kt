@@ -9,7 +9,8 @@ enum class ChatRole {
 
 enum class ChatTurnContentType {
     TEXT,
-    IMAGE
+    IMAGE,
+    ATTACHMENT
 }
 
 data class ChatTurn(
@@ -24,7 +25,11 @@ data class ChatTurn(
     val renderAsMarkdown: Boolean = false,
     val isStreaming: Boolean = false,
     val contentType: ChatTurnContentType = ChatTurnContentType.TEXT,
-    val imagePath: String? = null
+    val imagePath: String? = null,
+    val attachmentId: String? = null,
+    val attachmentName: String? = null,
+    val attachmentKind: AttachmentKind? = null,
+    val attachmentProcessingRoute: AttachmentProcessingRoute? = null
 ) {
     val isUser: Boolean
         get() = role == ChatRole.USER
@@ -32,12 +37,15 @@ data class ChatTurn(
     val isImage: Boolean
         get() = contentType == ChatTurnContentType.IMAGE
 
+    val isAttachment: Boolean
+        get() = contentType == ChatTurnContentType.ATTACHMENT
+
     val transcriptText: String
-        get() = if (isImage) "" else displayText ?: text
+        get() = if (isImage || isAttachment) "" else displayText ?: text
 }
 
 fun ChatTurn.asModelMemoryTurn(): ChatTurn? {
-    if (isImage) {
+    if (isImage || isAttachment) {
         return null
     }
 
@@ -50,7 +58,11 @@ fun ChatTurn.asModelMemoryTurn(): ChatTurn? {
         renderAsMarkdown = false,
         isStreaming = false,
         contentType = ChatTurnContentType.TEXT,
-        imagePath = null
+        imagePath = null,
+        attachmentId = null,
+        attachmentName = null,
+        attachmentKind = null,
+        attachmentProcessingRoute = null
     )
 }
 

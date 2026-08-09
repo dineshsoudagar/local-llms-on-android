@@ -28,7 +28,8 @@ import kotlin.math.roundToInt
 
 class ChatAdapter(
     private var fontSizeSp: Float = 16f,
-    private val onImageTurnSelected: (ChatTurn) -> Unit = {}
+    private val onImageTurnSelected: (ChatTurn) -> Unit = {},
+    private val onAttachmentTurnSelected: (ChatTurn) -> Unit = {}
 ) : ListAdapter<ChatTurn, ChatAdapter.MessageViewHolder>(DiffCallback) {
 
     private val expandedThoughtIds = mutableSetOf<String>()
@@ -153,7 +154,9 @@ class ChatAdapter(
         val canCopyResponse = !turn.isUser && hasBubbleText && !turn.isStreaming
         holder.messageImage.visibility = View.GONE
         holder.messageImage.setImageDrawable(null)
-        holder.bubbleFrame.setOnClickListener(null)
+        holder.bubbleFrame.setOnClickListener(
+            if (turn.isAttachment) View.OnClickListener { onAttachmentTurnSelected(turn) } else null
+        )
         holder.bubbleFrame.visibility = if (hasBubbleText) View.VISIBLE else View.GONE
         holder.textView.visibility = if (hasBubbleText) View.VISIBLE else View.GONE
         holder.textView.setPaddingRelative(
@@ -356,6 +359,9 @@ class ChatAdapter(
     }
 
     private fun buildBubbleText(turn: ChatTurn): String {
+        if (turn.isAttachment) {
+            return "📎 ${turn.attachmentName ?: "Attachment"}"
+        }
         if (turn.isUser) {
             return turn.transcriptText
         }

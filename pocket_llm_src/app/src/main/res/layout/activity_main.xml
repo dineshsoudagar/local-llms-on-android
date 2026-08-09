@@ -352,6 +352,64 @@
                 </HorizontalScrollView>
 
                 <LinearLayout
+                    android:id="@+id/activeAttachmentContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/bg_image_input_chip"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="7dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/activeAttachmentText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:maxLines="2"
+                        android:textColor="?attr/colorInputText"
+                        android:textSize="13sp" />
+
+                    <ProgressBar
+                        android:id="@+id/activeAttachmentProgress"
+                        style="?android:attr/progressBarStyleSmall"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_marginStart="8dp"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/activeAttachmentRetry"
+                        style="@style/InputToolButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="6dp"
+                        android:text="@string/retry"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/activeAttachmentCancel"
+                        style="@style/InputToolButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="6dp"
+                        android:text="@android:string/cancel"
+                        android:visibility="gone" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/activeAttachmentDetach"
+                        style="@style/InputToolButton"
+                        android:layout_width="34dp"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="6dp"
+                        android:contentDescription="@string/detach_attachment"
+                        android:text="×"
+                        android:textSize="20sp" />
+                </LinearLayout>
+
+                <LinearLayout
                     android:id="@+id/inputActionRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -368,11 +426,29 @@
                         android:orientation="horizontal">
 
                         <com.google.android.material.button.MaterialButton
+                            android:id="@+id/attachmentButton"
+                            style="@style/InputToolButton"
+                            android:layout_width="34dp"
+                            android:layout_height="34dp"
+                            android:layout_gravity="bottom"
+                            android:contentDescription="@string/add_attachment"
+                            android:insetLeft="0dp"
+                            android:insetTop="0dp"
+                            android:insetRight="0dp"
+                            android:insetBottom="0dp"
+                            android:text=""
+                            app:icon="@drawable/ic_attach_file_24"
+                            app:iconGravity="textStart"
+                            app:iconPadding="0dp"
+                            app:iconSize="18dp" />
+
+                        <com.google.android.material.button.MaterialButton
                             android:id="@+id/micInputButton"
                             style="@style/InputToolButton"
                             android:layout_width="34dp"
                             android:layout_height="34dp"
                             android:layout_gravity="bottom"
+                            android:layout_marginStart="5dp"
                             android:contentDescription="@string/voice_input"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"

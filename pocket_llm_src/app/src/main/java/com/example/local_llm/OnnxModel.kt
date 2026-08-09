@@ -243,12 +243,10 @@ class OnnxModel(
         shouldStop: () -> Boolean = { false },
         onTokenGenerated: (Int) -> Unit
     ) {
-        val promptTokens = if (inputIds.size > maxInputTokens) {
-            Log.w(TAG, "Prompt had ${inputIds.size} tokens; truncated to last $maxInputTokens tokens.")
-            inputIds.takeLast(maxInputTokens).toIntArray()
-        } else {
-            inputIds
+        require(inputIds.size <= maxInputTokens) {
+            "Structured prompt budgeting failed: ${inputIds.size} tokens exceeds the $maxInputTokens-token model input limit."
         }
+        val promptTokens = inputIds
         val generated = promptTokens.toMutableList()
 
         val isQwen3 = config.modelName.contains("qwen3", ignoreCase = true)

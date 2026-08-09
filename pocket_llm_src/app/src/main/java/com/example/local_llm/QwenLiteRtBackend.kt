@@ -19,6 +19,8 @@ class QwenLiteRtBackend(
     private val initializationPolicy: BackendInitializationPolicy = BackendInitializationPolicy()
 ) : ChatBackend {
 
+    override val capabilities = BackendCapabilities(contextWindowTokens = 2048)
+
     companion object {
         private const val THOUGHT_CHANNEL_NAME = "thought"
     }
@@ -75,22 +77,22 @@ class QwenLiteRtBackend(
     }
 
     override suspend fun streamReply(
-        history: List<ChatTurn>,
-        thinkingEnabled: Boolean,
-        modelInstruction: String,
-        imageFilePaths: List<String>,
+        request: InferenceRequest,
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse = withContext(Dispatchers.IO) {
-        require(imageFilePaths.isEmpty()) {
+        require(request.imageFilePaths.isEmpty()) {
             "Qwen LiteRT models do not support direct image input."
         }
-        require(history.isNotEmpty() && history.last().role == ChatRole.USER) {
+        require(request.nativeAudioInputs.isEmpty()) {
+            "Qwen LiteRT models do not support native audio input."
+        }
+        require(request.history.isNotEmpty() && request.history.last().role == ChatRole.USER) {
             "Qwen LiteRT backend expects the final history turn to be the user's prompt."
         }
 
-        val initialHistory = history.dropLast(1)
-        val userTurn = history.last()
-        recreateConversation(initialHistory, thinkingEnabled, modelInstruction)
+        val initialHistory = request.history.dropLast(1)
+        val userTurn = request.history.last()
+        recreateConversation(initialHistory, request.thinkingEnabled, request.modelInstruction)
 
         val activeConversation = conversation
             ?: throw IllegalStateException("Conversation was not created.")

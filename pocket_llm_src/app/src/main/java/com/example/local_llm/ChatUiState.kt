@@ -11,5 +11,7 @@ data class ChatUiState(
     val isReady: Boolean = false,
     val isGenerating: Boolean = false,
     val supportsThinking: Boolean = false,
-    val supportsDirectImageInput: Boolean = false
+    val supportsDirectImageInput: Boolean = false,
+    val supportsNativeAudioInput: Boolean = false,
+    val activeAttachmentId: String? = null
 )

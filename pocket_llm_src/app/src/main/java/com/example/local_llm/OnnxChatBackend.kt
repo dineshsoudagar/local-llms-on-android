@@ -12,6 +12,12 @@ class OnnxChatBackend(
     private val modelFileResolver: ModelFileResolver
 ) : ChatBackend {
 
+    override val capabilities = BackendCapabilities(contextWindowTokens = 512)
+
+    override fun estimateTokens(text: String): Int {
+        return if (::tokenizer.isInitialized) tokenizer.tokenize(text).size else conservativeTokenEstimate(text)
+    }
+
     private lateinit var tokenizer: BpeTokenizer
     private lateinit var config: ModelConfig
     private lateinit var promptBuilder: PromptBuilder
@@ -36,21 +42,21 @@ class OnnxChatBackend(
     }
 
     override suspend fun streamReply(
-        history: List<ChatTurn>,
-        thinkingEnabled: Boolean,
-        modelInstruction: String,
-        imageFilePaths: List<String>,
+        request: InferenceRequest,
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse = withContext(Dispatchers.IO) {
-        require(imageFilePaths.isEmpty()) {
+        require(request.imageFilePaths.isEmpty()) {
             "ONNX chat models do not support direct image input."
+        }
+        require(request.nativeAudioInputs.isEmpty()) {
+            "ONNX chat models do not support native audio input."
         }
         cancelRequested.set(false)
         val coroutineIsActive = { isActive }
         val isQwen3 = spec.modelName.equals("qwen3", ignoreCase = true)
 
-        val systemPrompt = buildSystemPrompt(thinkingEnabled, modelInstruction)
-        val promptTokens = promptBuilder.buildPromptTokens(history, PromptIntent.QA(systemPrompt))
+        val systemPrompt = buildSystemPrompt(request.thinkingEnabled, request.modelInstruction)
+        val promptTokens = promptBuilder.buildPromptTokens(request.history, PromptIntent.QA(systemPrompt))
         val responseBuilder = StringBuilder()
         val streamDecoder = tokenizer.createStreamDecoder()
         var tokenCounter = 0
