@@ -24,7 +24,8 @@ data class ActiveChatSnapshot(
 
 class PersistentChatController(
     context: Context,
-    private val modelDescriptor: ModelDescriptor
+    private val modelDescriptor: ModelDescriptor,
+    private val initializationPolicy: BackendInitializationPolicy = BackendInitializationPolicy()
 ) {
 
     companion object {
@@ -62,6 +63,7 @@ class PersistentChatController(
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
     private var generationJob: Job? = null
+    private var initializationJob: Job? = null
     private var streamingAssistantTurn: ChatTurn? = null
     private var thinkingEnabled = false
     private var liveMarkdownEnabled = false
@@ -82,19 +84,23 @@ class PersistentChatController(
         val modelFileResolver = ModelFileResolver(appContext)
         backend = when (modelDescriptor) {
             is OnnxQwenSpec -> OnnxChatBackend(appContext, modelDescriptor, modelFileResolver)
-            is GemmaLiteRtSpec -> GemmaLiteRtBackend(appContext, modelDescriptor, modelFileResolver)
-            is QwenLiteRtSpec -> QwenLiteRtBackend(appContext, modelDescriptor, modelFileResolver)
+            is GemmaLiteRtSpec -> GemmaLiteRtBackend(appContext, modelDescriptor, modelFileResolver, initializationPolicy)
+            is QwenLiteRtSpec -> QwenLiteRtBackend(appContext, modelDescriptor, modelFileResolver, initializationPolicy)
         }
     }
 
-    fun initialize(activeChatSnapshot: ActiveChatSnapshot? = null) {
+    fun initialize(
+        activeChatSnapshot: ActiveChatSnapshot? = null,
+        onComplete: (Result<Unit>) -> Unit = {}
+    ): Job {
         val snapshotToRestore = activeChatSnapshot?.takeIf { it.turns.isNotEmpty() }
         if (snapshotToRestore != null) {
             restoreActiveChat(snapshotToRestore)
             publishState(isLoading = true, isReady = false)
         }
 
-        scope.launch {
+        initializationJob?.cancel()
+        return scope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     backend.initialize()
@@ -114,14 +120,31 @@ class PersistentChatController(
                     isLoading = false,
                     isReady = true
                 )
+                onComplete(Result.success(Unit))
+            } catch (_: CancellationException) {
+                publishState(statusMessage = "Model loading cancelled.", isLoading = false, isReady = false)
+            } catch (error: OutOfMemoryError) {
+                runCatching { backend.close() }
+                val message = "Not enough memory to initialize ${modelDescriptor.displayName}."
+                publishState(statusMessage = "Error: $message", isLoading = false, isReady = false)
+                onComplete(Result.failure(IllegalStateException(message, error)))
             } catch (e: Exception) {
+                runCatching { backend.close() }
                 publishState(
                     statusMessage = "Error: ${e.message ?: "Unknown error."}",
                     isLoading = false,
                     isReady = false
                 )
+                onComplete(Result.failure(e))
+            } finally {
+                initializationJob = null
             }
-        }
+        }.also { initializationJob = it }
+    }
+
+    fun cancelInitialization() {
+        initializationJob?.cancel(CancellationException("Model loading cancelled."))
+        initializationJob = null
     }
 
     fun setThinkingEnabled(enabled: Boolean) {
@@ -432,6 +455,7 @@ class PersistentChatController(
     }
 
     fun close() {
+        cancelInitialization()
         generationJob?.cancel()
         runCatching { backend.close() }
         scope.cancel()

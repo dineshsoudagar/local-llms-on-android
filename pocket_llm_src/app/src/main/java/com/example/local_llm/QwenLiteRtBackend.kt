@@ -15,7 +15,8 @@ import kotlinx.coroutines.withContext
 class QwenLiteRtBackend(
     private val context: Context,
     private val spec: QwenLiteRtSpec,
-    private val modelFileResolver: ModelFileResolver
+    private val modelFileResolver: ModelFileResolver,
+    private val initializationPolicy: BackendInitializationPolicy = BackendInitializationPolicy()
 ) : ChatBackend {
 
     companion object {
@@ -28,30 +29,39 @@ class QwenLiteRtBackend(
     override suspend fun initialize() = withContext(Dispatchers.IO) {
         val modelFile = modelFileResolver.resolveModelFile(spec)
 
-        val gpuResult = runCatching {
-            Engine(
-                EngineConfig(
-                    modelPath = modelFile.absolutePath,
-                    backend = Backend.GPU(),
-                    cacheDir = context.cacheDir.absolutePath
-                )
-            ).apply { initialize() }
-        }
+        val gpuResult = createInitializedEngine(modelFile.absolutePath, Backend.GPU())
 
         engine = gpuResult.getOrElse { gpuError ->
-            runCatching {
-                Engine(
-                    EngineConfig(
-                        modelPath = modelFile.absolutePath,
-                        backend = Backend.CPU(),
-                        cacheDir = context.cacheDir.absolutePath
-                    )
-                ).apply { initialize() }
-            }.getOrElse { cpuError ->
+            if (!initializationPolicy.allowCpuFallback) {
+                throw IllegalStateException(
+                    "Failed to initialize LiteRT-LM on GPU. CPU fallback was skipped because this load is already a memory risk: ${gpuError.message}",
+                    gpuError
+                )
+            }
+            createInitializedEngine(modelFile.absolutePath, Backend.CPU()).getOrElse { cpuError ->
                 throw IllegalStateException(
                     "Failed to initialize LiteRT-LM GPU (${gpuError.message}) and CPU (${cpuError.message}).",
                     cpuError
                 )
+            }
+        }
+    }
+
+    private fun createInitializedEngine(modelPath: String, backend: Backend): Result<Engine> {
+        var candidate: Engine? = null
+        return runCatching {
+            candidate = Engine(
+                EngineConfig(
+                    modelPath = modelPath,
+                    backend = backend,
+                    cacheDir = context.cacheDir.absolutePath
+                )
+            )
+            candidate!!.initialize()
+            candidate!!
+        }.onFailure {
+            candidate?.let { failed ->
+                runCatching { failed.close() }
             }
         }
     }

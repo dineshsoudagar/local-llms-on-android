@@ -17,7 +17,8 @@ import kotlinx.coroutines.withContext
 class GemmaLiteRtBackend(
     private val context: Context,
     private val spec: GemmaLiteRtSpec,
-    private val modelFileResolver: ModelFileResolver
+    private val modelFileResolver: ModelFileResolver,
+    private val initializationPolicy: BackendInitializationPolicy = BackendInitializationPolicy()
 ) : ChatBackend {
 
     companion object {
@@ -157,9 +158,7 @@ class GemmaLiteRtBackend(
         }.onFailure {
             candidate?.let { failedEngine ->
                 runCatching {
-                    if (failedEngine.isInitialized()) {
-                        failedEngine.close()
-                    }
+                    failedEngine.close()
                 }
             }
         }
@@ -236,11 +235,15 @@ class GemmaLiteRtBackend(
         val cpuBackend = Backend.CPU(numOfThreads = CPU_THREAD_COUNT)
         if (spec.directImageInputAvailable) {
             attempts += EngineInitAttempt("GPU text + GPU vision", Backend.GPU(), Backend.GPU())
-            attempts += EngineInitAttempt("GPU text + CPU vision", Backend.GPU(), cpuBackend)
-            attempts += EngineInitAttempt("CPU text + CPU vision", cpuBackend, cpuBackend)
+            if (initializationPolicy.allowCpuFallback) {
+                attempts += EngineInitAttempt("GPU text + CPU vision", Backend.GPU(), cpuBackend)
+                attempts += EngineInitAttempt("CPU text + CPU vision", cpuBackend, cpuBackend)
+            }
         }
         attempts += EngineInitAttempt("GPU text only", Backend.GPU(), null)
-        attempts += EngineInitAttempt("CPU text only", cpuBackend, null)
+        if (initializationPolicy.allowCpuFallback) {
+            attempts += EngineInitAttempt("CPU text only", cpuBackend, null)
+        }
         return attempts
     }
 

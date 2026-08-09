@@ -145,6 +145,12 @@ This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma
 - A temporary internet connection for downloading models inside the app
 - Real hardware is preferred; emulators are mainly useful for UI checks
 
+### Safe model loading and recovery
+
+Before a model is loaded, Pocket LLM checks available storage, validates the downloaded files, and compares a conservative memory estimate with the device's current memory state. Memory estimates are warnings only and cannot guarantee that a model or hardware backend will be compatible; models that look risky require explicit confirmation.
+
+The app records when initialization starts and clears that record only after the model is ready. If initialization fails or the app stops during loading, the same model is not retried automatically on the next launch. A recovery prompt lets you choose another model, delete the failed files, retry manually, or continue without a loaded model. Saved chat history is kept independently and is not deleted by model-load recovery.
+
 ---
 
 ## 🚀 How to Build & Run

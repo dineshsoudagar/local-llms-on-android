@@ -171,6 +171,8 @@ class ModelDownloader(
             check(tempFile.renameTo(targetFile)) {
                 "Failed to move downloaded file into place: ${targetFile.absolutePath}"
             }
+            ModelDownloadManifest(modelFileResolver.getModelDirectory(descriptor))
+                .record(downloadFile.localFileName, targetFile.length())
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {

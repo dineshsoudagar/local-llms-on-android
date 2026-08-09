@@ -158,6 +158,10 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var modelInstructionStore: ModelInstructionStore
     private lateinit var modelSelectionStore: ModelSelectionStore
     private lateinit var modelFileResolver: ModelFileResolver
+    private lateinit var modelLoadRecoveryStore: ModelLoadRecoveryStore
+    private lateinit var modelLoadCoordinator: ModelLoadCoordinator
+    private lateinit var modelPreflightChecker: ModelPreflightChecker
+    private lateinit var modelFileValidator: ModelFileValidator
     private lateinit var chatSessionStore: ChatSessionStore
     private lateinit var savedImageStore: SavedImageStore
     private lateinit var retainedState: PocketChatViewModel
@@ -165,9 +169,11 @@ open class PocketChatActivity : AppCompatActivity() {
     private var currentImageInputMode: ImageInputMode = ImageInputMode.OCR
     private var chatController: PersistentChatController? = null
     private var controllerStateJob: Job? = null
+    private var modelPreparationJob: Job? = null
     private var modelDownloadStateJob: Job? = null
     private var lastGemmaDirectImageInputAvailable: Boolean? = null
     private var modelDialogViews: ModelDialogViews? = null
+    private var modelRecoveryDialog: AlertDialog? = null
     private var modelDialogForceSelection = false
     private lateinit var chatAdapter: ChatAdapter
     private lateinit var drawerLayout: DrawerLayout
@@ -277,11 +283,19 @@ open class PocketChatActivity : AppCompatActivity() {
         modelInstructionStore = ModelInstructionStore(this)
         modelSelectionStore = ModelSelectionStore(this)
         modelFileResolver = ModelFileResolver(this)
+        modelLoadRecoveryStore = ModelLoadRecoveryStore(this)
+        modelLoadCoordinator = ModelLoadCoordinator(modelLoadRecoveryStore.load())
+        modelPreflightChecker = ModelPreflightChecker(this, modelFileResolver)
+        modelFileValidator = ModelFileValidator(modelFileResolver)
         chatSessionStore = ChatSessionStore(this)
         savedImageStore = SavedImageStore(this)
         setTheme(currentSettings.accent.styleFor(currentSettings.appearance))
         super.onCreate(savedInstanceState)
         retainedState = ViewModelProvider(this)[PocketChatViewModel::class.java]
+        if (retainedState.chatController == null) {
+            modelLoadCoordinator.recoverInterrupted(System.currentTimeMillis())
+            persistModelLoadRecord()
+        }
         setContentView(R.layout.activity_main)
 
         val toolbar: MaterialToolbar = findViewById(R.id.topToolbar)
@@ -396,14 +410,24 @@ open class PocketChatActivity : AppCompatActivity() {
             applyChatState(retainedController.state.value)
         } else {
             val startupModel = currentModel
-            if (startupModel != null && modelFileResolver.isModelAvailable(startupModel)) {
-                switchToController(startupModel, PersistentChatController(this, startupModel), initialize = true)
+            val failedStartupLoad = startupModel?.let { model ->
+                modelLoadCoordinator.record?.takeIf {
+                    it.modelId == model.id && it.phase == ModelLoadPhase.FAILED
+                }
+            }
+            if (startupModel != null && failedStartupLoad != null) {
+                toolbarSubtitleView.text = startupModel.displayName
+                renderNoControllerState(
+                    failedStartupLoad.failureReason ?: getString(R.string.model_load_failed_generic),
+                    preserveTranscript = false
+                )
+            } else if (startupModel != null && modelFileResolver.isModelAvailable(startupModel)) {
+                requestModelLoad(startupModel, activeChatSnapshot = null, userInitiated = false)
             } else {
                 if (startupModel != null) {
-                    toolbarSubtitleView.text = startupModel.displayName
-                    renderNoControllerState(
-                        getString(R.string.model_missing_message, startupModel.displayName),
-                        preserveTranscript = false
+                    recordPreflightFailure(
+                        startupModel,
+                        getString(R.string.model_missing_message, startupModel.displayName)
                     )
                 } else {
                     renderNoControllerState(
@@ -424,6 +448,8 @@ open class PocketChatActivity : AppCompatActivity() {
                 reopenSettingsDialogOnStart = false
                 showSettingsDialog()
             }
+        } else if (modelLoadCoordinator.record?.phase == ModelLoadPhase.FAILED) {
+            chatRecyclerView.post { showModelRecoveryDialog() }
         } else if (chatController == null) {
             chatRecyclerView.post {
                 showModelSelectionDialog(forceSelection = true)
@@ -448,6 +474,7 @@ open class PocketChatActivity : AppCompatActivity() {
         ocrInput?.close()
         clearPendingImageInputs()
         modelDialogViews?.dialog?.dismiss()
+        modelRecoveryDialog?.dismiss()
         super.onDestroy()
     }
 
@@ -1990,8 +2017,10 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun observeController(controller: PersistentChatController) {
         controllerStateJob?.cancel()
+        modelPreparationJob?.cancel()
         controllerStateJob = lifecycleScope.launch {
             controller.state.collect { state ->
+                reconcileModelLoadState(state)
                 applyChatState(state)
             }
         }
@@ -2061,11 +2090,11 @@ open class PocketChatActivity : AppCompatActivity() {
 
                 if (textDescriptor != null && shouldOpenDownloadedModel) {
                     modelDialogViews?.dialog?.dismiss()
-                    switchToController(
+                    requestModelLoad(
                         textDescriptor,
-                        PersistentChatController(this, textDescriptor),
-                        initialize = true,
                         activeChatSnapshot = chatController?.snapshotActiveChat()
+                            ?: retainedState.pendingModelLoadSnapshot,
+                        userInitiated = true
                     )
                 } else {
                     chatController?.let { applyChatState(it.state.value) }
@@ -2101,8 +2130,8 @@ open class PocketChatActivity : AppCompatActivity() {
     private fun switchToController(
         descriptor: ModelDescriptor,
         controller: PersistentChatController,
-        initialize: Boolean,
-        activeChatSnapshot: ActiveChatSnapshot? = null
+        activeChatSnapshot: ActiveChatSnapshot? = null,
+        attempt: ModelLoadRecord? = null
     ) {
         controllerStateJob?.cancel()
         chatController?.close()
@@ -2123,8 +2152,179 @@ open class PocketChatActivity : AppCompatActivity() {
         thinkingToggle.isChecked = false
         observeController(controller)
         applyChatState(controller.state.value)
-        if (initialize) {
-            controller.initialize(activeChatSnapshot)
+        if (attempt != null) {
+            controller.initialize(activeChatSnapshot) { result ->
+                handleModelInitializationResult(descriptor, attempt, result)
+            }
+        }
+    }
+
+    private fun requestModelLoad(
+        descriptor: ModelDescriptor,
+        activeChatSnapshot: ActiveChatSnapshot?,
+        userInitiated: Boolean
+    ) {
+        modelPreparationJob?.cancel()
+        modelPreparationJob = lifecycleScope.launch {
+            val initialPreflight = withContext(Dispatchers.IO) {
+                modelPreflightChecker.checkLoad(descriptor, descriptor.approxDownloadBytes)
+            }
+            if (initialPreflight.kind == ModelPreflightKind.BLOCKED) {
+                recordPreflightFailure(descriptor, initialPreflight.message.orEmpty())
+                return@launch
+            }
+
+            val validation = withContext(Dispatchers.IO) { modelFileValidator.validate(descriptor) }
+            if (!validation.valid) {
+                recordPreflightFailure(
+                    descriptor,
+                    validation.message ?: getString(R.string.model_file_invalid_generic)
+                )
+                return@launch
+            }
+
+            val preflight = withContext(Dispatchers.IO) {
+                modelPreflightChecker.checkLoad(descriptor, validation.totalBytes)
+            }
+            if (preflight.kind == ModelPreflightKind.BLOCKED) {
+                recordPreflightFailure(descriptor, preflight.message.orEmpty())
+                return@launch
+            }
+            if (preflight.kind == ModelPreflightKind.MEMORY_WARNING) {
+                MaterialAlertDialogBuilder(this@PocketChatActivity)
+                    .setTitle(getString(R.string.model_memory_warning_title))
+                    .setMessage(preflight.message)
+                    .setNegativeButton(android.R.string.cancel) { _, _ ->
+                        if (!userInitiated && chatController == null) {
+                            renderNoControllerState(
+                                getString(R.string.model_memory_confirmation_required),
+                                preserveTranscript = true
+                            )
+                        }
+                    }
+                    .setPositiveButton(getString(R.string.model_load_anyway)) { _, _ ->
+                        startPreparedModelLoad(
+                            descriptor,
+                            activeChatSnapshot,
+                            BackendInitializationPolicy(allowCpuFallback = false)
+                        )
+                    }
+                    .show()
+                return@launch
+            }
+
+            startPreparedModelLoad(
+                descriptor,
+                activeChatSnapshot,
+                BackendInitializationPolicy(allowCpuFallback = preflight.allowCpuFallback)
+            )
+        }
+    }
+
+    private fun startPreparedModelLoad(
+        descriptor: ModelDescriptor,
+        activeChatSnapshot: ActiveChatSnapshot?,
+        policy: BackendInitializationPolicy
+    ) {
+        cancelCurrentInitializationMarker()
+        val attempt = modelLoadCoordinator.begin(descriptor.id, System.currentTimeMillis())
+        persistModelLoadRecord()
+        retainedState.pendingModelLoadSnapshot = activeChatSnapshot
+        val controller = PersistentChatController(this, descriptor, policy)
+        switchToController(descriptor, controller, activeChatSnapshot, attempt)
+    }
+
+    private fun handleModelInitializationResult(
+        descriptor: ModelDescriptor,
+        attempt: ModelLoadRecord,
+        result: Result<Unit>
+    ) {
+        if (isFinishing || isDestroyed) return
+        result.fold(
+            onSuccess = {
+                if (modelLoadCoordinator.succeed(descriptor.id, attempt.attemptId)) {
+                    persistModelLoadRecord()
+                }
+                retainedState.pendingModelLoadSnapshot = null
+            },
+            onFailure = { error ->
+                val reason = usefulModelLoadError(descriptor, error)
+                if (modelLoadCoordinator.fail(
+                        descriptor.id,
+                        attempt.attemptId,
+                        reason,
+                        System.currentTimeMillis()
+                    )
+                ) {
+                    persistModelLoadRecord()
+                    renderNoControllerState(reason, preserveTranscript = true)
+                    showModelRecoveryDialog()
+                }
+            }
+        )
+    }
+
+    private fun reconcileModelLoadState(state: ChatUiState) {
+        val descriptor = currentModel ?: return
+        val record = modelLoadCoordinator.record ?: return
+        if (record.modelId != descriptor.id || record.phase != ModelLoadPhase.INITIALIZING) return
+        when {
+            state.isReady -> {
+                if (modelLoadCoordinator.succeed(descriptor.id, record.attemptId)) {
+                    persistModelLoadRecord()
+                }
+                retainedState.pendingModelLoadSnapshot = null
+            }
+            !state.isLoading && state.statusMessage.startsWith("Error:") -> {
+                val reason = state.statusMessage.removePrefix("Error:").trim()
+                    .ifBlank { getString(R.string.model_load_failed_generic) }
+                if (modelLoadCoordinator.fail(descriptor.id, record.attemptId, reason, System.currentTimeMillis())) {
+                    persistModelLoadRecord()
+                    showModelRecoveryDialog()
+                }
+            }
+        }
+    }
+
+    private fun recordPreflightFailure(descriptor: ModelDescriptor, reason: String) {
+        cancelCurrentInitializationMarker()
+        val snapshot = chatController?.snapshotActiveChat()
+            ?: retainedState.pendingModelLoadSnapshot
+        controllerStateJob?.cancel()
+        chatController?.close()
+        chatController = null
+        retainedState.chatController = null
+        retainedState.pendingModelLoadSnapshot = snapshot
+        currentModel = descriptor
+        retainedState.modelId = descriptor.id
+        modelSelectionStore.saveSelectedModel(descriptor.id)
+        val attempt = modelLoadCoordinator.begin(descriptor.id, System.currentTimeMillis())
+        modelLoadCoordinator.fail(descriptor.id, attempt.attemptId, reason, System.currentTimeMillis())
+        persistModelLoadRecord()
+        toolbarSubtitleView.text = descriptor.displayName
+        renderNoControllerState(reason, preserveTranscript = true)
+        showModelRecoveryDialog()
+    }
+
+    private fun cancelCurrentInitializationMarker() {
+        val record = modelLoadCoordinator.record ?: return
+        if (record.phase != ModelLoadPhase.INITIALIZING) return
+        chatController?.cancelInitialization()
+        if (modelLoadCoordinator.cancel(record.modelId, record.attemptId)) {
+            persistModelLoadRecord()
+        }
+    }
+
+    private fun persistModelLoadRecord() {
+        modelLoadRecoveryStore.save(modelLoadCoordinator.record)
+    }
+
+    private fun usefulModelLoadError(descriptor: ModelDescriptor, error: Throwable): String {
+        val detail = error.message?.trim().orEmpty()
+        return if (detail.isBlank()) {
+            getString(R.string.model_load_failed_message, descriptor.displayName)
+        } else {
+            getString(R.string.model_load_failed_detail, descriptor.displayName, detail)
         }
     }
 
@@ -2227,6 +2427,67 @@ open class PocketChatActivity : AppCompatActivity() {
         modelDialogViews = dialogUi
         refreshModelSelectionDialog()
         dialog.show()
+    }
+
+    private fun showModelRecoveryDialog() {
+        val record = modelLoadCoordinator.record?.takeIf { it.phase == ModelLoadPhase.FAILED } ?: return
+        val descriptor = ModelRegistry.findById(record.modelId) ?: return
+        if (modelRecoveryDialog?.isShowing == true) return
+        val choices = arrayOf(
+            getString(R.string.model_recovery_choose_another),
+            getString(R.string.model_recovery_delete),
+            getString(R.string.model_recovery_retry),
+            getString(R.string.model_recovery_continue)
+        )
+        modelRecoveryDialog = MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.model_recovery_title))
+            .setMessage(
+                getString(
+                    R.string.model_recovery_message,
+                    descriptor.displayName,
+                    record.failureReason ?: getString(R.string.model_load_failed_generic)
+                )
+            )
+            .setItems(choices) { dialog, which ->
+                when (which) {
+                    0 -> {
+                        dialog.dismiss()
+                        showModelSelectionDialog(forceSelection = false)
+                    }
+                    1 -> {
+                        dialog.dismiss()
+                        confirmDeleteModel(descriptor)
+                    }
+                    2 -> {
+                        dialog.dismiss()
+                        modelLoadCoordinator.clearForModel(descriptor.id)
+                        persistModelLoadRecord()
+                        requestModelLoad(
+                            descriptor,
+                            activeChatSnapshot = chatController?.snapshotActiveChat()
+                                ?: retainedState.pendingModelLoadSnapshot,
+                            userInitiated = true
+                        )
+                    }
+                    3 -> {
+                        dialog.dismiss()
+                        detachFailedController(descriptor)
+                    }
+                }
+            }
+            .setOnDismissListener { modelRecoveryDialog = null }
+            .create()
+        modelRecoveryDialog?.show()
+    }
+
+    private fun detachFailedController(descriptor: ModelDescriptor) {
+        controllerStateJob?.cancel()
+        chatController?.close()
+        chatController = null
+        retainedState.chatController = null
+        retainedState.modelId = descriptor.id
+        currentModel = descriptor
+        renderNoControllerState(getString(R.string.model_recovery_continued), preserveTranscript = true)
     }
 
     private fun refreshModelSelectionDialog() {
@@ -2663,7 +2924,10 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun confirmDeleteModel(descriptor: ModelDescriptor) {
-        if (currentModel?.id == descriptor.id) {
+        val isFailedModel = modelLoadCoordinator.record?.let {
+            it.modelId == descriptor.id && it.phase == ModelLoadPhase.FAILED
+        } == true
+        if (currentModel?.id == descriptor.id && !isFailedModel) {
             showTransientMessage(getString(R.string.delete_model_current_blocked))
             return
         }
@@ -2678,6 +2942,18 @@ open class PocketChatActivity : AppCompatActivity() {
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(getString(R.string.delete)) { _, _ ->
                 if (modelFileResolver.deleteDownloadedModel(descriptor)) {
+                    if (isFailedModel) {
+                        controllerStateJob?.cancel()
+                        chatController?.close()
+                        chatController = null
+                        retainedState.chatController = null
+                        retainedState.modelId = null
+                        currentModel = null
+                        modelSelectionStore.clearSelectedModel()
+                        modelLoadCoordinator.clearForModel(descriptor.id)
+                        persistModelLoadRecord()
+                        renderNoControllerState(getString(R.string.model_required_message), preserveTranscript = true)
+                    }
                     refreshModelSelectionDialog()
                     showTransientMessage(getString(R.string.model_deleted_message, descriptor.displayName))
                 } else {
@@ -2710,13 +2986,9 @@ open class PocketChatActivity : AppCompatActivity() {
         val isAvailable = modelFileResolver.isModelAvailable(descriptor)
         if (isAvailable) {
             val activeChatSnapshot = chatController?.snapshotActiveChat()
+                ?: retainedState.pendingModelLoadSnapshot
             modelDialogViews?.dialog?.dismiss()
-            switchToController(
-                descriptor,
-                PersistentChatController(this, descriptor),
-                initialize = true,
-                activeChatSnapshot = activeChatSnapshot
-            )
+            requestModelLoad(descriptor, activeChatSnapshot, userInitiated = true)
             return
         }
 
@@ -2775,6 +3047,12 @@ open class PocketChatActivity : AppCompatActivity() {
     private fun startModelDownload(descriptor: ModelDescriptor) {
         if (activeDownloadModelId != null) {
             showTransientMessage(getString(R.string.model_download_already_running))
+            return
+        }
+
+        val preflight = modelPreflightChecker.checkDownload(descriptor)
+        if (preflight.kind == ModelPreflightKind.BLOCKED) {
+            showTransientMessage(preflight.message ?: getString(R.string.model_download_storage_blocked))
             return
         }
 
