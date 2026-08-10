@@ -85,12 +85,16 @@ class AttachmentRepository(context: Context) {
     }
 
     fun deleteAttachment(sessionId: String, attachmentId: String): Boolean {
+        listWorkRecords(sessionId)
+            .filter { it.attachmentId == attachmentId }
+            .forEach(::deleteWorkRecord)
         val directory = attachmentDirectory(sessionId, attachmentId)
         return !directory.exists() || directory.deleteRecursively()
     }
 
     fun deleteSession(sessionId: String): Boolean {
         requireSafeId(sessionId)
+        listWorkRecords(sessionId).forEach(::deleteWorkRecord)
         val directory = File(root, sessionId)
         return !directory.exists() || directory.deleteRecursively()
     }
@@ -100,6 +104,36 @@ class AttachmentRepository(context: Context) {
         val directory = attachmentDirectory(sessionId, attachmentId).apply { mkdirs() }
         return File(directory, "source.$safeExtension")
     }
+
+    fun saveWorkRecord(record: AttachmentWorkRecord) {
+        requireSafeId(record.workId)
+        atomicWrite(File(workRecordsDirectory(), "${record.workId}.json"), record.toJson().toString())
+    }
+
+    fun loadWorkRecord(workId: String): AttachmentWorkRecord? {
+        requireSafeId(workId)
+        val file = File(workRecordsDirectory(), "$workId.json")
+        if (!file.exists()) return null
+        return runCatching { workRecordFromJson(JSONObject(file.readText())) }.getOrNull()
+    }
+
+    fun listWorkRecords(sessionId: String? = null): List<AttachmentWorkRecord> {
+        sessionId?.let(::requireSafeId)
+        return workRecordsDirectory().listFiles()
+            ?.filter { it.isFile && it.extension == "json" }
+            ?.mapNotNull { runCatching { workRecordFromJson(JSONObject(it.readText())) }.getOrNull() }
+            ?.filter { sessionId == null || it.sessionId == sessionId }
+            ?.sortedByDescending(AttachmentWorkRecord::createdAtMillis)
+            ?: emptyList()
+    }
+
+    fun deleteWorkRecord(record: AttachmentWorkRecord): Boolean {
+        requireSafeId(record.workId)
+        val file = File(workRecordsDirectory(), "${record.workId}.json")
+        return !file.exists() || file.delete()
+    }
+
+    private fun workRecordsDirectory(): File = File(root, WORK_RECORDS_DIRECTORY).apply { mkdirs() }
 
     private fun atomicWrite(target: File, content: String) {
         target.parentFile?.mkdirs()
@@ -134,6 +168,18 @@ class AttachmentRepository(context: Context) {
         durationMillis?.let { put("durationMillis", it) }
         put("extractedCharacters", extractedCharacters)
         errorMessage?.let { put("errorMessage", it) }
+        retryOperation?.let { put("retryOperation", it.name) }
+        put("useGemmaNativeAudio", useGemmaNativeAudio)
+    }
+
+    private fun AttachmentWorkRecord.toJson() = JSONObject().apply {
+        put("workId", workId)
+        put("sessionId", sessionId)
+        put("attachmentId", attachmentId)
+        put("operation", operation.name)
+        put("requestedKind", requestedKind.name)
+        put("useGemmaNativeAudio", useGemmaNativeAudio)
+        put("createdAtMillis", createdAtMillis)
     }
 
     private fun AttachmentChunk.toJson() = JSONObject().apply {
@@ -164,7 +210,20 @@ class AttachmentRepository(context: Context) {
         pageCount = json.optInt("pageCount").takeIf { json.has("pageCount") },
         durationMillis = json.optLong("durationMillis").takeIf { json.has("durationMillis") },
         extractedCharacters = json.optInt("extractedCharacters"),
-        errorMessage = json.optString("errorMessage").takeIf(String::isNotBlank)
+        errorMessage = json.optString("errorMessage").takeIf(String::isNotBlank),
+        retryOperation = json.optString("retryOperation").takeIf(String::isNotBlank)
+            ?.let { runCatching { AttachmentWorkOperation.valueOf(it) }.getOrNull() },
+        useGemmaNativeAudio = json.optBoolean("useGemmaNativeAudio", false)
+    )
+
+    private fun workRecordFromJson(json: JSONObject) = AttachmentWorkRecord(
+        workId = json.getString("workId"),
+        sessionId = json.getString("sessionId"),
+        attachmentId = json.getString("attachmentId"),
+        operation = AttachmentWorkOperation.valueOf(json.getString("operation")),
+        requestedKind = AttachmentKind.valueOf(json.getString("requestedKind")),
+        useGemmaNativeAudio = json.optBoolean("useGemmaNativeAudio", false),
+        createdAtMillis = json.optLong("createdAtMillis")
     )
 
     private fun chunkFromJson(json: JSONObject): AttachmentChunk {
@@ -188,6 +247,7 @@ class AttachmentRepository(context: Context) {
         private const val CHUNKS_FILE = "chunks.jsonl"
         private const val EXTRACTED_TEXT_FILE = "extracted.txt"
         private const val BM25_INDEX_FILE = "bm25-index.json"
+        private const val WORK_RECORDS_DIRECTORY = "work_records"
         private val SAFE_ID = Regex("[A-Za-z0-9_-]{1,128}")
     }
 }

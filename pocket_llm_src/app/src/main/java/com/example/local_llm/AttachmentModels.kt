@@ -23,6 +23,21 @@ enum class AttachmentProcessingRoute {
     SHERPA_WHISPER
 }
 
+enum class AttachmentWorkOperation {
+    IMPORT,
+    WHISPER_TRANSCRIPTION
+}
+
+data class AttachmentWorkRecord(
+    val workId: String,
+    val sessionId: String,
+    val attachmentId: String,
+    val operation: AttachmentWorkOperation,
+    val requestedKind: AttachmentKind,
+    val useGemmaNativeAudio: Boolean = false,
+    val createdAtMillis: Long = System.currentTimeMillis()
+)
+
 data class AttachmentSourceRef(
     val pageNumber: Int? = null,
     val section: String? = null,
@@ -72,7 +87,9 @@ data class AttachmentDescriptor(
     val pageCount: Int? = null,
     val durationMillis: Long? = null,
     val extractedCharacters: Int = 0,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val retryOperation: AttachmentWorkOperation? = null,
+    val useGemmaNativeAudio: Boolean = false
 )
 
 data class NativeAudioInput(

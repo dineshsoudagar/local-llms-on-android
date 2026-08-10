@@ -1,6 +1,8 @@
 package com.example.local_llm
 
 import android.content.Context
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
 import java.io.File
 import java.io.RandomAccessFile
 
@@ -9,13 +11,25 @@ data class SegmentedNativeAudio(
     val temporaryFiles: List<String>
 )
 
-class GemmaAudioSegmenter(context: Context) {
-    private val cacheDirectory = File(context.cacheDir, "gemma_audio_segments").apply { mkdirs() }
+data class GemmaAudioSegmentPlan(val windows: List<LongRange>) {
+    val segmentCount: Int get() = windows.size
+    val inferencePasses: Int get() = if (segmentCount <= 1) 1 else segmentCount + 1
+}
 
-    fun segment(descriptor: AttachmentDescriptor): SegmentedNativeAudio {
-        val duration = descriptor.durationMillis
-            ?: throw IllegalArgumentException("Audio duration is unavailable.")
-        require(duration <= AttachmentLimits.MAX_AUDIO_DURATION_MILLIS)
+class GemmaAudioSegmenter private constructor(private val cacheDirectory: File) {
+    constructor(context: Context) : this(File(context.cacheDir, "gemma_audio_segments"))
+
+    internal constructor(cacheRoot: File, useDirectDirectory: Boolean) : this(
+        if (useDirectDirectory) cacheRoot else File(cacheRoot, "gemma_audio_segments")
+    )
+
+    fun plan(descriptor: AttachmentDescriptor): GemmaAudioSegmentPlan = planDuration(
+        descriptor.durationMillis ?: throw IllegalArgumentException("Audio duration is unavailable.")
+    )
+
+    suspend fun segment(descriptor: AttachmentDescriptor): SegmentedNativeAudio {
+        val duration = descriptor.durationMillis ?: throw IllegalArgumentException("Audio duration is unavailable.")
+        val plan = planDuration(duration)
         if (duration <= AttachmentLimits.GEMMA_MAX_AUDIO_INPUT_MILLIS) {
             return SegmentedNativeAudio(
                 inputs = listOf(NativeAudioInput(descriptor.sourcePath, 0L, duration)),
@@ -25,23 +39,25 @@ class GemmaAudioSegmenter(context: Context) {
 
         val source = File(descriptor.sourcePath)
         require(source.length() >= WAV_HEADER_BYTES) { "Normalized WAV is malformed." }
+        cacheDirectory.mkdirs()
         val inputs = mutableListOf<NativeAudioInput>()
         val temporary = mutableListOf<String>()
-        var startMillis = 0L
-        var ordinal = 0
-        while (startMillis < duration) {
-            val endMillis = minOf(startMillis + AttachmentLimits.AUDIO_SEGMENT_MILLIS, duration)
-            val output = File(cacheDirectory, "${descriptor.id}-${ordinal++}.wav")
-            copySegment(source, output, startMillis, endMillis)
-            temporary += output.absolutePath
-            inputs += NativeAudioInput(output.absolutePath, startMillis, endMillis)
-            if (endMillis >= duration) break
-            startMillis = endMillis - AttachmentLimits.AUDIO_SEGMENT_OVERLAP_MILLIS
+        try {
+            plan.windows.forEachIndexed { ordinal, window ->
+                currentCoroutineContext().ensureActive()
+                val output = File(cacheDirectory, "${descriptor.id}-${ordinal}.wav")
+                temporary += output.absolutePath
+                copySegment(source, output, window.first, window.last)
+                inputs += NativeAudioInput(output.absolutePath, window.first, window.last)
+            }
+        } catch (error: Throwable) {
+            temporary.forEach { File(it).delete() }
+            throw error
         }
         return SegmentedNativeAudio(inputs, temporary)
     }
 
-    private fun copySegment(source: File, destination: File, startMillis: Long, endMillis: Long) {
+    private suspend fun copySegment(source: File, destination: File, startMillis: Long, endMillis: Long) {
         val startByte = WAV_HEADER_BYTES + (startMillis * BYTES_PER_SECOND / 1_000L)
         val dataBytes = ((endMillis - startMillis) * BYTES_PER_SECOND / 1_000L)
             .coerceAtMost(source.length() - startByte)
@@ -55,6 +71,7 @@ class GemmaAudioSegmenter(context: Context) {
                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                 var remaining = dataBytes
                 while (remaining > 0L) {
+                    currentCoroutineContext().ensureActive()
                     val read = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
                     if (read < 0) break
                     output.write(buffer, 0, read)
@@ -85,6 +102,22 @@ class GemmaAudioSegmenter(context: Context) {
         writeShort(java.lang.Short.reverseBytes(value.toShort()).toInt())
 
     companion object {
+        fun planDuration(durationMillis: Long): GemmaAudioSegmentPlan {
+            require(durationMillis in 1..AttachmentLimits.MAX_AUDIO_DURATION_MILLIS)
+            if (durationMillis <= AttachmentLimits.GEMMA_MAX_AUDIO_INPUT_MILLIS) {
+                return GemmaAudioSegmentPlan(listOf(0L..durationMillis))
+            }
+            val windows = mutableListOf<LongRange>()
+            var startMillis = 0L
+            while (startMillis < durationMillis) {
+                val endMillis = minOf(startMillis + AttachmentLimits.AUDIO_SEGMENT_MILLIS, durationMillis)
+                windows += startMillis..endMillis
+                if (endMillis >= durationMillis) break
+                startMillis = endMillis - AttachmentLimits.AUDIO_SEGMENT_OVERLAP_MILLIS
+            }
+            return GemmaAudioSegmentPlan(windows)
+        }
+
         private const val SAMPLE_RATE = 16_000
         private const val BYTES_PER_SECOND = SAMPLE_RATE * 2
         private const val WAV_HEADER_BYTES = 44L

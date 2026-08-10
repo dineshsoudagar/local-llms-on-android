@@ -5,15 +5,13 @@
 -->
 <data-extraction-rules>
     <cloud-backup>
+        <exclude domain="file" path="chat_attachments/" />
         <!-- Use <include> and <exclude> to control what is backed up.
         <include .../>
         <exclude .../>
         -->
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="file" path="chat_attachments/" />
     </device-transfer>
-    -->
 </data-extraction-rules>

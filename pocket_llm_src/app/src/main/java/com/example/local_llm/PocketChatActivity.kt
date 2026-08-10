@@ -67,7 +67,10 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -230,12 +233,14 @@ open class PocketChatActivity : AppCompatActivity() {
     private var audioPreparationJob: Job? = null
     private var activeAttachment: AttachmentDescriptor? = null
     private var attachmentImportInProgress = false
-    private var lastAttachmentUri: Uri? = null
-    private var lastAttachmentKind: AttachmentKind? = null
     private var confirmedAttachmentOperationKey: String? = null
-    private var activeAttachmentWorkId: java.util.UUID? = null
+    private var activeAttachmentWork: AttachmentWorkRecord? = null
+    private var activeAttachmentWorkState: androidx.work.WorkInfo.State? = null
+    private var preparedGemmaAudio: SegmentedNativeAudio? = null
+    private var preparedGemmaAudioAttachmentId: String? = null
     private var attachmentRecorder: MediaRecorder? = null
     private var attachmentRecordingFile: File? = null
+    private var attachmentRecordingDialog: AlertDialog? = null
     private var pendingAttachmentRecordingStart = false
     private var isImagePreprocessingForSend = false
     private var autoScrollDuringGeneration = false
@@ -413,11 +418,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
         attachmentButton.setOnClickListener(::showAttachmentMenu)
         activeAttachmentDetach.setOnClickListener { detachActiveAttachment() }
-        activeAttachmentRetry.setOnClickListener {
-            val uri = lastAttachmentUri
-            val kind = lastAttachmentKind
-            if (uri != null && kind != null) importAttachment(uri, kind)
-        }
+        activeAttachmentRetry.setOnClickListener { retryActiveAttachment() }
         activeAttachmentCancel.setOnClickListener { cancelActiveAttachmentWork() }
 
         galleryOcrButton.setOnClickListener {
@@ -493,6 +494,7 @@ open class PocketChatActivity : AppCompatActivity() {
         observeModelDownloadState()
         applyModelDownloadState(ModelDownloadStateStore.state.value)
         refreshDrawerSessions()
+        reconnectActiveAttachmentWorkIfNeeded()
 
         if (reopenSettingsDialogOnStart) {
             chatRecyclerView.post {
@@ -508,6 +510,12 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStop() {
+        pendingAttachmentRecordingStart = false
+        discardUnfinishedAttachmentRecording()
+        super.onStop()
+    }
+
     override fun onDestroy() {
         if (::chatAdapter.isInitialized) {
             chatAdapter.unregisterAdapterDataObserver(chatAdapterObserver)
@@ -520,10 +528,8 @@ open class PocketChatActivity : AppCompatActivity() {
         imagePreprocessingJob?.cancel()
         attachmentImportJob?.cancel()
         audioPreparationJob?.cancel()
-        runCatching { attachmentRecorder?.stop() }
-        runCatching { attachmentRecorder?.release() }
-        attachmentRecorder = null
-        attachmentRecordingFile?.delete()
+        cleanupPreparedGemmaAudio()
+        discardUnfinishedAttachmentRecording()
         isImagePreprocessingForSend = false
         stopCameraOcr()
         cameraOcrDialog?.dismiss()
@@ -2003,22 +2009,22 @@ open class PocketChatActivity : AppCompatActivity() {
                         showTransientMessage(getString(R.string.gemma_audio_unavailable))
                         return null
                     }
-                    val segmented = runCatching { GemmaAudioSegmenter(this).segment(descriptor) }
-                        .getOrElse { error ->
-                            showTransientMessage(error.message ?: "Audio segmentation failed.")
-                            return null
-                        }
+                    val segmenter = GemmaAudioSegmenter(this)
+                    val plan = runCatching { segmenter.plan(descriptor) }.getOrElse { error ->
+                        showTransientMessage(error.message ?: "Audio duration is unavailable.")
+                        return null
+                    }
                     val confirmationKey = "${descriptor.id}:${userPrompt.hashCode()}:gemma-audio"
                     if (
-                        segmented.inputs.size > 1 &&
+                        plan.segmentCount > 1 &&
                         confirmedAttachmentOperationKey != confirmationKey
                     ) {
-                        segmented.temporaryFiles.forEach { File(it).delete() }
                         MaterialAlertDialogBuilder(this)
                             .setTitle("Process the full audio?")
                             .setMessage(
-                                "Gemma will analyze ${segmented.inputs.size} overlapping native-audio segments " +
-                                    "and then combine them. It may take several minutes."
+                                "Gemma will analyze ${plan.segmentCount} overlapping native-audio segments " +
+                                    "in ${plan.inferencePasses} inference passes and then combine them. " +
+                                    "It may take several minutes."
                             )
                             .setPositiveButton("Continue") { _, _ ->
                                 confirmedAttachmentOperationKey = confirmationKey
@@ -2028,6 +2034,20 @@ open class PocketChatActivity : AppCompatActivity() {
                             .show()
                         return null
                     }
+                    val segmented = if (plan.segmentCount == 1) {
+                        SegmentedNativeAudio(
+                            inputs = listOf(NativeAudioInput(descriptor.sourcePath, 0L, descriptor.durationMillis)),
+                            temporaryFiles = emptyList()
+                        )
+                    } else {
+                        preparedGemmaAudio?.takeIf { preparedGemmaAudioAttachmentId == descriptor.id }
+                            ?: run {
+                                prepareGemmaAudioAfterConfirmation(descriptor)
+                                return null
+                            }
+                    }
+                    preparedGemmaAudio = null
+                    preparedGemmaAudioAttachmentId = null
                     AttachmentContext(
                         attachmentId = descriptor.id,
                         displayName = descriptor.displayName,
@@ -2254,53 +2274,25 @@ open class PocketChatActivity : AppCompatActivity() {
         runCatching {
             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        lastAttachmentUri = uri
-        lastAttachmentKind = requestedKind
         attachmentImportInProgress = true
         activeAttachment = null
         renderActiveAttachment()
         val sessionId = controller.ensureSessionId()
-        attachmentImportJob = lifecycleScope.launch {
-            try {
-                val workId = attachmentWorkerCoordinator.enqueueImport(
-                    sessionId = sessionId,
-                    uri = uri,
-                    kind = requestedKind,
-                    gemmaAudio = currentModel is GemmaLiteRtSpec
-                )
-                activeAttachmentWorkId = workId
-                val workInfo = attachmentWorkerCoordinator.await(workId)
-                val attachmentId = workInfo.outputData.getString(AttachmentPreparationWorker.KEY_ATTACHMENT_ID)
-                val descriptor = attachmentId?.let { attachmentRepository.loadDescriptor(sessionId, it) }
-                if (workInfo.state != androidx.work.WorkInfo.State.SUCCEEDED || descriptor == null) {
-                    val message = workInfo.outputData.getString(AttachmentPreparationWorker.KEY_ERROR)
-                        ?: descriptor?.errorMessage
-                        ?: "Attachment preparation failed."
-                    if (descriptor != null) {
-                        activeAttachment = descriptor
-                        controller.setActiveAttachment(descriptor.id)
-                    }
-                    throw IOException(message)
-                }
-                activeAttachment = descriptor
-                controller.setActiveAttachment(descriptor.id)
-            } catch (_: CancellationException) {
-                // Cancel/detach owns the resulting attachment UI state.
-            } catch (error: Throwable) {
-                showTransientMessage(error.message ?: "Attachment import failed.")
-            } finally {
-                deleteRecordedAttachmentInput(uri)
-                activeAttachmentWorkId = null
-                attachmentImportInProgress = false
-                attachmentImportJob = null
-                renderActiveAttachment()
-                activeAttachment?.takeIf {
-                    it.kind == AttachmentKind.AUDIO &&
-                        it.status == AttachmentStatus.READY &&
-                        currentModel !is GemmaLiteRtSpec
-                }?.let(::offerWhisperPreparation)
-            }
+        val record = runCatching {
+            attachmentWorkerCoordinator.enqueueImport(
+                sessionId = sessionId,
+                uri = uri,
+                kind = requestedKind,
+                gemmaAudio = currentModel is GemmaLiteRtSpec
+            )
+        }.getOrElse { error ->
+            attachmentImportInProgress = false
+            deleteRecordedAttachmentInput(uri)
+            showTransientMessage(error.message ?: "Attachment import could not be started.")
+            renderActiveAttachment()
+            return
         }
+        observeAttachmentWork(record)
     }
 
     private fun deleteRecordedAttachmentInput(uri: Uri) {
@@ -2358,8 +2350,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun prepareWhisperTranscript(descriptor: AttachmentDescriptor) {
-        if (audioPreparationJob?.isActive == true) return
-        val controller = chatController ?: return
+        if (activeAttachmentWork != null) return
         val processing = descriptor.copy(
             status = AttachmentStatus.PROCESSING,
             updatedAtMillis = System.currentTimeMillis(),
@@ -2368,40 +2359,18 @@ open class PocketChatActivity : AppCompatActivity() {
         activeAttachment = processing
         attachmentRepository.saveDescriptor(processing)
         renderActiveAttachment()
-        audioPreparationJob = lifecycleScope.launch {
-            try {
-                val workId = attachmentWorkerCoordinator.enqueueWhisper(
-                    processing.sessionId,
-                    processing.id
-                )
-                activeAttachmentWorkId = workId
-                val workInfo = controller.withRuntimeLease {
-                    attachmentWorkerCoordinator.await(workId)
-                }
-                require(workInfo.state == androidx.work.WorkInfo.State.SUCCEEDED) {
-                    workInfo.outputData.getString(AttachmentPreparationWorker.KEY_ERROR)
-                        ?: "Audio transcription failed."
-                }
-                val ready = attachmentRepository.loadDescriptor(processing.sessionId, processing.id)
-                    ?: throw IOException("The transcription result could not be loaded.")
-                activeAttachment = ready
-            } catch (_: CancellationException) {
-                // Cancel/detach owns the resulting attachment UI state.
-            } catch (error: Throwable) {
-                val failed = attachmentRepository.loadDescriptor(processing.sessionId, processing.id)
-                    ?: processing.copy(
-                        status = AttachmentStatus.FAILED,
-                        updatedAtMillis = System.currentTimeMillis(),
-                        errorMessage = error.message ?: "Audio transcription failed."
-                    ).also(attachmentRepository::saveDescriptor)
-                activeAttachment = failed
-                showTransientMessage(failed.errorMessage.orEmpty())
-            } finally {
-                activeAttachmentWorkId = null
-                audioPreparationJob = null
-                renderActiveAttachment()
-            }
+        val record = runCatching {
+            attachmentWorkerCoordinator.enqueueWhisper(processing.sessionId, processing.id)
+        }.getOrElse { error ->
+            activeAttachment = processing.copy(
+                status = AttachmentStatus.FAILED,
+                errorMessage = error.message ?: "Audio transcription could not be started.",
+                retryOperation = AttachmentWorkOperation.WHISPER_TRANSCRIPTION
+            ).also(attachmentRepository::saveDescriptor)
+            renderActiveAttachment()
+            return
         }
+        observeAttachmentWork(record)
     }
 
     private fun showAudioRecordingDialog() {
@@ -2448,6 +2417,7 @@ open class PocketChatActivity : AppCompatActivity() {
             .setPositiveButton("Use recording", null)
             .setNegativeButton(android.R.string.cancel, null)
             .create()
+        attachmentRecordingDialog = dialog
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 finishAttachmentRecording(useRecording = true)
@@ -2459,14 +2429,21 @@ open class PocketChatActivity : AppCompatActivity() {
             }
         }
         dialog.setOnCancelListener { finishAttachmentRecording(useRecording = false) }
+        dialog.setOnDismissListener {
+            if (attachmentRecordingDialog === dialog) attachmentRecordingDialog = null
+        }
         dialog.show()
     }
 
     private fun finishAttachmentRecording(useRecording: Boolean) {
-        val recorder = attachmentRecorder ?: return
+        val recorder = attachmentRecorder
         val file = attachmentRecordingFile
         attachmentRecorder = null
         attachmentRecordingFile = null
+        if (recorder == null) {
+            if (!useRecording) file?.delete()
+            return
+        }
         val stopped = runCatching { recorder.stop() }.isSuccess
         runCatching { recorder.release() }
         if (useRecording && stopped && file != null && file.length() > 0L) {
@@ -2476,9 +2453,14 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun discardUnfinishedAttachmentRecording() {
+        finishAttachmentRecording(useRecording = false)
+        attachmentRecordingDialog?.dismiss()
+        attachmentRecordingDialog = null
+    }
+
     private fun detachActiveAttachment() {
-        activeAttachmentWorkId?.let(attachmentWorkerCoordinator::cancel)
-        activeAttachmentWorkId = null
+        activeAttachmentWork?.let(::cancelAndForgetWork)
         attachmentImportJob?.cancel()
         attachmentImportJob = null
         audioPreparationJob?.cancel()
@@ -2491,8 +2473,13 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun cancelActiveAttachmentWork() {
-        activeAttachmentWorkId?.let(attachmentWorkerCoordinator::cancel)
-        activeAttachmentWorkId = null
+        val record = activeAttachmentWork
+        record?.let {
+            attachmentWorkerCoordinator.cancel(java.util.UUID.fromString(it.workId))
+            attachmentRepository.deleteWorkRecord(it)
+        }
+        activeAttachmentWork = null
+        activeAttachmentWorkState = androidx.work.WorkInfo.State.CANCELLED
         attachmentImportJob?.cancel()
         attachmentImportJob = null
         audioPreparationJob?.cancel()
@@ -2501,7 +2488,8 @@ open class PocketChatActivity : AppCompatActivity() {
         activeAttachment = activeAttachment?.copy(
             status = AttachmentStatus.FAILED,
             updatedAtMillis = System.currentTimeMillis(),
-            errorMessage = "Processing cancelled. Retry or detach the attachment."
+            errorMessage = "Processing cancelled. Retry or detach the attachment.",
+            retryOperation = record?.operation ?: activeAttachment?.retryOperation
         )?.also(attachmentRepository::saveDescriptor)
         renderActiveAttachment()
     }
@@ -2535,6 +2523,177 @@ open class PocketChatActivity : AppCompatActivity() {
         renderActiveAttachment()
     }
 
+    private fun reconnectActiveAttachmentWorkIfNeeded() {
+        if (attachmentImportJob?.isActive == true || activeAttachmentWork != null) return
+        val controller = chatController ?: return
+        val sessionId = controller.snapshotActiveChat().sessionId
+        val record = AttachmentWorkPolicy.selectForRestoration(
+            sessionId,
+            attachmentRepository.listWorkRecords()
+        ) ?: return
+        controller.restoreAttachmentSession(record.sessionId)
+        attachmentRepository.loadDescriptor(record.sessionId, record.attachmentId)?.let {
+            activeAttachment = it
+        }
+        observeAttachmentWork(record)
+        activeAttachment?.let { controller.setActiveAttachment(it.id) }
+    }
+
+    private fun observeAttachmentWork(record: AttachmentWorkRecord) {
+        if (activeAttachmentWork?.workId == record.workId && attachmentImportJob?.isActive == true) return
+        attachmentImportJob?.cancel()
+        activeAttachmentWork = record
+        activeAttachmentWorkState = androidx.work.WorkInfo.State.ENQUEUED
+        attachmentImportInProgress = record.operation == AttachmentWorkOperation.IMPORT
+        renderActiveAttachment()
+        attachmentImportJob = lifecycleScope.launch {
+            try {
+                val awaitTerminal: suspend () -> androidx.work.WorkInfo? = {
+                    val flow = attachmentWorkerCoordinator
+                        .workInfoFlow(java.util.UUID.fromString(record.workId))
+                        .filterNotNull()
+                    val firstInfo = withTimeoutOrNull(2_000L) { flow.first() }
+                    if (firstInfo == null) null else {
+                        activeAttachmentWorkState = firstInfo.state
+                        attachmentRepository.loadDescriptor(record.sessionId, record.attachmentId)?.let {
+                            activeAttachment = it
+                        }
+                        renderActiveAttachment()
+                        if (firstInfo.state.isFinished) firstInfo else flow.first { info ->
+                            activeAttachmentWorkState = info.state
+                            attachmentRepository.loadDescriptor(record.sessionId, record.attachmentId)?.let {
+                                activeAttachment = it
+                            }
+                            renderActiveAttachment()
+                            info.state.isFinished
+                        }
+                    }
+                }
+                val workInfo = if (record.operation == AttachmentWorkOperation.WHISPER_TRANSCRIPTION) {
+                    chatController?.withRuntimeLease { awaitTerminal() } ?: awaitTerminal()
+                } else {
+                    awaitTerminal()
+                }
+                if (workInfo == null) {
+                    attachmentRepository.deleteWorkRecord(record)
+                    activeAttachmentWork = null
+                    activeAttachmentWorkState = null
+                    attachmentImportInProgress = false
+                    showTransientMessage("The saved attachment job no longer exists.")
+                } else {
+                    finishAttachmentWork(record, workInfo)
+                }
+            } catch (_: CancellationException) {
+                // WorkManager owns the operation; a recreated Activity reconnects from the durable record.
+            } finally {
+                if (activeAttachmentWork?.workId == record.workId && activeAttachmentWorkState?.isFinished == true) {
+                    activeAttachmentWork = null
+                    attachmentImportInProgress = false
+                }
+                attachmentImportJob = null
+                renderActiveAttachment()
+            }
+        }
+    }
+
+    private fun finishAttachmentWork(record: AttachmentWorkRecord, workInfo: androidx.work.WorkInfo) {
+        var descriptor = attachmentRepository.loadDescriptor(record.sessionId, record.attachmentId)
+        val succeeded = workInfo.state == androidx.work.WorkInfo.State.SUCCEEDED &&
+            descriptor?.status == AttachmentStatus.READY
+        val errorMessage = workInfo.outputData.getString(AttachmentPreparationWorker.KEY_ERROR)
+            ?: descriptor?.errorMessage
+            ?: if (workInfo.state == androidx.work.WorkInfo.State.SUCCEEDED) {
+                "The attachment result could not be loaded."
+            } else null
+            ?: when (workInfo.state) {
+                androidx.work.WorkInfo.State.CANCELLED -> "Processing cancelled. Retry or detach the attachment."
+                else -> "Attachment processing failed."
+            }
+        if (!succeeded && descriptor != null) {
+            descriptor = AttachmentWorkPolicy.failedDescriptor(
+                descriptor,
+                record.operation,
+                errorMessage
+            ).also(attachmentRepository::saveDescriptor)
+        }
+        attachmentRepository.deleteWorkRecord(record)
+        activeAttachmentWorkState = workInfo.state
+        attachmentImportInProgress = false
+        activeAttachment = descriptor
+        descriptor?.let {
+            chatController?.restoreAttachmentSession(record.sessionId)
+            chatController?.setActiveAttachment(it.id)
+        }
+        if (!succeeded) {
+            showTransientMessage(errorMessage)
+        } else if (
+            descriptor?.kind == AttachmentKind.AUDIO &&
+            descriptor.status == AttachmentStatus.READY &&
+            currentModel !is GemmaLiteRtSpec &&
+            record.operation == AttachmentWorkOperation.IMPORT
+        ) {
+            offerWhisperPreparation(descriptor)
+        }
+    }
+
+    private fun retryActiveAttachment() {
+        val descriptor = activeAttachment ?: return
+        if (activeAttachmentWork != null) return
+        val record = runCatching {
+            when (descriptor.retryOperation) {
+                AttachmentWorkOperation.IMPORT -> attachmentWorkerCoordinator.enqueueImportRetry(descriptor)
+                AttachmentWorkOperation.WHISPER_TRANSCRIPTION ->
+                    attachmentWorkerCoordinator.enqueueWhisper(descriptor.sessionId, descriptor.id)
+                null -> return
+            }
+        }.getOrElse { error ->
+            activeAttachment = descriptor.copy(
+                status = AttachmentStatus.FAILED,
+                updatedAtMillis = System.currentTimeMillis(),
+                errorMessage = error.message ?: "Attachment retry could not be started."
+            ).also(attachmentRepository::saveDescriptor)
+            renderActiveAttachment()
+            return
+        }
+        observeAttachmentWork(record)
+    }
+
+    private fun cancelAndForgetWork(record: AttachmentWorkRecord) {
+        attachmentWorkerCoordinator.cancel(java.util.UUID.fromString(record.workId))
+        attachmentRepository.deleteWorkRecord(record)
+        activeAttachmentWork = null
+        activeAttachmentWorkState = null
+    }
+
+    private fun prepareGemmaAudioAfterConfirmation(descriptor: AttachmentDescriptor) {
+        if (audioPreparationJob?.isActive == true) return
+        audioPreparationJob = lifecycleScope.launch {
+            try {
+                val segmented = withContext(Dispatchers.IO) {
+                    GemmaAudioSegmenter(applicationContext).segment(descriptor)
+                }
+                preparedGemmaAudio = segmented
+                preparedGemmaAudioAttachmentId = descriptor.id
+            } catch (_: CancellationException) {
+                cleanupPreparedGemmaAudio()
+                return@launch
+            } catch (error: Throwable) {
+                cleanupPreparedGemmaAudio()
+                showTransientMessage(error.message ?: "Audio segmentation failed.")
+                return@launch
+            } finally {
+                audioPreparationJob = null
+            }
+            handleSendClick()
+        }
+    }
+
+    private fun cleanupPreparedGemmaAudio() {
+        preparedGemmaAudio?.temporaryFiles?.forEach { File(it).delete() }
+        preparedGemmaAudio = null
+        preparedGemmaAudioAttachmentId = null
+    }
+
     private fun renderActiveAttachment() {
         if (!::activeAttachmentContainer.isInitialized) return
         val descriptor = activeAttachment
@@ -2551,6 +2710,10 @@ open class PocketChatActivity : AppCompatActivity() {
             attachmentImportInProgress || descriptor?.status == AttachmentStatus.PROCESSING || descriptor?.status == AttachmentStatus.IMPORTING
         ) View.VISIBLE else View.GONE
         activeAttachmentText.text = when {
+            attachmentImportInProgress && activeAttachmentWorkState in listOf(
+                androidx.work.WorkInfo.State.ENQUEUED,
+                androidx.work.WorkInfo.State.BLOCKED
+            ) -> getString(R.string.attachment_queued)
             attachmentImportInProgress -> getString(R.string.attachment_importing)
             descriptor == null -> ""
             descriptor.status == AttachmentStatus.FAILED -> getString(
@@ -2558,7 +2721,8 @@ open class PocketChatActivity : AppCompatActivity() {
                 descriptor.errorMessage.orEmpty()
             )
             descriptor.status == AttachmentStatus.PROCESSING ->
-                getString(R.string.attachment_using, descriptor.displayName) + " · Transcribing…"
+                getString(R.string.attachment_using, descriptor.displayName) + " · " +
+                    if (activeAttachmentWorkState == androidx.work.WorkInfo.State.ENQUEUED) "Queued…" else "Transcribing…"
             else -> getString(R.string.attachment_using, descriptor.displayName) + " · " +
                 getString(R.string.attachment_ready)
         }
@@ -2903,6 +3067,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun applyChatState(state: ChatUiState) {
+        if (state.isReady) reconnectActiveAttachmentWorkIfNeeded()
         restoreActiveAttachmentIfNeeded(state.activeAttachmentId)
         val generationStarted = state.isGenerating && !wasGenerating
         val generationFinished = !state.isGenerating && wasGenerating

@@ -97,7 +97,9 @@ class PersistentChatController(
         activeChatSnapshot: ActiveChatSnapshot? = null,
         onComplete: (Result<Unit>) -> Unit = {}
     ): Job {
-        val snapshotToRestore = activeChatSnapshot?.takeIf { it.turns.isNotEmpty() }
+        val snapshotToRestore = activeChatSnapshot?.takeIf {
+            it.turns.isNotEmpty() || it.sessionId != null || it.activeAttachmentId != null
+        }
         if (snapshotToRestore != null) {
             restoreActiveChat(snapshotToRestore)
             publishState(isLoading = true, isReady = false)
@@ -177,6 +179,13 @@ class PersistentChatController(
         activeAttachmentId = attachmentId
         persistCurrentSession()
         publishState()
+    }
+
+    fun restoreAttachmentSession(sessionId: String) {
+        if (currentSessionId == null && committedTurns.isEmpty()) {
+            currentSessionId = sessionId
+            currentSessionCreatedAtMillis = System.currentTimeMillis()
+        }
     }
 
     fun buildAttachmentContext(

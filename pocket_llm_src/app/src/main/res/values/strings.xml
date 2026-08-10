@@ -199,6 +199,7 @@
     <string name="retry">Retry</string>
     <string name="attachment_using">Using %1$s</string>
     <string name="attachment_importing">Importing and preparing…</string>
+    <string name="attachment_queued">Attachment queued…</string>
     <string name="attachment_ready">Ready</string>
     <string name="attachment_failed">Failed: %1$s</string>
     <string name="attachment_mixed_input_blocked">Document/audio and image inputs cannot be used in the same send yet.</string>

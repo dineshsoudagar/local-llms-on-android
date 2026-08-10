@@ -37,7 +37,8 @@ class AttachmentImporter(
         uri: Uri,
         sessionId: String,
         requestedKind: AttachmentKind,
-        useGemmaNativeAudio: Boolean
+        useGemmaNativeAudio: Boolean,
+        attachmentId: String = UUID.randomUUID().toString()
     ): AttachmentDescriptor = withContext(Dispatchers.IO) {
         val metadata = queryMetadata(uri)
         val kind = validateKind(metadata, requestedKind)
@@ -50,7 +51,6 @@ class AttachmentImporter(
             sizeLimitMessage(kind)
         }
 
-        val attachmentId = UUID.randomUUID().toString()
         val extension = metadata.displayName.substringAfterLast('.', missingDelimiterValue = defaultExtension(kind))
         val source = repository.createSourceFile(sessionId, attachmentId, extension)
         val copiedBytes = copyWithLimit(uri, source, limit, kind)
@@ -63,7 +63,9 @@ class AttachmentImporter(
             status = AttachmentStatus.IMPORTING,
             processingRoute = initialRoute(kind, useGemmaNativeAudio),
             sourcePath = source.absolutePath,
-            sizeBytes = copiedBytes
+            sizeBytes = copiedBytes,
+            retryOperation = AttachmentWorkOperation.IMPORT,
+            useGemmaNativeAudio = useGemmaNativeAudio
         )
         repository.saveDescriptor(descriptor)
 
@@ -73,6 +75,7 @@ class AttachmentImporter(
                 AttachmentKind.PDF -> preparePdf(descriptor)
                 AttachmentKind.AUDIO -> prepareAudio(descriptor, useGemmaNativeAudio)
             }
+            descriptor = descriptor.copy(retryOperation = null, errorMessage = null)
             repository.saveDescriptor(descriptor)
             descriptor
         } catch (error: Throwable) {
@@ -83,6 +86,34 @@ class AttachmentImporter(
             )
             repository.saveDescriptor(descriptor)
             throw AttachmentImportException(descriptor, descriptor.errorMessage.orEmpty(), error)
+        }
+    }
+
+    suspend fun retry(descriptor: AttachmentDescriptor): AttachmentDescriptor = withContext(Dispatchers.IO) {
+        require(repository.sourceFile(descriptor).isFile) { "The app-owned attachment source is no longer available." }
+        var retrying = descriptor.copy(
+            status = AttachmentStatus.IMPORTING,
+            updatedAtMillis = System.currentTimeMillis(),
+            errorMessage = null,
+            retryOperation = AttachmentWorkOperation.IMPORT
+        )
+        repository.saveDescriptor(retrying)
+        try {
+            retrying = when (retrying.kind) {
+                AttachmentKind.TEXT -> prepareText(retrying)
+                AttachmentKind.PDF -> preparePdf(retrying)
+                AttachmentKind.AUDIO -> prepareAudio(retrying, retrying.useGemmaNativeAudio)
+            }.copy(retryOperation = null, errorMessage = null)
+            repository.saveDescriptor(retrying)
+            retrying
+        } catch (error: Throwable) {
+            retrying = retrying.copy(
+                status = AttachmentStatus.FAILED,
+                updatedAtMillis = System.currentTimeMillis(),
+                errorMessage = actionableMessage(retrying.kind, error)
+            )
+            repository.saveDescriptor(retrying)
+            throw AttachmentImportException(retrying, retrying.errorMessage.orEmpty(), error)
         }
     }
 
