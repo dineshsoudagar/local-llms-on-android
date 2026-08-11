@@ -158,21 +158,17 @@ class AttachmentImporter(
                         val ocrText = recognizePdfPage(renderer, pageIndex)
                         if (ocrText.isNotBlank()) {
                             usedOcr = true
-                            ocrText
-                        } else {
-                            embedded
                         }
+                        PdfPageTextMerger.merge(embedded, ocrText)
                     }
                     sections += AttachmentTextSection(
-                        text = pageText.ifBlank { "[Empty page]" },
+                        text = pageText,
                         source = AttachmentSourceRef(pageNumber = pageIndex + 1)
                     )
                 }
             }
         }
-        val fullText = sections.joinToString("\n\n") { section ->
-            "[${section.source.label()}]\n${section.text}"
-        }
+        val fullText = renderAttachmentSections(sections)
         require(fullText.isNotBlank()) { "The PDF contains no readable text." }
         persistText(descriptor, sections)
         return descriptor.copy(
@@ -217,7 +213,7 @@ class AttachmentImporter(
         }
         repository.saveExtractedText(
             descriptor,
-            sections.joinToString("\n\n") { "[${it.source.label()}]\n${it.text}" }
+            renderAttachmentSections(sections)
         )
         repository.saveChunks(descriptor, chunks)
         repository.saveBm25Index(descriptor, chunks)
@@ -409,3 +405,35 @@ class AttachmentImportException(
     message: String,
     cause: Throwable
 ) : IOException(message, cause)
+
+internal object PdfPageTextMerger {
+    private const val EMPTY_PAGE_TEXT = "[Empty page]"
+
+    fun merge(embeddedText: String, ocrText: String): String {
+        val embedded = AttachmentTextNormalizer.normalize(embeddedText)
+        val ocr = AttachmentTextNormalizer.normalize(ocrText)
+        if (embedded.isBlank() && ocr.isBlank()) return EMPTY_PAGE_TEXT
+        if (embedded.isBlank()) return ocr
+        if (ocr.isBlank()) return embedded
+        if (canonical(embedded) == canonical(ocr)) return embedded
+
+        val embeddedLines = embedded.lineSequence().filter(String::isNotBlank).toList()
+        val seenKeys = embeddedLines.map(::canonical).toMutableSet()
+        val uniqueOcrLines = ocr.lineSequence()
+            .filter(String::isNotBlank)
+            .filter { seenKeys.add(canonical(it)) }
+            .toList()
+        if (uniqueOcrLines.isEmpty()) return embedded
+        return "$embedded\n\n${uniqueOcrLines.joinToString("\n")}".trim()
+    }
+
+    private fun canonical(text: String): String {
+        return text.trim().replace(Regex("\\s+"), " ").lowercase()
+    }
+}
+
+internal fun renderAttachmentSections(sections: List<AttachmentTextSection>): String {
+    return sections.joinToString("\n\n") { section ->
+        "[${section.source.label()}]\n${section.text}"
+    }
+}

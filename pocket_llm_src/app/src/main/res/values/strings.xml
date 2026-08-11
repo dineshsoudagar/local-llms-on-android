@@ -125,11 +125,8 @@
     <string name="model_load_failed_message">%1$s could not be initialized.</string>
     <string name="model_load_failed_detail">%1$s could not be initialized. %2$s</string>
     <string name="model_file_invalid_generic">A required model file is missing, incomplete, or corrupted.</string>
-    <string name="model_memory_warning_title">Possible memory risk</string>
-    <string name="model_memory_confirmation_required">Confirm the memory warning before loading this model, or choose another model.</string>
-    <string name="model_load_anyway">Load anyway</string>
     <string name="model_recovery_title">Model loading recovery</string>
-    <string name="model_recovery_message">%1$s was not loaded.\n\n%2$s\n\nChoose what to do next.</string>
+    <string name="model_recovery_message">%1$s failed to load.\n\n%2$s\n\nIf this keeps failing, choose a smaller model.</string>
     <string name="model_recovery_choose_another">Choose another model</string>
     <string name="model_recovery_delete">Delete failed model</string>
     <string name="model_recovery_retry">Retry loading</string>

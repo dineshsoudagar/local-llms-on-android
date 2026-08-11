@@ -47,6 +47,19 @@ class AttachmentTextPipelineTest {
     }
 
     @Test
+    fun bm25NeverAdmitsAnOversizedFirstChunk() {
+        val selected = Bm25AttachmentRetriever(
+            listOf(
+                chunk(0, "highly relevant audio encoder", 1, tokens = 50),
+                chunk(1, "audio encoder", 2, tokens = 4)
+            )
+        ).retrieve("audio encoder", tokenBudget = 10)
+
+        assertEquals(listOf("chunk-1"), selected.map(AttachmentChunk::id))
+        assertTrue(selected.sumOf(AttachmentChunk::estimatedTokens) <= 10)
+    }
+
+    @Test
     fun routerSeparatesSummaryQuestionAndTransformation() {
         assertEquals(AttachmentTask.SUMMARY, AttachmentTaskRouter.route("Summarize the whole PDF"))
         assertEquals(AttachmentTask.TRANSFORMATION, AttachmentTaskRouter.route("Translate all of this"))

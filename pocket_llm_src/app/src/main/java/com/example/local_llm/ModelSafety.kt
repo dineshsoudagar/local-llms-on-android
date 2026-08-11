@@ -17,7 +17,7 @@ data class DeviceResourceSnapshot(
     val availableStorageBytes: Long
 )
 
-enum class ModelPreflightKind { READY, MEMORY_WARNING, BLOCKED }
+enum class ModelPreflightKind { READY, BLOCKED }
 
 data class ModelPreflightResult(
     val kind: ModelPreflightKind,
@@ -48,20 +48,13 @@ object ModelPreflightEvaluator {
         val risky = resources.lowMemory ||
             resources.availableMemoryBytes < estimatedWorkingSet ||
             resources.totalMemoryBytes < estimatedWorkingSet + estimatedWorkingSet / 3L
-        return if (risky) {
-            ModelPreflightResult(
-                kind = ModelPreflightKind.MEMORY_WARNING,
-                message = "${descriptor.displayName} may be too large for this device. Estimated working memory is about ${formatBytes(estimatedWorkingSet)}, but this estimate cannot guarantee compatibility. Loading may still close the app.",
-                estimatedWorkingSetBytes = estimatedWorkingSet,
-                allowCpuFallback = false
-            )
-        } else {
-            ModelPreflightResult(
-                kind = ModelPreflightKind.READY,
-                estimatedWorkingSetBytes = estimatedWorkingSet,
-                allowCpuFallback = true
-            )
-        }
+        // Memory estimates never block the load or show a warning. They only prevent a
+        // risky automatic CPU fallback, which can terminate the process for large models.
+        return ModelPreflightResult(
+            kind = ModelPreflightKind.READY,
+            estimatedWorkingSetBytes = estimatedWorkingSet,
+            allowCpuFallback = !risky
+        )
     }
 
     fun forDownload(descriptor: ModelDescriptor, remainingBytes: Long, availableStorageBytes: Long): ModelPreflightResult {

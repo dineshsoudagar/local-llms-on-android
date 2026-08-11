@@ -166,19 +166,23 @@ class Bm25AttachmentRetriever(private val chunks: List<AttachmentChunk>) {
 
     fun retrieve(query: String, tokenBudget: Int): List<AttachmentChunk> {
         if (chunks.isEmpty() || tokenBudget <= 0) return emptyList()
-        val queryTokens = tokenize(query).distinct()
-        val ranked = chunks.indices
-            .map { index -> chunks[index] to score(tokenized[index], queryTokens) }
-            .sortedWith(compareByDescending<Pair<AttachmentChunk, Double>> { it.second }.thenBy { it.first.ordinal })
         val selected = mutableListOf<AttachmentChunk>()
         var used = 0
-        for ((chunk, _) in ranked) {
-            if (used + chunk.estimatedTokens > tokenBudget && selected.isNotEmpty()) continue
+        for (chunk in rank(query)) {
+            if (used + chunk.estimatedTokens > tokenBudget) continue
             selected += chunk
             used += chunk.estimatedTokens
             if (used >= tokenBudget) break
         }
         return selected.sortedBy(AttachmentChunk::ordinal)
+    }
+
+    fun rank(query: String): List<AttachmentChunk> {
+        val queryTokens = tokenize(query).distinct()
+        return chunks.indices
+            .map { index -> chunks[index] to score(tokenized[index], queryTokens) }
+            .sortedWith(compareByDescending<Pair<AttachmentChunk, Double>> { it.second }.thenBy { it.first.ordinal })
+            .map(Pair<AttachmentChunk, Double>::first)
     }
 
     private fun score(document: List<String>, query: List<String>): Double {
@@ -203,10 +207,16 @@ class Bm25AttachmentRetriever(private val chunks: List<AttachmentChunk>) {
     }
 }
 
-class AttachmentPromptPlanner {
+class AttachmentPromptPlanner(
+    private val exactPromptFits: ((String) -> Boolean)? = null
+) {
     fun plan(chunks: List<AttachmentChunk>, userPrompt: String, inputTokenBudget: Int): AttachmentPromptPlan {
         require(inputTokenBudget > 0)
         val task = AttachmentTaskRouter.route(userPrompt)
+        val promptFits = exactPromptFits
+        if (promptFits != null) {
+            return planExactly(chunks, userPrompt, task, promptFits)
+        }
         val allTokens = chunks.sumOf(AttachmentChunk::estimatedTokens)
         val chosenGroups = when {
             allTokens <= inputTokenBudget -> listOf(chunks)
@@ -220,6 +230,90 @@ class AttachmentPromptPlanner {
             },
             requiresFinalSynthesis = chosenGroups.size > 1
         )
+    }
+
+    private fun planExactly(
+        chunks: List<AttachmentChunk>,
+        userPrompt: String,
+        task: AttachmentTask,
+        promptFits: (String) -> Boolean
+    ): AttachmentPromptPlan {
+        require(chunks.isNotEmpty()) { "The attachment contains no usable text chunks." }
+        val pieces = chunks.flatMap { chunk ->
+            splitChunkToFit(chunk, task, userPrompt, promptFits)
+        }.mapIndexed { index, chunk -> chunk.copy(ordinal = index) }
+        val groups = if (task == AttachmentTask.QUESTION) {
+            val selected = mutableListOf<AttachmentChunk>()
+            for (chunk in Bm25AttachmentRetriever(pieces).rank(userPrompt)) {
+                val candidate = (selected + chunk).sortedBy(AttachmentChunk::ordinal)
+                if (promptFits(buildBatchPrompt(task, userPrompt, 0, 1, candidate))) {
+                    selected += chunk
+                }
+            }
+            require(selected.isNotEmpty()) {
+                "Even the smallest attachment excerpt cannot fit with the system instruction and chat history."
+            }
+            listOf(selected.sortedBy(AttachmentChunk::ordinal))
+        } else {
+            packExactlyInOrder(pieces, task, userPrompt, promptFits)
+        }
+        val batches = groups.mapIndexed { index, group ->
+            AttachmentPromptBatch(
+                chunks = group,
+                prompt = buildBatchPrompt(task, userPrompt, index, groups.size, group).also { prompt ->
+                    require(promptFits(prompt)) {
+                        "Attachment batch ${index + 1} no longer fits after adding its final wrapper."
+                    }
+                }
+            )
+        }
+        return AttachmentPromptPlan(task, batches, groups.size > 1)
+    }
+
+    private fun splitChunkToFit(
+        chunk: AttachmentChunk,
+        task: AttachmentTask,
+        userPrompt: String,
+        promptFits: (String) -> Boolean
+    ): List<AttachmentChunk> {
+        fun fits(text: String): Boolean {
+            val candidate = chunk.copy(text = text)
+            val countHint = if (task == AttachmentTask.QUESTION) 1 else Int.MAX_VALUE
+            return promptFits(buildBatchPrompt(task, userPrompt, countHint - 1, countHint, listOf(candidate)))
+        }
+        if (fits(chunk.text)) return listOf(chunk)
+        val pieces = splitTextByExactPromptFit(chunk.text, ::fits)
+        return pieces.mapIndexed { index, text ->
+            chunk.copy(
+                id = "${chunk.id}-part-${index + 1}",
+                ordinal = chunk.ordinal,
+                text = text,
+                estimatedTokens = conservativeTokenEstimate(text)
+            )
+        }
+    }
+
+    private fun packExactlyInOrder(
+        chunks: List<AttachmentChunk>,
+        task: AttachmentTask,
+        userPrompt: String,
+        promptFits: (String) -> Boolean
+    ): List<List<AttachmentChunk>> {
+        val groups = mutableListOf<MutableList<AttachmentChunk>>()
+        chunks.forEach { chunk ->
+            val current = groups.lastOrNull()
+            val candidate = current.orEmpty() + chunk
+            val countHint = Int.MAX_VALUE
+            if (current != null && promptFits(buildBatchPrompt(task, userPrompt, countHint - 1, countHint, candidate))) {
+                current += chunk
+            } else {
+                require(promptFits(buildBatchPrompt(task, userPrompt, countHint - 1, countHint, listOf(chunk)))) {
+                    "Even the smallest attachment excerpt cannot fit with the required prompt wrapper."
+                }
+                groups += mutableListOf(chunk)
+            }
+        }
+        return groups
     }
 
     private fun packInOrder(chunks: List<AttachmentChunk>, budget: Int): List<List<AttachmentChunk>> {
@@ -236,7 +330,7 @@ class AttachmentPromptPlanner {
         return groups
     }
 
-    private fun buildBatchPrompt(
+    internal fun buildBatchPrompt(
         task: AttachmentTask,
         userPrompt: String,
         batchIndex: Int,
@@ -251,6 +345,111 @@ class AttachmentPromptPlanner {
             append("Return a faithful intermediate summary for later synthesis, preserving important source labels.")
         }
     }.trim()
+}
+
+data class AttachmentSynthesisBatch(
+    val inputs: List<String>,
+    val prompt: String
+)
+
+fun planAttachmentSynthesisBatches(
+    texts: List<String>,
+    originalPrompt: String,
+    promptFits: (String) -> Boolean
+): List<AttachmentSynthesisBatch> {
+    val nonBlank = texts.filter(String::isNotBlank)
+    require(nonBlank.isNotEmpty()) { "Attachment processing produced no result." }
+    val fragments = nonBlank.flatMapIndexed { index, text ->
+        val label = index + 1
+        val singleFits: (String) -> Boolean = { fragment ->
+            promptFits(buildAttachmentSynthesisPrompt(listOf(fragment), originalPrompt, Int.MAX_VALUE - 1, Int.MAX_VALUE))
+        }
+        if (singleFits(text)) {
+            listOf(text)
+        } else {
+            val fragmentPrefix = "[Intermediate result $label, fragment ${Int.MAX_VALUE}]\n"
+            splitTextByExactPromptFit(text) { fragment -> singleFits(fragmentPrefix + fragment) }
+                .mapIndexed { fragmentIndex, fragment ->
+                "[Intermediate result $label, fragment ${fragmentIndex + 1}]\n$fragment"
+            }
+        }
+    }
+    val groups = mutableListOf<MutableList<String>>()
+    fragments.forEach { text ->
+        val current = groups.lastOrNull()
+        val candidate = current.orEmpty() + text
+        if (
+            current != null &&
+            promptFits(buildAttachmentSynthesisPrompt(candidate, originalPrompt, Int.MAX_VALUE - 1, Int.MAX_VALUE))
+        ) {
+            current += text
+        } else {
+            require(promptFits(buildAttachmentSynthesisPrompt(listOf(text), originalPrompt, Int.MAX_VALUE - 1, Int.MAX_VALUE))) {
+                "Even the smallest intermediate result cannot fit in a synthesis prompt."
+            }
+            groups += mutableListOf(text)
+        }
+    }
+    return groups.mapIndexed { index, group ->
+        AttachmentSynthesisBatch(
+            inputs = group,
+            prompt = buildAttachmentSynthesisPrompt(group, originalPrompt, index, groups.size).also { prompt ->
+                require(promptFits(prompt)) { "Synthesis batch ${index + 1} exceeds the final prompt limit." }
+            }
+        )
+    }
+}
+
+fun buildAttachmentSynthesisPrompt(
+    texts: List<String>,
+    originalPrompt: String,
+    batchIndex: Int,
+    batchCount: Int
+): String = buildString {
+    append("Combine these ordered intermediate results faithfully. Preserve source markers and do not invent facts.\n")
+    append("Original user request: ").append(originalPrompt).append('\n')
+    append("Group ${batchIndex + 1} of $batchCount:\n\n")
+    texts.forEachIndexed { index, text ->
+        append("[Intermediate result ${index + 1}]\n").append(text)
+        if (index != texts.lastIndex) append("\n\n")
+    }
+}.trim()
+
+internal fun splitTextByExactPromptFit(text: String, fits: (String) -> Boolean): List<String> {
+    var remaining = AttachmentTextNormalizer.normalize(text)
+    require(remaining.isNotBlank()) { "Cannot split empty attachment text." }
+    val result = mutableListOf<String>()
+    while (remaining.isNotEmpty()) {
+        if (fits(remaining)) {
+            result += remaining
+            break
+        }
+        var low = 1
+        var high = remaining.length
+        var best = 0
+        while (low <= high) {
+            val middle = low + (high - low) / 2
+            val candidate = remaining.substring(0, middle).trimEnd()
+            if (candidate.isNotEmpty() && fits(candidate)) {
+                best = middle
+                low = middle + 1
+            } else {
+                high = middle - 1
+            }
+        }
+        require(best > 0) {
+            "The model's prompt limit is too small for even the minimum valid attachment prompt."
+        }
+        val whitespaceCut = remaining.lastIndexOfAny(charArrayOf(' ', '\n', '\t'), startIndex = best - 1)
+        val cut = if (whitespaceCut > 0) whitespaceCut else best
+        val piece = remaining.substring(0, cut).trim()
+        require(piece.isNotEmpty() && fits(piece)) {
+            "The model's prompt limit is too small for even the minimum valid attachment excerpt."
+        }
+        result += piece
+        remaining = remaining.substring(cut).trimStart()
+    }
+    return result
 }
 
 fun conservativeTokenEstimate(text: String): Int {

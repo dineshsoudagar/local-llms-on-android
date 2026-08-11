@@ -474,7 +474,7 @@ open class PocketChatActivity : AppCompatActivity() {
                     preserveTranscript = false
                 )
             } else if (startupModel != null && modelFileResolver.isModelAvailable(startupModel)) {
-                requestModelLoad(startupModel, activeChatSnapshot = null, userInitiated = false)
+                requestModelLoad(startupModel, activeChatSnapshot = null)
             } else {
                 if (startupModel != null) {
                     recordPreflightFailure(
@@ -2824,7 +2824,6 @@ open class PocketChatActivity : AppCompatActivity() {
                         textDescriptor,
                         activeChatSnapshot = chatController?.snapshotActiveChat()
                             ?: retainedState.pendingModelLoadSnapshot,
-                        userInitiated = true
                     )
                 } else {
                     chatController?.let { applyChatState(it.state.value) }
@@ -2899,8 +2898,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun requestModelLoad(
         descriptor: ModelDescriptor,
-        activeChatSnapshot: ActiveChatSnapshot?,
-        userInitiated: Boolean
+        activeChatSnapshot: ActiveChatSnapshot?
     ) {
         modelPreparationJob?.cancel()
         modelPreparationJob = lifecycleScope.launch {
@@ -2928,29 +2926,6 @@ open class PocketChatActivity : AppCompatActivity() {
                 recordPreflightFailure(descriptor, preflight.message.orEmpty())
                 return@launch
             }
-            if (preflight.kind == ModelPreflightKind.MEMORY_WARNING) {
-                MaterialAlertDialogBuilder(this@PocketChatActivity)
-                    .setTitle(getString(R.string.model_memory_warning_title))
-                    .setMessage(preflight.message)
-                    .setNegativeButton(android.R.string.cancel) { _, _ ->
-                        if (!userInitiated && chatController == null) {
-                            renderNoControllerState(
-                                getString(R.string.model_memory_confirmation_required),
-                                preserveTranscript = true
-                            )
-                        }
-                    }
-                    .setPositiveButton(getString(R.string.model_load_anyway)) { _, _ ->
-                        startPreparedModelLoad(
-                            descriptor,
-                            activeChatSnapshot,
-                            BackendInitializationPolicy(allowCpuFallback = false)
-                        )
-                    }
-                    .show()
-                return@launch
-            }
-
             startPreparedModelLoad(
                 descriptor,
                 activeChatSnapshot,
@@ -3208,7 +3183,6 @@ open class PocketChatActivity : AppCompatActivity() {
                             descriptor,
                             activeChatSnapshot = chatController?.snapshotActiveChat()
                                 ?: retainedState.pendingModelLoadSnapshot,
-                            userInitiated = true
                         )
                     }
                     3 -> {
@@ -3730,7 +3704,7 @@ open class PocketChatActivity : AppCompatActivity() {
             val activeChatSnapshot = chatController?.snapshotActiveChat()
                 ?: retainedState.pendingModelLoadSnapshot
             modelDialogViews?.dialog?.dismiss()
-            requestModelLoad(descriptor, activeChatSnapshot, userInitiated = true)
+            requestModelLoad(descriptor, activeChatSnapshot)
             return
         }
 

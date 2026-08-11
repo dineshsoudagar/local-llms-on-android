@@ -12,5 +12,6 @@ data class InferenceRequest(
     val modelInstruction: String,
     val imageFilePaths: List<String> = emptyList(),
     val nativeAudioInputs: List<NativeAudioInput> = emptyList(),
-    val attachmentContext: AttachmentContext? = null
+    val attachmentContext: AttachmentContext? = null,
+    val outputTokenReserve: Int = 0
 )

@@ -6,23 +6,108 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.OutputStream
 import java.io.RandomAccessFile
 
 data class NormalizedAudio(
     val file: File,
-    val durationMillis: Long
+    val durationMillis: Long,
+    val normalizedSampleCount: Long
 )
+
+internal class DecodedAudioDurationTracker(
+    val containerDurationEstimateMicros: Long?,
+    private val maximumSamples: Long = AttachmentLimits.MAX_NORMALIZED_AUDIO_SAMPLES
+) {
+    var normalizedSampleCount: Long = 0L
+        private set
+
+    val durationMillis: Long
+        get() = normalizedSampleCount * 1_000L / AttachmentLimits.NORMALIZED_AUDIO_SAMPLE_RATE
+
+    fun recordSamples(count: Long) {
+        require(count >= 0L) { "The decoded sample count cannot be negative." }
+        require(normalizedSampleCount <= maximumSamples - count) {
+            "Audio must be no longer than 2 hours of decoded 16 kHz mono samples."
+        }
+        normalizedSampleCount += count
+    }
+}
+
+internal class Pcm16MonoResampler(
+    private val output: OutputStream,
+    private val durationTracker: DecodedAudioDurationTracker
+) {
+    private var sourceRate: Int? = null
+    private var channels: Int? = null
+    private var phase = 0L
+    private var pendingFrame = ByteArray(0)
+    private var pendingSize = 0
+
+    fun consume(bytes: ByteArray, decodedSampleRate: Int, decodedChannels: Int) {
+        require(decodedSampleRate > 0 && decodedChannels > 0) { "The decoded audio format is invalid." }
+        val configuredRate = sourceRate
+        val configuredChannels = channels
+        require(configuredRate == null || configuredRate == decodedSampleRate) {
+            "The decoded audio sample rate changed during normalization."
+        }
+        require(configuredChannels == null || configuredChannels == decodedChannels) {
+            "The decoded audio channel count changed during normalization."
+        }
+        sourceRate = decodedSampleRate
+        channels = decodedChannels
+        val frameBytes = decodedChannels * PCM16_BYTES_PER_SAMPLE
+        if (pendingFrame.size != frameBytes) pendingFrame = ByteArray(frameBytes)
+        var byteIndex = 0
+        while (byteIndex < bytes.size) {
+            pendingFrame[pendingSize++] = bytes[byteIndex++]
+            if (pendingSize == frameBytes) {
+                writeFrame(pendingFrame, decodedSampleRate, decodedChannels)
+                pendingSize = 0
+            }
+        }
+    }
+
+    fun finish() {
+        require(pendingSize == 0) { "The decoder returned an incomplete PCM audio frame." }
+        require(durationTracker.normalizedSampleCount > 0L) {
+            "No audible samples could be decoded from this file."
+        }
+    }
+
+    private fun writeFrame(frame: ByteArray, decodedSampleRate: Int, decodedChannels: Int) {
+        var mixed = 0L
+        for (channel in 0 until decodedChannels) {
+            val offset = channel * PCM16_BYTES_PER_SAMPLE
+            val sample = (frame[offset].toInt() and 0xff) or (frame[offset + 1].toInt() shl 8)
+            mixed += sample.toShort().toInt()
+        }
+        val mono = (mixed / decodedChannels).coerceIn(Short.MIN_VALUE.toLong(), Short.MAX_VALUE.toLong()).toInt()
+        phase += AttachmentLimits.NORMALIZED_AUDIO_SAMPLE_RATE
+        while (phase >= decodedSampleRate) {
+            durationTracker.recordSamples(1L)
+            output.write(mono and 0xff)
+            output.write((mono ushr 8) and 0xff)
+            phase -= decodedSampleRate
+        }
+    }
+
+    private companion object {
+        const val PCM16_BYTES_PER_SAMPLE = 2
+    }
+}
+
+internal fun cleanupPartialAudioOutput(destination: File) {
+    if (destination.exists()) destination.delete()
+}
 
 class AudioNormalizer {
     suspend fun normalize(source: File, destination: File): NormalizedAudio {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
-        val rawFile = File(destination.parentFile, ".decoded-${destination.name}.pcm")
         try {
             extractor.setDataSource(source.absolutePath)
             val trackIndex = (0 until extractor.trackCount).firstOrNull { index ->
@@ -31,10 +116,11 @@ class AudioNormalizer {
             val inputFormat = extractor.getTrackFormat(trackIndex)
             val mime = inputFormat.getString(MediaFormat.KEY_MIME)
                 ?: throw IllegalArgumentException("The audio codec could not be identified.")
-            val durationMillis = inputFormat.getLong(MediaFormat.KEY_DURATION) / 1_000L
-            require(durationMillis in 1..AttachmentLimits.MAX_AUDIO_DURATION_MILLIS) {
-                "Audio must be no longer than 2 hours."
-            }
+            val durationTracker = DecodedAudioDurationTracker(
+                containerDurationEstimateMicros = inputFormat
+                    .takeIf { it.containsKey(MediaFormat.KEY_DURATION) }
+                    ?.getLong(MediaFormat.KEY_DURATION)
+            )
 
             extractor.selectTrack(trackIndex)
             codec = MediaCodec.createDecoderByType(mime)
@@ -47,7 +133,10 @@ class AudioNormalizer {
             var inputEnded = false
             var outputEnded = false
             val bufferInfo = MediaCodec.BufferInfo()
-            BufferedOutputStream(FileOutputStream(rawFile)).use { rawOutput ->
+            destination.parentFile?.mkdirs()
+            BufferedOutputStream(FileOutputStream(destination)).use { normalizedOutput ->
+                normalizedOutput.write(ByteArray(WAV_HEADER_BYTES))
+                val resampler = Pcm16MonoResampler(normalizedOutput, durationTracker)
                 while (!outputEnded) {
                     currentCoroutineContext().ensureActive()
                     if (!inputEnded) {
@@ -95,68 +184,31 @@ class AudioNormalizer {
                                 outputBuffer.position(bufferInfo.offset)
                                 outputBuffer.limit(bufferInfo.offset + bufferInfo.size)
                                 outputBuffer.get(bytes)
-                                rawOutput.write(bytes)
+                                resampler.consume(bytes, outputSampleRate, outputChannels)
                             }
                             outputEnded = bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
                             codec.releaseOutputBuffer(outputIndex, false)
                         }
                     }
                 }
+                resampler.finish()
+                normalizedOutput.flush()
             }
 
-            writeMono16kWav(rawFile, destination, outputSampleRate, outputChannels)
-            return NormalizedAudio(destination, durationMillis)
+            writeWavHeader(destination, durationTracker.normalizedSampleCount * PCM16_BYTES_PER_SAMPLE)
+            return NormalizedAudio(
+                file = destination,
+                durationMillis = durationTracker.durationMillis,
+                normalizedSampleCount = durationTracker.normalizedSampleCount
+            )
         } catch (error: Throwable) {
-            destination.delete()
+            cleanupPartialAudioOutput(destination)
             throw error
         } finally {
-            rawFile.delete()
             runCatching { codec?.stop() }
             runCatching { codec?.release() }
             extractor.release()
         }
-    }
-
-    private fun writeMono16kWav(rawFile: File, destination: File, sourceRate: Int, channels: Int) {
-        require(sourceRate > 0 && channels > 0) { "The decoded audio format is invalid." }
-        destination.parentFile?.mkdirs()
-        BufferedInputStream(FileInputStream(rawFile)).use { input ->
-            BufferedOutputStream(FileOutputStream(destination)).use { output ->
-                output.write(ByteArray(WAV_HEADER_BYTES))
-                val frame = ByteArray(channels * 2)
-                var sourceFrame = 0L
-                var outputFrame = 0L
-                var dataBytes = 0L
-                while (readFrame(input, frame)) {
-                    var mixed = 0
-                    for (channel in 0 until channels) {
-                        val offset = channel * 2
-                        mixed += (frame[offset].toInt() and 0xff) or (frame[offset + 1].toInt() shl 8)
-                    }
-                    val mono = (mixed / channels).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-                    while ((outputFrame * sourceRate) / TARGET_SAMPLE_RATE <= sourceFrame) {
-                        output.write(mono and 0xff)
-                        output.write((mono ushr 8) and 0xff)
-                        dataBytes += 2
-                        outputFrame += 1
-                    }
-                    sourceFrame += 1
-                }
-                output.flush()
-                require(dataBytes > 0L) { "No audible samples could be decoded from this file." }
-                writeWavHeader(destination, dataBytes)
-            }
-        }
-    }
-
-    private fun readFrame(input: BufferedInputStream, frame: ByteArray): Boolean {
-        var offset = 0
-        while (offset < frame.size) {
-            val count = input.read(frame, offset, frame.size - offset)
-            if (count < 0) return offset == frame.size
-            offset += count
-        }
-        return true
     }
 
     private fun writeWavHeader(file: File, dataBytes: Long) {
@@ -169,8 +221,8 @@ class AudioNormalizer {
             wav.writeIntLE(16)
             wav.writeShortLE(1)
             wav.writeShortLE(1)
-            wav.writeIntLE(TARGET_SAMPLE_RATE)
-            wav.writeIntLE(TARGET_SAMPLE_RATE * 2)
+            wav.writeIntLE(AttachmentLimits.NORMALIZED_AUDIO_SAMPLE_RATE)
+            wav.writeIntLE(AttachmentLimits.NORMALIZED_AUDIO_SAMPLE_RATE * 2)
             wav.writeShortLE(2)
             wav.writeShortLE(16)
             wav.writeBytes("data")
@@ -188,7 +240,7 @@ class AudioNormalizer {
 
     companion object {
         private const val CODEC_TIMEOUT_US = 10_000L
-        private const val TARGET_SAMPLE_RATE = 16_000
         private const val WAV_HEADER_BYTES = 44
+        private const val PCM16_BYTES_PER_SAMPLE = 2L
     }
 }

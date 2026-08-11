@@ -37,6 +37,7 @@ class PersistentChatController(
         private const val MATH_MARKDOWN_UPDATE_WORD_STEP = 24
         private const val MATH_MARKDOWN_UPDATE_CHAR_STEP = 180
         private const val MATH_MARKDOWN_UPDATE_MIN_INTERVAL_MS = 650L
+        private const val MAX_SYNTHESIS_ROUNDS = 8
         private val TABLE_SEPARATOR_REGEX = Regex("^\\|?(?:\\s*:?-{3,}:?\\s*\\|)+\\s*:?-{3,}:?\\s*\\|?$")
         private val LATEX_DELIMITER_REGEX = Regex(
             """\\\[|\\\]|\\\(|\\\)|\${'$'}\${'$'}|(?<!\\)\${'$'}(?=\S*[A-Za-z\\_^{}=+\-*/<>])"""
@@ -193,16 +194,21 @@ class PersistentChatController(
         chunks: List<AttachmentChunk>,
         userPrompt: String
     ): AttachmentContext {
-        val reservedText = buildString {
-            append(currentModelInstruction())
-            committedTurns.asModelMemoryTurns().forEach { append('\n').append(it.text) }
-            append('\n').append(userPrompt)
-            append("\nAttachment: ").append(descriptor.displayName)
+        val outputReserve = attachmentOutputReserve()
+        val baseHistory = committedTurns.asModelMemoryTurns()
+        val modelInstruction = currentModelInstruction()
+        val promptFits: (String) -> Boolean = { prompt ->
+            runCatching {
+                backend.requirePromptFits(
+                    InferenceRequest(
+                        history = baseHistory + ChatTurn(role = ChatRole.USER, text = prompt),
+                        thinkingEnabled = thinkingEnabled,
+                        modelInstruction = modelInstruction,
+                        outputTokenReserve = outputReserve
+                    )
+                )
+            }.isSuccess
         }
-        val outputReserve = (backend.capabilities.contextWindowTokens / 4).coerceIn(128, 512)
-        val inputBudget = (
-            backend.capabilities.contextWindowTokens - backend.estimateTokens(reservedText) - outputReserve
-        ).coerceAtLeast(64)
         val measuredChunks = chunks.map { chunk ->
             chunk.copy(estimatedTokens = backend.estimateTokens(chunk.text))
         }
@@ -214,7 +220,17 @@ class PersistentChatController(
         require(task != AttachmentTask.TRANSFORMATION || sourceTokens <= AttachmentLimits.MAX_TRANSFORMATION_SOURCE_TOKENS) {
             "Whole-document transformations are limited to 25,000 source tokens."
         }
-        val plan = AttachmentPromptPlanner().plan(measuredChunks, userPrompt, inputBudget)
+        val limitProbe = InferenceRequest(
+            history = baseHistory + ChatTurn(role = ChatRole.USER, text = userPrompt),
+            thinkingEnabled = thinkingEnabled,
+            modelInstruction = modelInstruction,
+            outputTokenReserve = outputReserve
+        )
+        val plan = AttachmentPromptPlanner(promptFits).plan(
+            measuredChunks,
+            userPrompt,
+            backend.promptTokenLimit(limitProbe)
+        )
         return AttachmentContext(
             attachmentId = descriptor.id,
             displayName = descriptor.displayName,
@@ -422,7 +438,8 @@ class PersistentChatController(
                             modelInstruction = currentModelInstruction(),
                             imageFilePaths = currentGenerationImageFilePaths,
                             nativeAudioInputs = currentNativeAudioInputs,
-                            attachmentContext = currentAttachmentContext
+                            attachmentContext = currentAttachmentContext,
+                            outputTokenReserve = if (currentAttachmentContext != null) attachmentOutputReserve() else 0
                         ),
                         onPartial = partialCallback@{ partial ->
                             if (generationId != currentGenerationId) {
@@ -523,11 +540,11 @@ class PersistentChatController(
         val batches = context?.promptBatches.orEmpty()
         if (batches.size <= 1) {
             val prompt = batches.firstOrNull() ?: context?.contextText
-            return backend.streamReply(request.withUserPrompt(prompt), onPartial)
+            return streamReplyWithinBudget(request.withUserPrompt(prompt), onPartial)
         }
 
         val results = batches.map { batch ->
-            backend.streamReply(
+            streamReplyWithinBudget(
                 request.copy(
                     history = request.history.replaceLastUserText(batch),
                     attachmentContext = null
@@ -557,7 +574,7 @@ class PersistentChatController(
             require((input.endMillis ?: 0L) - input.startMillis <= AttachmentLimits.GEMMA_MAX_AUDIO_INPUT_MILLIS) {
                 "A Gemma native-audio segment may not exceed 30 seconds."
             }
-            return backend.streamReply(request, onPartial)
+            return streamReplyWithinBudget(request, onPartial)
         }
 
         val notes = request.nativeAudioInputs.mapIndexed { index, input ->
@@ -567,7 +584,7 @@ class PersistentChatController(
                 append("This is segment ${index + 1} of ${request.nativeAudioInputs.size}. User request: ")
                 append(originalPrompt)
             }
-            backend.streamReply(
+            streamReplyWithinBudget(
                 request.copy(
                     history = request.history.replaceLastUserText(segmentPrompt),
                     nativeAudioInputs = listOf(input),
@@ -603,7 +620,7 @@ class PersistentChatController(
             val relevant = Bm25AttachmentRetriever(noteChunks).retrieve(originalPrompt, budget)
             relevant.map { chunk ->
                 val input = request.nativeAudioInputs[chunk.ordinal]
-                backend.streamReply(
+                streamReplyWithinBudget(
                     request.copy(
                         history = request.history.replaceLastUserText(
                             "Answer this request from the attached source audio segment ${chunk.source.label()}: $originalPrompt"
@@ -628,18 +645,27 @@ class PersistentChatController(
     ): BackendResponse {
         val originalPrompt = request.history.lastOrNull { it.role == ChatRole.USER }?.text.orEmpty()
         var level = results.filter(String::isNotBlank)
+        var round = 0
         while (level.size > 1) {
-            val groups = packTextsForSynthesis(level)
-            level = groups.mapIndexed { index, group ->
-                val synthesisPrompt = buildString {
-                    append("Combine these ordered intermediate results faithfully. Preserve source markers and do not invent facts.\n")
-                    append("Original user request: ").append(originalPrompt).append("\n")
-                    append("Group ${index + 1} of ${groups.size}:\n\n")
-                    append(group.joinToString("\n\n"))
-                }
-                backend.streamReply(
+            require(round++ < MAX_SYNTHESIS_ROUNDS) {
+                "Attachment synthesis did not converge within $MAX_SYNTHESIS_ROUNDS budgeted rounds."
+            }
+            val fits: (String) -> Boolean = { prompt ->
+                runCatching {
+                    backend.requirePromptFits(
+                        request.copy(
+                            history = request.history.replaceLastUserText(prompt),
+                            nativeAudioInputs = emptyList(),
+                            attachmentContext = null
+                        )
+                    )
+                }.isSuccess
+            }
+            val groups = planAttachmentSynthesisBatches(level, originalPrompt, fits)
+            level = groups.map { group ->
+                streamReplyWithinBudget(
                     request.copy(
-                        history = request.history.replaceLastUserText(synthesisPrompt),
+                        history = request.history.replaceLastUserText(group.prompt),
                         nativeAudioInputs = emptyList(),
                         attachmentContext = null
                     ),
@@ -653,28 +679,21 @@ class PersistentChatController(
         return response
     }
 
-    private fun packTextsForSynthesis(texts: List<String>): List<List<String>> {
-        val budget = (backend.capabilities.contextWindowTokens / 2).coerceAtLeast(128)
-        val groups = mutableListOf<MutableList<String>>()
-        var used = 0
-        texts.forEach { text ->
-            val cost = backend.estimateTokens(text)
-            if (groups.isEmpty() || used + cost > budget) {
-                groups += mutableListOf<String>()
-                used = 0
-            }
-            groups.last() += text
-            used += cost
-        }
-        if (groups.size == texts.size && texts.size > 1) {
-            return texts.chunked(2)
-        }
-        return groups
+    private suspend fun streamReplyWithinBudget(
+        request: InferenceRequest,
+        onPartial: (BackendResponse) -> Unit
+    ): BackendResponse {
+        if (request.outputTokenReserve > 0) backend.requirePromptFits(request)
+        return backend.streamReply(request, onPartial)
     }
 
     private fun InferenceRequest.withUserPrompt(prompt: String?): InferenceRequest {
         if (prompt.isNullOrBlank()) return this
         return copy(history = history.replaceLastUserText(prompt), attachmentContext = null)
+    }
+
+    private fun attachmentOutputReserve(): Int {
+        return (backend.capabilities.contextWindowTokens / 4).coerceIn(128, 512)
     }
 
     private fun List<ChatTurn>.replaceLastUserText(text: String): List<ChatTurn> {

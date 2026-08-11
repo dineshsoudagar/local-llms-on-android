@@ -22,16 +22,16 @@ class ModelPreflightEvaluatorTest {
     }
 
     @Test
-    fun memoryRiskIsWarningAndDisablesCpuFallback() {
+    fun memoryRiskDoesNotBlockLoadOrDisableFallback() {
         val result = ModelPreflightEvaluator.forLoad(
             model,
             model.approxDownloadBytes,
             DeviceResourceSnapshot(2 * gib, gib / 2, true, 4 * gib)
         )
 
-        assertEquals(ModelPreflightKind.MEMORY_WARNING, result.kind)
+        assertEquals(ModelPreflightKind.READY, result.kind)
         assertFalse(result.allowCpuFallback)
-        assertTrue(result.message.orEmpty().contains("cannot guarantee compatibility"))
+        assertTrue(result.message == null)
     }
 
     @Test

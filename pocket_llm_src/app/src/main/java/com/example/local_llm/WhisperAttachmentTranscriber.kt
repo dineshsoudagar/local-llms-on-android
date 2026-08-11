@@ -9,6 +9,8 @@ import com.k2fsa.sherpa.onnx.OfflineWhisperModelConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
 import java.io.File
@@ -24,75 +26,96 @@ data class WhisperModelFiles(
 )
 
 class WhisperModelStore(context: Context) {
-    private val directory = File(context.filesDir, "asr/whisper-tiny-int8").apply { mkdirs() }
-
-    fun files(): WhisperModelFiles = WhisperModelFiles(
-        encoder = File(directory, ENCODER_FILE),
-        decoder = File(directory, DECODER_FILE),
-        tokens = File(directory, TOKENS_FILE)
+    private val installer = WhisperModelInstaller(
+        rootDirectory = File(context.filesDir, "asr"),
+        modelDirectoryName = "whisper-tiny-int8",
+        revision = REVISION,
+        artifacts = MODEL_ARTIFACTS
     )
 
-    fun isAvailable(): Boolean {
-        val files = files()
-        return files.encoder.length() >= MIN_ENCODER_BYTES &&
-            files.decoder.length() >= MIN_DECODER_BYTES &&
-            files.tokens.length() >= MIN_TOKENS_BYTES
-    }
+    fun files(): WhisperModelFiles = WhisperModelFiles(
+        encoder = File(installer.installedDirectory, ENCODER_FILE),
+        decoder = File(installer.installedDirectory, DECODER_FILE),
+        tokens = File(installer.installedDirectory, TOKENS_FILE)
+    )
+
+    fun isAvailable(): Boolean = installer.isInstalled()
 
     suspend fun download(onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> }) =
         withContext(Dispatchers.IO) {
-            val targets = listOf(
-                Download(ENCODER_FILE, MIN_ENCODER_BYTES),
-                Download(DECODER_FILE, MIN_DECODER_BYTES),
-                Download(TOKENS_FILE, MIN_TOKENS_BYTES)
-            )
-            var completed = 0L
-            val totalExpected = targets.sumOf(Download::minimumBytes)
-            targets.forEach { target ->
-                currentCoroutineContext().ensureActive()
-                val destination = File(directory, target.fileName)
-                if (destination.length() >= target.minimumBytes) {
-                    completed += target.minimumBytes
-                    onProgress(completed, totalExpected)
-                    return@forEach
+            INSTALLATION_MUTEX.withLock {
+                val totalExpected = MODEL_ARTIFACTS.sumOf(WhisperModelArtifact::expectedBytes)
+                if (installer.isInstalled()) {
+                    onProgress(totalExpected, totalExpected)
+                    return@withLock
                 }
-                val part = File(directory, target.fileName + ".part")
-                val connection = URL("$MODEL_BASE_URL/${target.fileName}?download=true")
-                    .openConnection() as HttpURLConnection
+                val stagingDirectory = installer.createStagingDirectory()
                 try {
-                    connection.connectTimeout = 20_000
-                    connection.readTimeout = 60_000
-                    connection.instanceFollowRedirects = true
-                    connection.connect()
-                    require(connection.responseCode in 200..299) {
-                        "Whisper download failed with HTTP ${connection.responseCode}."
+                    var completed = 0L
+                    MODEL_ARTIFACTS.forEach { target ->
+                        currentCoroutineContext().ensureActive()
+                        downloadArtifact(target, stagingDirectory, completed, totalExpected, onProgress)
+                        completed += target.expectedBytes
+                        onProgress(completed, totalExpected)
                     }
-                    FileOutputStream(part).use { output ->
-                        connection.inputStream.buffered().use { input ->
-                            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                            var fileBytes = 0L
-                            while (true) {
-                                currentCoroutineContext().ensureActive()
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                output.write(buffer, 0, read)
-                                fileBytes += read
-                                onProgress(completed + minOf(fileBytes, target.minimumBytes), totalExpected)
-                            }
-                        }
-                    }
-                    require(part.length() >= target.minimumBytes) { "The Whisper download was incomplete." }
-                    if (destination.exists()) destination.delete()
-                    require(part.renameTo(destination)) { "Could not install ${target.fileName}." }
-                    completed += target.minimumBytes
-                } finally {
-                    connection.disconnect()
+                    installer.verifyAndPromote(stagingDirectory)
+                    check(installer.isInstalled()) { "Whisper model validation failed after installation." }
+                } catch (error: Throwable) {
+                    if (stagingDirectory.exists()) installer.discardStagingDirectory(stagingDirectory)
+                    throw error
                 }
             }
-            check(isAvailable()) { "Whisper model validation failed after download." }
         }
 
-    private data class Download(val fileName: String, val minimumBytes: Long)
+    private suspend fun downloadArtifact(
+        target: WhisperModelArtifact,
+        stagingDirectory: File,
+        completed: Long,
+        totalExpected: Long,
+        onProgress: (downloaded: Long, total: Long) -> Unit
+    ) {
+        val destination = File(stagingDirectory, target.fileName)
+        require(destination.name == target.fileName) { "Unexpected Whisper model file name." }
+        val connection = URL("$MODEL_BASE_URL/${target.fileName}?download=true")
+            .openConnection() as HttpURLConnection
+        try {
+            connection.connectTimeout = 20_000
+            connection.readTimeout = 60_000
+            connection.instanceFollowRedirects = true
+            connection.connect()
+            require(connection.responseCode in 200..299) {
+                "Whisper download failed with HTTP ${connection.responseCode}."
+            }
+            if (connection.contentLengthLong >= 0L) {
+                require(connection.contentLengthLong == target.expectedBytes) {
+                    "Whisper download size changed for ${target.fileName}."
+                }
+            }
+            FileOutputStream(destination).use { output ->
+                connection.inputStream.buffered().use { input ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var fileBytes = 0L
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        fileBytes += read
+                        require(fileBytes <= target.expectedBytes) {
+                            "Whisper download exceeded its pinned size for ${target.fileName}."
+                        }
+                        output.write(buffer, 0, read)
+                        onProgress(completed + fileBytes, totalExpected)
+                    }
+                    require(fileBytes == target.expectedBytes) {
+                        "The Whisper download was incomplete for ${target.fileName}."
+                    }
+                }
+                output.fd.sync()
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
 
     companion object {
         const val DOWNLOAD_SIZE_LABEL = "about 100 MB"
@@ -102,9 +125,24 @@ class WhisperModelStore(context: Context) {
         private const val ENCODER_FILE = "tiny-encoder.int8.onnx"
         private const val DECODER_FILE = "tiny-decoder.int8.onnx"
         private const val TOKENS_FILE = "tiny-tokens.txt"
-        private const val MIN_ENCODER_BYTES = 10L * 1024L * 1024L
-        private const val MIN_DECODER_BYTES = 80L * 1024L * 1024L
-        private const val MIN_TOKENS_BYTES = 700L * 1024L
+        private val INSTALLATION_MUTEX = Mutex()
+        internal val MODEL_ARTIFACTS = listOf(
+            WhisperModelArtifact(
+                fileName = ENCODER_FILE,
+                expectedBytes = 12_937_678L,
+                sha256 = "dd5531121627e7e184a6b8f6a6e353edf39b40e328032dfdc146b5a359a3e3d0"
+            ),
+            WhisperModelArtifact(
+                fileName = DECODER_FILE,
+                expectedBytes = 89_855_289L,
+                sha256 = "dd29c14f2104c14c3aca7dc8e13308190bbe4c65be21c82f4b86a27d8326b26b"
+            ),
+            WhisperModelArtifact(
+                fileName = TOKENS_FILE,
+                expectedBytes = 816_730L,
+                sha256 = "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126"
+            )
+        )
     }
 }
 

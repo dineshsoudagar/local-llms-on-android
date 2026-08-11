@@ -18,6 +18,12 @@ class OnnxChatBackend(
         return if (::tokenizer.isInitialized) tokenizer.tokenize(text).size else conservativeTokenEstimate(text)
     }
 
+    override fun estimateSerializedPromptTokens(request: InferenceRequest): Int {
+        check(::promptBuilder.isInitialized) { "The ONNX tokenizer is not initialized." }
+        val systemPrompt = buildSystemPrompt(request.thinkingEnabled, request.modelInstruction)
+        return promptBuilder.countPromptTokens(request.history, PromptIntent.QA(systemPrompt))
+    }
+
     private lateinit var tokenizer: BpeTokenizer
     private lateinit var config: ModelConfig
     private lateinit var promptBuilder: PromptBuilder
@@ -56,7 +62,16 @@ class OnnxChatBackend(
         val isQwen3 = spec.modelName.equals("qwen3", ignoreCase = true)
 
         val systemPrompt = buildSystemPrompt(request.thinkingEnabled, request.modelInstruction)
-        val promptTokens = promptBuilder.buildPromptTokens(request.history, PromptIntent.QA(systemPrompt))
+        val promptTokens = if (request.outputTokenReserve > 0) {
+            requirePromptFits(request)
+            promptBuilder.buildPromptTokensStrict(
+                request.history,
+                PromptIntent.QA(systemPrompt),
+                promptTokenLimit(request)
+            )
+        } else {
+            promptBuilder.buildPromptTokens(request.history, PromptIntent.QA(systemPrompt))
+        }
         val responseBuilder = StringBuilder()
         val streamDecoder = tokenizer.createStreamDecoder()
         var tokenCounter = 0

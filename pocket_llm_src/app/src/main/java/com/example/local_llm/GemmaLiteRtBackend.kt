@@ -1,6 +1,7 @@
 package com.example.local_llm
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
@@ -30,7 +31,6 @@ class GemmaLiteRtBackend(
         private const val DEFAULT_MAX_NUM_IMAGES = 1
         private const val CPU_THREAD_COUNT = 4
         private const val AUDIO_COMPATIBILITY_PREFS = "gemma_audio_compatibility"
-        private const val AUDIO_SMOKE_TEST_VERSION = "litertlm-0.14.0-gemma4-audio-v1"
     }
 
     private lateinit var engine: Engine
@@ -51,6 +51,11 @@ class GemmaLiteRtBackend(
 
         directImageInputInitialized = false
         directAudioInputInitialized = false
+        val audioModelSha256 = if (spec.directAudioInputAvailable) {
+            GemmaNativeAudioCompatibility.modelSha256(modelFile)
+        } else {
+            null
+        }
         val failures = mutableListOf<EngineInitFailure>()
         for (attempt in buildEngineInitAttempts()) {
             Log.i(
@@ -63,7 +68,10 @@ class GemmaLiteRtBackend(
             if (initializedEngine != null) {
                 engine = initializedEngine
                 directImageInputInitialized = attempt.visionBackend != null
-                val audioVerified = attempt.audioBackend == null || verifyNativeAudioCompatibility(modelFile)
+                val audioVerified = attempt.audioBackend == null || verifyNativeAudioCompatibility(
+                    attempt = attempt,
+                    modelSha256 = checkNotNull(audioModelSha256)
+                )
                 if (!audioVerified) {
                     failures += EngineInitFailure(
                         attempt.label,
@@ -199,11 +207,23 @@ class GemmaLiteRtBackend(
         }
     }
 
-    private suspend fun verifyNativeAudioCompatibility(modelFile: File): Boolean {
+    private suspend fun verifyNativeAudioCompatibility(
+        attempt: EngineInitAttempt,
+        modelSha256: String
+    ): Boolean {
         if (!spec.directAudioInputAvailable) return false
         val preferences = context.getSharedPreferences(AUDIO_COMPATIBILITY_PREFS, Context.MODE_PRIVATE)
-        val gateKey = "$AUDIO_SMOKE_TEST_VERSION:${spec.id}:${modelFile.length()}"
-        if (preferences.getBoolean(gateKey, false)) return true
+        val cache = GemmaNativeAudioCompatibilityCache(
+            SharedPreferencesGemmaNativeAudioCompatibilityStore(preferences)
+        )
+        val runtimeIdentity = GemmaNativeAudioRuntimeIdentity(
+            modelSha256 = modelSha256,
+            backendAttempt = attempt.runtimeIdentity,
+            liteRtLmVersion = GemmaNativeAudioCompatibility.LITERT_LM_RUNTIME_VERSION,
+            smokeTestContractVersion = GemmaNativeAudioCompatibility.SMOKE_TEST_CONTRACT_VERSION,
+            buildFingerprint = Build.FINGERPRINT
+        )
+        if (cache.isAuthorized(runtimeIdentity)) return true
 
         val smokeFile = File(context.cacheDir, "gemma_native_audio_smoke.wav")
         return try {
@@ -226,13 +246,19 @@ class GemmaLiteRtBackend(
             } finally {
                 runCatching { smokeConversation.close() }
             }
-            preferences.edit().putBoolean(gateKey, true).apply()
-            Log.i(TAG, "Native Gemma audio compatibility smoke test passed for ${spec.displayName}.")
+            cache.recordSuccess(runtimeIdentity)
+            Log.i(
+                TAG,
+                "Native Gemma audio compatibility smoke test passed for ${spec.displayName} " +
+                    "with ${attempt.runtimeIdentity}."
+            )
             true
         } catch (error: Throwable) {
+            cache.recordFailure(runtimeIdentity)
             Log.e(
                 TAG,
-                "Native Gemma audio compatibility smoke test failed. Audio remains disabled and will not use Whisper.",
+                "Native Gemma audio compatibility smoke test failed for ${attempt.runtimeIdentity}. " +
+                    "Audio remains disabled and will not use Whisper.",
                 error
             )
             false
@@ -343,40 +369,96 @@ class GemmaLiteRtBackend(
     private fun buildEngineInitAttempts(): List<EngineInitAttempt> {
         val attempts = mutableListOf<EngineInitAttempt>()
         val cpuBackend = Backend.CPU(numOfThreads = CPU_THREAD_COUNT)
+        if (!initializationPolicy.allowCpuFallback) {
+            // A memory-risky load must still start automatically, but trying multimodal and
+            // CPU combinations first can cause a native process kill before Kotlin can report
+            // a failure. Text-only GPU initialization is the safest useful attempt.
+            return listOf(
+                EngineInitAttempt(
+                    "GPU text only",
+                    Backend.GPU(),
+                    null,
+                    null,
+                    runtimeIdentity("gpu", null, null)
+                )
+            )
+        }
         if (spec.directImageInputAvailable || spec.directAudioInputAvailable) {
             attempts += EngineInitAttempt(
                 "GPU text + GPU multimodal",
                 Backend.GPU(),
                 Backend.GPU().takeIf { spec.directImageInputAvailable },
-                Backend.GPU().takeIf { spec.directAudioInputAvailable }
+                Backend.GPU().takeIf { spec.directAudioInputAvailable },
+                runtimeIdentity(
+                    text = "gpu",
+                    vision = "gpu".takeIf { spec.directImageInputAvailable },
+                    audio = "gpu".takeIf { spec.directAudioInputAvailable }
+                )
             )
             if (initializationPolicy.allowCpuFallback) {
                 attempts += EngineInitAttempt(
                     "GPU text + CPU multimodal",
                     Backend.GPU(),
                     cpuBackend.takeIf { spec.directImageInputAvailable },
-                    cpuBackend.takeIf { spec.directAudioInputAvailable }
+                    cpuBackend.takeIf { spec.directAudioInputAvailable },
+                    runtimeIdentity(
+                        text = "gpu",
+                        vision = "cpu-$CPU_THREAD_COUNT".takeIf { spec.directImageInputAvailable },
+                        audio = "cpu-$CPU_THREAD_COUNT".takeIf { spec.directAudioInputAvailable }
+                    )
                 )
                 attempts += EngineInitAttempt(
                     "CPU text + CPU multimodal",
                     cpuBackend,
                     cpuBackend.takeIf { spec.directImageInputAvailable },
-                    cpuBackend.takeIf { spec.directAudioInputAvailable }
+                    cpuBackend.takeIf { spec.directAudioInputAvailable },
+                    runtimeIdentity(
+                        text = "cpu-$CPU_THREAD_COUNT",
+                        vision = "cpu-$CPU_THREAD_COUNT".takeIf { spec.directImageInputAvailable },
+                        audio = "cpu-$CPU_THREAD_COUNT".takeIf { spec.directAudioInputAvailable }
+                    )
                 )
             }
         }
         if (spec.directImageInputAvailable) {
-            attempts += EngineInitAttempt("GPU text + GPU vision", Backend.GPU(), Backend.GPU(), null)
+            attempts += EngineInitAttempt(
+                "GPU text + GPU vision",
+                Backend.GPU(),
+                Backend.GPU(),
+                null,
+                runtimeIdentity("gpu", "gpu", null)
+            )
         }
         if (spec.directAudioInputAvailable) {
-            attempts += EngineInitAttempt("GPU text + GPU audio", Backend.GPU(), null, Backend.GPU())
+            attempts += EngineInitAttempt(
+                "GPU text + GPU audio",
+                Backend.GPU(),
+                null,
+                Backend.GPU(),
+                runtimeIdentity("gpu", null, "gpu")
+            )
         }
-        attempts += EngineInitAttempt("GPU text only", Backend.GPU(), null, null)
+        attempts += EngineInitAttempt(
+            "GPU text only",
+            Backend.GPU(),
+            null,
+            null,
+            runtimeIdentity("gpu", null, null)
+        )
         if (initializationPolicy.allowCpuFallback) {
-            attempts += EngineInitAttempt("CPU text only", cpuBackend, null, null)
+            attempts += EngineInitAttempt(
+                "CPU text only",
+                cpuBackend,
+                null,
+                null,
+                runtimeIdentity("cpu-$CPU_THREAD_COUNT", null, null)
+            )
         }
         return attempts
     }
+
+    private fun runtimeIdentity(text: String, vision: String?, audio: String?): String =
+        "text=$text;vision=${vision ?: "none"};audio=${audio ?: "none"}"
 
     private fun formatInitFailures(failures: List<EngineInitFailure>): String {
         if (failures.isEmpty()) {
@@ -396,7 +478,8 @@ class GemmaLiteRtBackend(
         val label: String,
         val backend: Backend,
         val visionBackend: Backend?,
-        val audioBackend: Backend?
+        val audioBackend: Backend?,
+        val runtimeIdentity: String
     )
 
     private data class EngineInitFailure(
