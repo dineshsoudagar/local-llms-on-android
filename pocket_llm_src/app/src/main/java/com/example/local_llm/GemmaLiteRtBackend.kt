@@ -238,8 +238,10 @@ class GemmaLiteRtBackend(
                 smokeConversation.sendMessageAsync(
                     Message.user(
                         Contents.of(
-                            Content.Text("Acknowledge this silent audio test briefly."),
-                            Content.AudioFile(smokeFile.absolutePath)
+                            Content.AudioFile(smokeFile.absolutePath),
+                            Content.Text(
+                                "Acknowledge this silent audio test briefly."
+                            )
                         )
                     )
                 ).collect { }
@@ -347,8 +349,8 @@ class GemmaLiteRtBackend(
         }
         val contents = buildList<Content> {
             imageFilePaths.forEach { path -> add(Content.ImageFile(path)) }
-            add(Content.Text(textContent))
             nativeAudioInputs.forEach { input -> add(Content.AudioFile(input.filePath)) }
+            add(Content.Text(textContent))
         }
         return Message.user(Contents.of(*contents.toTypedArray()))
     }
@@ -369,20 +371,6 @@ class GemmaLiteRtBackend(
     private fun buildEngineInitAttempts(): List<EngineInitAttempt> {
         val attempts = mutableListOf<EngineInitAttempt>()
         val cpuBackend = Backend.CPU(numOfThreads = CPU_THREAD_COUNT)
-        if (!initializationPolicy.allowCpuFallback) {
-            // A memory-risky load must still start automatically, but trying multimodal and
-            // CPU combinations first can cause a native process kill before Kotlin can report
-            // a failure. Text-only GPU initialization is the safest useful attempt.
-            return listOf(
-                EngineInitAttempt(
-                    "GPU text only",
-                    Backend.GPU(),
-                    null,
-                    null,
-                    runtimeIdentity("gpu", null, null)
-                )
-            )
-        }
         if (spec.directImageInputAvailable || spec.directAudioInputAvailable) {
             attempts += EngineInitAttempt(
                 "GPU text + GPU multimodal",
@@ -395,6 +383,23 @@ class GemmaLiteRtBackend(
                     audio = "gpu".takeIf { spec.directAudioInputAvailable }
                 )
             )
+            if (spec.directAudioInputAvailable) {
+                // Gemma 4 E2B declares a CPU-only audio encoder. Keep text and vision on the
+                // GPU, which has already initialized successfully on the device, and move only
+                // the constrained audio encoder to CPU. This is required even when broader CPU
+                // fallbacks are disabled for a memory-risky model load.
+                attempts += EngineInitAttempt(
+                    "GPU text + GPU vision + CPU audio",
+                    Backend.GPU(),
+                    Backend.GPU().takeIf { spec.directImageInputAvailable },
+                    cpuBackend,
+                    runtimeIdentity(
+                        text = "gpu",
+                        vision = "gpu".takeIf { spec.directImageInputAvailable },
+                        audio = "cpu-$CPU_THREAD_COUNT"
+                    )
+                )
+            }
             if (initializationPolicy.allowCpuFallback) {
                 attempts += EngineInitAttempt(
                     "GPU text + CPU multimodal",

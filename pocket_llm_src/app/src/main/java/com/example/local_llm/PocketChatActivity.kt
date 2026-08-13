@@ -14,6 +14,9 @@ import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.text.Editable
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
@@ -75,6 +78,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.max
 
@@ -242,6 +246,9 @@ open class PocketChatActivity : AppCompatActivity() {
     private var attachmentRecordingFile: File? = null
     private var attachmentRecordingDialog: AlertDialog? = null
     private var pendingAttachmentRecordingStart = false
+    private val recordingTimerHandler = Handler(Looper.getMainLooper())
+    private var attachmentRecordingStartedAtMillis = 0L
+    private var attachmentRecordingTimer: Runnable? = null
     private var isImagePreprocessingForSend = false
     private var autoScrollDuringGeneration = false
     private var autoScrollPendingFinalUpdate = false
@@ -413,7 +420,7 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         micInputButton.setOnClickListener {
-            handleSpeechInputClick()
+            showAudioRecordingDialog()
         }
 
         attachmentButton.setOnClickListener(::showAttachmentMenu)
@@ -1249,6 +1256,7 @@ open class PocketChatActivity : AppCompatActivity() {
                 confirmedAttachmentOperationKey = null
                 inputEditText.text.clear()
                 clearPendingImageInputs(keepTempFilePaths = prompt.imageFilePaths.toSet())
+                clearSentAttachmentFromComposer()
                 refreshDrawerSessions()
             } else {
                 prompt.attachmentContext?.temporaryFiles?.forEach { File(it).delete() }
@@ -2063,11 +2071,22 @@ open class PocketChatActivity : AppCompatActivity() {
                     val transcriptChunks = attachmentRepository.loadChunks(descriptor)
                     if (transcriptChunks.isEmpty()) {
                         if (whisperModelStore.isAvailable()) {
+                            if (currentModel is GemmaLiteRtSpec) {
+                                showTransientMessage(getString(R.string.gemma_audio_transcribing))
+                            }
                             prepareWhisperTranscript(descriptor)
                         } else {
                             offerWhisperPreparation(descriptor)
+                            showTransientMessage(
+                                getString(
+                                    if (currentModel is GemmaLiteRtSpec) {
+                                        R.string.gemma_audio_transcription_download_required
+                                    } else {
+                                        R.string.non_gemma_audio_download_required
+                                    }
+                                )
+                            )
                         }
-                        showTransientMessage(getString(R.string.non_gemma_audio_download_required))
                         null
                     } else {
                         buildPlannedAttachmentContext(controller, descriptor, transcriptChunks, userPrompt)
@@ -2112,7 +2131,7 @@ open class PocketChatActivity : AppCompatActivity() {
             text = "",
             contentType = ChatTurnContentType.ATTACHMENT,
             attachmentId = descriptor.id,
-            attachmentName = descriptor.displayName,
+            attachmentName = attachmentDisplayName(descriptor),
             attachmentKind = descriptor.kind,
             attachmentProcessingRoute = descriptor.processingRoute
         )
@@ -2245,10 +2264,6 @@ open class PocketChatActivity : AppCompatActivity() {
             }
             menu.add(getString(R.string.attachment_audio_file)).setOnMenuItemClickListener {
                 audioPickerLauncher.launch(arrayOf("audio/*", "video/mp4"))
-                true
-            }
-            menu.add(getString(R.string.attachment_record_audio)).setOnMenuItemClickListener {
-                showAudioRecordingDialog()
                 true
             }
             show()
@@ -2404,6 +2419,7 @@ open class PocketChatActivity : AppCompatActivity() {
             recorder.start()
             attachmentRecorder = recorder
             attachmentRecordingFile = outputFile
+            updateMicRecordingState(true)
         } catch (error: Throwable) {
             runCatching { recorder.release() }
             outputFile.delete()
@@ -2411,19 +2427,27 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
+        val recordingView = layoutInflater.inflate(R.layout.dialog_audio_recording, null)
+        val statusView: TextView = recordingView.findViewById(R.id.audioRecordingStatus)
+        val timerView: TextView = recordingView.findViewById(R.id.audioRecordingTimer)
+        val useButton: MaterialButton = recordingView.findViewById(R.id.useAudioRecordingButton)
+        val discardButton: MaterialButton = recordingView.findViewById(R.id.discardAudioRecordingButton)
+        statusView.text = when (currentModel) {
+            is GemmaLiteRtSpec -> getString(R.string.audio_recording_gemma_status)
+            else -> getString(R.string.audio_recording_whisper_status)
+        }
         val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.attachment_record_audio))
-            .setMessage("Recording… The dictation microphone remains a separate input.")
-            .setPositiveButton("Use recording", null)
-            .setNegativeButton(android.R.string.cancel, null)
+            .setView(recordingView)
             .create()
         attachmentRecordingDialog = dialog
+        startAttachmentRecordingTimer(timerView)
         dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            useButton.setOnClickListener {
                 finishAttachmentRecording(useRecording = true)
                 dialog.dismiss()
             }
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
+            discardButton.setOnClickListener {
                 finishAttachmentRecording(useRecording = false)
                 dialog.dismiss()
             }
@@ -2440,6 +2464,8 @@ open class PocketChatActivity : AppCompatActivity() {
         val file = attachmentRecordingFile
         attachmentRecorder = null
         attachmentRecordingFile = null
+        stopAttachmentRecordingTimer()
+        updateMicRecordingState(false)
         if (recorder == null) {
             if (!useRecording) file?.delete()
             return
@@ -2459,6 +2485,37 @@ open class PocketChatActivity : AppCompatActivity() {
         attachmentRecordingDialog = null
     }
 
+    private fun startAttachmentRecordingTimer(timerView: TextView) {
+        stopAttachmentRecordingTimer()
+        attachmentRecordingStartedAtMillis = SystemClock.elapsedRealtime()
+        val ticker = object : Runnable {
+            override fun run() {
+                val elapsedSeconds = (SystemClock.elapsedRealtime() - attachmentRecordingStartedAtMillis) / 1_000L
+                timerView.text = getString(R.string.audio_recording_elapsed, formatRecordingDuration(elapsedSeconds))
+                recordingTimerHandler.postDelayed(this, 250L)
+            }
+        }
+        attachmentRecordingTimer = ticker
+        ticker.run()
+    }
+
+    private fun stopAttachmentRecordingTimer() {
+        attachmentRecordingTimer?.let(recordingTimerHandler::removeCallbacks)
+        attachmentRecordingTimer = null
+        attachmentRecordingStartedAtMillis = 0L
+    }
+
+    private fun formatRecordingDuration(elapsedSeconds: Long): String {
+        val hours = elapsedSeconds / 3_600L
+        val minutes = (elapsedSeconds % 3_600L) / 60L
+        val seconds = elapsedSeconds % 60L
+        return if (hours > 0L) {
+            String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+        }
+    }
+
     private fun detachActiveAttachment() {
         activeAttachmentWork?.let(::cancelAndForgetWork)
         attachmentImportJob?.cancel()
@@ -2468,6 +2525,13 @@ open class PocketChatActivity : AppCompatActivity() {
         attachmentImportInProgress = false
         activeAttachment = null
         confirmedAttachmentOperationKey = null
+        chatController?.setActiveAttachment(null)
+        renderActiveAttachment()
+    }
+
+    private fun clearSentAttachmentFromComposer() {
+        if (activeAttachment == null) return
+        activeAttachment = null
         chatController?.setActiveAttachment(null)
         renderActiveAttachment()
     }
@@ -2697,6 +2761,30 @@ open class PocketChatActivity : AppCompatActivity() {
     private fun renderActiveAttachment() {
         if (!::activeAttachmentContainer.isInitialized) return
         val descriptor = activeAttachment
+        val compactReadyAudio = descriptor?.kind == AttachmentKind.AUDIO &&
+            descriptor.status == AttachmentStatus.READY &&
+            !attachmentImportInProgress
+        val containerParams = activeAttachmentContainer.layoutParams
+        containerParams.width = if (compactReadyAudio) {
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        } else {
+            ViewGroup.LayoutParams.MATCH_PARENT
+        }
+        activeAttachmentContainer.layoutParams = containerParams
+        val textParams = activeAttachmentText.layoutParams as LinearLayout.LayoutParams
+        textParams.width = if (compactReadyAudio) {
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        } else {
+            0
+        }
+        textParams.weight = if (compactReadyAudio) 0f else 1f
+        activeAttachmentText.layoutParams = textParams
+        activeAttachmentContainer.setBackgroundResource(
+            if (compactReadyAudio) R.drawable.bg_active_audio_attachment else R.drawable.bg_image_input_chip
+        )
+        activeAttachmentText.setTextColor(
+            if (compactReadyAudio) ContextCompat.getColor(this, R.color.white) else resolveThemeColor(R.attr.colorInputText)
+        )
         activeAttachmentContainer.visibility = if (attachmentImportInProgress || descriptor != null) {
             View.VISIBLE
         } else {
@@ -2721,11 +2809,16 @@ open class PocketChatActivity : AppCompatActivity() {
                 descriptor.errorMessage.orEmpty()
             )
             descriptor.status == AttachmentStatus.PROCESSING ->
-                getString(R.string.attachment_using, descriptor.displayName) + " · " +
+                getString(R.string.attachment_using, attachmentDisplayName(descriptor)) + " · " +
                     if (activeAttachmentWorkState == androidx.work.WorkInfo.State.ENQUEUED) "Queued…" else "Transcribing…"
-            else -> getString(R.string.attachment_using, descriptor.displayName) + " · " +
+            else -> getString(R.string.attachment_using, attachmentDisplayName(descriptor)) + " · " +
                 getString(R.string.attachment_ready)
         }
+    }
+
+    private fun attachmentDisplayName(descriptor: AttachmentDescriptor): String = when (descriptor.kind) {
+        AttachmentKind.AUDIO -> getString(R.string.audio_attached)
+        else -> descriptor.displayName
     }
 
     private fun clearSpeechInputState() {

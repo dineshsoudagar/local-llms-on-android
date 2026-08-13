@@ -86,7 +86,7 @@ internal object GemmaNativeAudioCompatibility {
     const val CACHE_SCHEMA_VERSION = 2
     val LITERT_LM_RUNTIME_VERSION: String
         get() = BuildConfig.LITERT_LM_RUNTIME_VERSION
-    const val SMOKE_TEST_CONTRACT_VERSION = "gemma4-native-audio-v2"
+    const val SMOKE_TEST_CONTRACT_VERSION = "gemma4-native-audio-v3"
     const val SCHEMA_VERSION_KEY = "cache_schema_version"
     const val SUCCESS_KEY_PREFIX = "success_v2:"
 

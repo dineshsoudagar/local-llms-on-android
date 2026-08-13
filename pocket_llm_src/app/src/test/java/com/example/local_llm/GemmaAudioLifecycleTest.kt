@@ -50,8 +50,14 @@ class GemmaAudioLifecycleTest {
         val source = mainSourceFile("java/com/example/local_llm/PocketChatActivity.kt").readText()
 
         assertTrue(source.contains("withContext(Dispatchers.IO)"))
-        assertTrue(source.contains("catch (_: CancellationException) {\n                cleanupPreparedGemmaAudio()"))
-        assertTrue(source.contains("audioPreparationJob?.cancel()\n        cleanupPreparedGemmaAudio()"))
+        assertTrue(
+            Regex("""catch\s*\(_:\s*CancellationException\)\s*\{\s*cleanupPreparedGemmaAudio\(\)""")
+                .containsMatchIn(source)
+        )
+        assertTrue(
+            Regex("""audioPreparationJob\?\.cancel\(\)\s*cleanupPreparedGemmaAudio\(\)""")
+                .containsMatchIn(source)
+        )
         assertTrue(source.indexOf("segmenter.plan(descriptor)") < source.indexOf("prepareGemmaAudioAfterConfirmation(descriptor)"))
     }
 

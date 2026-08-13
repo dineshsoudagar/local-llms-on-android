@@ -79,12 +79,12 @@ class WhisperTranscriptionWorker(
     parameters: WorkerParameters
 ) : CoroutineWorker(appContext, parameters) {
     override suspend fun doWork(): Result {
-        setForeground(createForegroundInfo(applicationContext, "Transcribing audio on device…", id.hashCode()))
         val sessionId = inputData.getString(AttachmentPreparationWorker.KEY_SESSION_ID) ?: return Result.failure()
         val attachmentId = inputData.getString(AttachmentPreparationWorker.KEY_ATTACHMENT_ID) ?: return Result.failure()
         val repository = AttachmentRepository(applicationContext)
         val descriptor = repository.loadDescriptor(sessionId, attachmentId) ?: return Result.failure()
         return try {
+            setForeground(createForegroundInfo(applicationContext, "Transcribing audio on device…", id.hashCode()))
             val processing = descriptor.copy(
                 status = AttachmentStatus.PROCESSING,
                 updatedAtMillis = System.currentTimeMillis(),
@@ -200,6 +200,10 @@ class AttachmentWorkerCoordinator(context: Context) {
     fun enqueueWhisper(sessionId: String, attachmentId: String): AttachmentWorkRecord {
         existingRecord(sessionId, attachmentId, AttachmentWorkOperation.WHISPER_TRANSCRIPTION)?.let { return it }
         val request = OneTimeWorkRequestBuilder<WhisperTranscriptionWorker>()
+            // This is initiated directly from the active chat.  Without expedited execution,
+            // Android can defer it until the app is backgrounded and then reject the worker's
+            // required dataSync foreground service.
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .setInputData(
                 workDataOf(
                     AttachmentPreparationWorker.KEY_SESSION_ID to sessionId,

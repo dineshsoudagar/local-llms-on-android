@@ -58,7 +58,7 @@ class GemmaNativeAudioCompatibilityTest {
 
         assertFalse(cache.isAuthorized(identity(buildFingerprint = "device-build-2")))
         assertFalse(cache.isAuthorized(identity(liteRtLmVersion = "0.10.3")))
-        assertFalse(cache.isAuthorized(identity(smokeTestContractVersion = "gemma4-native-audio-v3")))
+        assertFalse(cache.isAuthorized(identity(smokeTestContractVersion = "gemma4-native-audio-v2")))
     }
 
     @Test

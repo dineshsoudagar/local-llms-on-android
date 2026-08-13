@@ -9,6 +9,7 @@
     <string name="send">Send</string>
     <string name="stop">Stop</string>
     <string name="voice_input">Voice input</string>
+    <string name="record_audio_for_model">Record audio for this model</string>
     <string name="gallery_ocr_input">Read text from image</string>
     <string name="camera_ocr_input">Read text with camera</string>
     <string name="gallery_gemma_direct_input">Send image directly to Gemma</string>
@@ -192,6 +193,12 @@
     <string name="attachment_document">Document or PDF</string>
     <string name="attachment_audio_file">Audio file</string>
     <string name="attachment_record_audio">Record audio</string>
+    <string name="audio_recording_gemma_status">Recording audio · Gemma native</string>
+    <string name="audio_recording_whisper_status">Recording audio · Whisper</string>
+    <string name="audio_recording_elapsed">● %1$s</string>
+    <string name="use_recording">Use recording</string>
+    <string name="discard_recording">Discard</string>
+    <string name="audio_attached">Audio attached</string>
     <string name="detach_attachment">Detach attachment</string>
     <string name="retry">Retry</string>
     <string name="attachment_using">Using %1$s</string>
@@ -201,7 +208,9 @@
     <string name="attachment_failed">Failed: %1$s</string>
     <string name="attachment_mixed_input_blocked">Document/audio and image inputs cannot be used in the same send yet.</string>
     <string name="attachment_question_required">Ask a question or request a summary, translation, or rewrite for the attachment.</string>
-    <string name="gemma_audio_unavailable">Gemma native audio is unavailable on this device. Audio was not sent to Whisper.</string>
+    <string name="gemma_audio_unavailable">Gemma native audio is unavailable on this device.</string>
+    <string name="gemma_audio_transcribing">Gemma native audio is unavailable. Transcribing locally with Whisper before sending the transcript to Gemma.</string>
+    <string name="gemma_audio_transcription_download_required">Gemma native audio is unavailable. Download the multilingual Whisper tiny model to transcribe audio locally before sending the transcript to Gemma.</string>
     <string name="non_gemma_audio_download_required">This model needs the multilingual Whisper tiny transcription download before audio can be used.</string>
     <string name="record_audio_coming_soon">Audio recording could not start.</string>
     <string name="whisper_download_progress">Downloading transcription model: %1$d%%</string>
