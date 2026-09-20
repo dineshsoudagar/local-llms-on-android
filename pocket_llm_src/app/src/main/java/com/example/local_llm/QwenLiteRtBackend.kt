@@ -16,10 +16,15 @@ class QwenLiteRtBackend(
     private val context: Context,
     private val spec: QwenLiteRtSpec,
     private val modelFileResolver: ModelFileResolver,
+    private val runtimeSettings: ModelRuntimeSettings = ModelRuntimeSettings(
+        ModelRuntimeSettingsLimits.LITERT_DEFAULT_CONTEXT_LENGTH
+    ),
     private val initializationPolicy: BackendInitializationPolicy = BackendInitializationPolicy()
 ) : ChatBackend {
 
-    override val capabilities = BackendCapabilities(contextWindowTokens = 2048)
+    override val capabilities = BackendCapabilities(
+        contextWindowTokens = runtimeSettings.contextLengthTokens
+    )
 
     companion object {
         private const val THOUGHT_CHANNEL_NAME = "thought"
@@ -56,6 +61,7 @@ class QwenLiteRtBackend(
                 EngineConfig(
                     modelPath = modelPath,
                     backend = backend,
+                    maxNumTokens = runtimeSettings.contextLengthTokens,
                     cacheDir = context.cacheDir.absolutePath
                 )
             )
@@ -73,7 +79,14 @@ class QwenLiteRtBackend(
         thinkingEnabled: Boolean,
         modelInstruction: String
     ) {
-        recreateConversation(history, thinkingEnabled, modelInstruction)
+        val boundedHistory = fitHistoryWithinContext(
+            InferenceRequest(
+                history = history,
+                thinkingEnabled = thinkingEnabled,
+                modelInstruction = modelInstruction
+            )
+        )
+        recreateConversation(boundedHistory, thinkingEnabled, modelInstruction)
     }
 
     override suspend fun streamReply(
@@ -86,12 +99,13 @@ class QwenLiteRtBackend(
         require(request.nativeAudioInputs.isEmpty()) {
             "Qwen LiteRT models do not support native audio input."
         }
-        require(request.history.isNotEmpty() && request.history.last().role == ChatRole.USER) {
+        val boundedHistory = fitHistoryWithinContext(request)
+        require(boundedHistory.isNotEmpty() && boundedHistory.last().role == ChatRole.USER) {
             "Qwen LiteRT backend expects the final history turn to be the user's prompt."
         }
 
-        val initialHistory = request.history.dropLast(1)
-        val userTurn = request.history.last()
+        val initialHistory = boundedHistory.dropLast(1)
+        val userTurn = boundedHistory.last()
         recreateConversation(initialHistory, request.thinkingEnabled, request.modelInstruction)
 
         val activeConversation = conversation

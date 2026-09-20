@@ -25,6 +25,39 @@
         android:textStyle="bold" />
 
     <TextView
+        android:id="@+id/modelContextLengthLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/model_context_length_label"
+        android:textColor="?attr/colorAssistantText"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/modelContextLengthInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/rounded_edittext"
+        android:hint="@string/model_context_length_hint"
+        android:inputType="number"
+        android:padding="12dp"
+        android:selectAllOnFocus="true"
+        android:textColor="?attr/colorInputText"
+        android:textColorHint="?attr/colorInputHint"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/modelContextLengthHelp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="@string/model_context_length_help"
+        android:textColor="?attr/colorStatusText"
+        android:textSize="12sp" />
+
+    <TextView
         android:id="@+id/modelInstructionPresetLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

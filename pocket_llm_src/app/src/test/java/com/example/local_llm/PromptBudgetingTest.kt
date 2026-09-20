@@ -45,6 +45,25 @@ class PromptBudgetingTest {
     }
 
     @Test
+    fun contextFitDropsOldestCompleteTurns() {
+        val backend = ExactFakeBackend(serializer)
+        val bounded = backend.fitHistoryWithinContext(
+            InferenceRequest(
+                history = listOf(
+                    ChatTurn(role = ChatRole.USER, text = "old request ".repeat(100)),
+                    ChatTurn(role = ChatRole.ASSISTANT, text = "old answer ".repeat(100)),
+                    ChatTurn(role = ChatRole.USER, text = "latest request")
+                ),
+                thinkingEnabled = false,
+                modelInstruction = ""
+            )
+        )
+
+        assertEquals(1, bounded.size)
+        assertEquals("latest request", bounded.single().text)
+    }
+
+    @Test
     fun outputReserveReducesTheExactAdmissiblePromptBoundary() {
         val backend = ExactFakeBackend(serializer)
         val exact = InferenceRequest(

@@ -1,6 +1,8 @@
 package com.example.local_llm
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -9,6 +11,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
+import android.graphics.Paint
 import android.graphics.drawable.ColorDrawable
 import android.media.MediaRecorder
 import android.net.Uri
@@ -168,6 +171,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private var isRecreatingForSettingsPreview = false
     private var reopenSettingsDialogOnStart = false
     private lateinit var modelInstructionStore: ModelInstructionStore
+    private lateinit var modelRuntimeSettingsStore: ModelRuntimeSettingsStore
     private lateinit var modelSelectionStore: ModelSelectionStore
     private lateinit var modelFileResolver: ModelFileResolver
     private lateinit var modelLoadRecoveryStore: ModelLoadRecoveryStore
@@ -242,13 +246,15 @@ open class PocketChatActivity : AppCompatActivity() {
     private var activeAttachmentWorkState: androidx.work.WorkInfo.State? = null
     private var preparedGemmaAudio: SegmentedNativeAudio? = null
     private var preparedGemmaAudioAttachmentId: String? = null
-    private var attachmentRecorder: MediaRecorder? = null
-    private var attachmentRecordingFile: File? = null
-    private var attachmentRecordingDialog: AlertDialog? = null
-    private var pendingAttachmentRecordingStart = false
-    private val recordingTimerHandler = Handler(Looper.getMainLooper())
-    private var attachmentRecordingStartedAtMillis = 0L
-    private var attachmentRecordingTimer: Runnable? = null
+    private var dictationRecorder: MediaRecorder? = null
+    private var dictationRecordingFile: File? = null
+    private var dictationRecordingDialog: AlertDialog? = null
+    private var dictationTranscriptionDialog: AlertDialog? = null
+    private var pendingDictationRecordingStart = false
+    private var dictationTranscriptionJob: Job? = null
+    private val dictationTimerHandler = Handler(Looper.getMainLooper())
+    private var dictationStartedAtMillis = 0L
+    private var dictationTimer: Runnable? = null
     private var isImagePreprocessingForSend = false
     private var autoScrollDuringGeneration = false
     private var autoScrollPendingFinalUpdate = false
@@ -319,6 +325,7 @@ open class PocketChatActivity : AppCompatActivity() {
         currentSettings = settingsDialogPreviewState?.previewThemeSettings() ?: settingsStore.load()
         reopenSettingsDialogOnStart = settingsDialogPreviewState != null
         modelInstructionStore = ModelInstructionStore(this)
+        modelRuntimeSettingsStore = ModelRuntimeSettingsStore(this)
         modelSelectionStore = ModelSelectionStore(this)
         modelFileResolver = ModelFileResolver(this)
         modelLoadRecoveryStore = ModelLoadRecoveryStore(this)
@@ -403,6 +410,10 @@ open class PocketChatActivity : AppCompatActivity() {
         })
 
         toolbarModelSelector.setOnClickListener {
+            if (LanServerService.isRunning()) {
+                showTransientMessage(getString(R.string.lan_server_model_switch_blocked))
+                return@setOnClickListener
+            }
             if (
                 chatController?.state?.value?.isGenerating == true ||
                 isImagePreprocessingForSend ||
@@ -420,7 +431,7 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         micInputButton.setOnClickListener {
-            showAudioRecordingDialog()
+            showDictationRecordingDialog()
         }
 
         attachmentButton.setOnClickListener(::showAttachmentMenu)
@@ -463,6 +474,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val retainedController = retainedState.chatController
         if (retainedController != null && currentModel != null) {
             chatController = retainedController
+            LanServerControllerRegistry.register(currentModel!!.id, retainedController)
             toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
             thinkingToggle.isChecked = retainedController.isThinkingEnabled()
             observeController(retainedController)
@@ -518,8 +530,8 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
-        pendingAttachmentRecordingStart = false
-        discardUnfinishedAttachmentRecording()
+        pendingDictationRecordingStart = false
+        discardDictationRecording()
         super.onStop()
     }
 
@@ -536,7 +548,9 @@ open class PocketChatActivity : AppCompatActivity() {
         attachmentImportJob?.cancel()
         audioPreparationJob?.cancel()
         cleanupPreparedGemmaAudio()
-        discardUnfinishedAttachmentRecording()
+        dictationTranscriptionJob?.cancel()
+        dictationTranscriptionDialog?.dismiss()
+        discardDictationRecording()
         isImagePreprocessingForSend = false
         stopCameraOcr()
         cameraOcrDialog?.dismiss()
@@ -2270,13 +2284,197 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
-    private val attachmentRecordingPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        val shouldStart = pendingAttachmentRecordingStart
-        pendingAttachmentRecordingStart = false
-        if (granted && shouldStart) startAttachmentRecording()
-        else if (!granted) showTransientMessage(getString(R.string.speech_permission_denied))
+    private fun showDictationRecordingDialog() {
+        if (dictationRecorder != null || dictationTranscriptionJob?.isActive == true) return
+        val controller = requireUsableController() ?: return
+        if (controller.state.value.isGenerating) return
+        if (!whisperModelStore.isAvailable()) {
+            val content = layoutInflater.inflate(R.layout.dialog_dictation_download, null)
+            val message: TextView = content.findViewById(R.id.dictationDownloadMessage)
+            val downloadButton: MaterialButton = content.findViewById(R.id.downloadDictationButton)
+            val notNowButton: MaterialButton = content.findViewById(R.id.notNowDictationButton)
+            message.text = getString(R.string.dictation_download_message, WhisperModelStore.DOWNLOAD_SIZE_LABEL)
+            val dialog = MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.dictation_download_title)
+                .setView(content)
+                .create()
+            dialog.setOnShowListener {
+                downloadButton.setOnClickListener {
+                    dialog.dismiss()
+                    lifecycleScope.launch {
+                        runCatching { whisperModelStore.download() }
+                            .onSuccess { startDictationRecording() }
+                            .onFailure { showTransientMessage(it.message ?: getString(R.string.dictation_download_failed)) }
+                    }
+                }
+                notNowButton.setOnClickListener { dialog.dismiss() }
+            }
+            dialog.show()
+            return
+        }
+        if (!hasPermission(Manifest.permission.RECORD_AUDIO)) {
+            pendingDictationRecordingStart = true
+            dictationRecordingPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        startDictationRecording()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun startDictationRecording() {
+        if (dictationRecorder != null || dictationTranscriptionJob?.isActive == true) return
+        val directory = File(cacheDir, "temporary_dictation").apply { mkdirs() }
+        val recording = File.createTempFile("dictation_", ".m4a", directory)
+        val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(this) else MediaRecorder()
+        try {
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setAudioSamplingRate(44_100)
+            recorder.setAudioEncodingBitRate(128_000)
+            recorder.setMaxDuration(AttachmentLimits.MAX_AUDIO_DURATION_MILLIS.toInt())
+            recorder.setOutputFile(recording.absolutePath)
+            recorder.prepare()
+            recorder.start()
+            dictationRecorder = recorder
+            dictationRecordingFile = recording
+            updateMicRecordingState(true)
+        } catch (error: Throwable) {
+            runCatching { recorder.release() }
+            recording.delete()
+            showTransientMessage(error.message ?: getString(R.string.record_audio_coming_soon))
+            return
+        }
+
+        val content = layoutInflater.inflate(R.layout.dialog_audio_recording, null)
+        val timer: TextView = content.findViewById(R.id.audioRecordingTimer)
+        val useButton: MaterialButton = content.findViewById(R.id.useAudioRecordingButton)
+        val discardButton: MaterialButton = content.findViewById(R.id.discardAudioRecordingButton)
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.dictation_record_title)
+            .setView(content)
+            .create()
+        dictationRecordingDialog = dialog
+        startDictationTimer(timer)
+        dialog.setOnShowListener {
+            useButton.setOnClickListener {
+                finishDictationRecording(transcribe = true)
+                dialog.dismiss()
+            }
+            discardButton.setOnClickListener {
+                finishDictationRecording(transcribe = false)
+                dialog.dismiss()
+            }
+        }
+        dialog.setOnCancelListener { finishDictationRecording(transcribe = false) }
+        dialog.setOnDismissListener {
+            if (dictationRecordingDialog === dialog) dictationRecordingDialog = null
+        }
+        dialog.show()
+    }
+
+    private fun finishDictationRecording(transcribe: Boolean) {
+        val recorder = dictationRecorder
+        val recording = dictationRecordingFile
+        dictationRecorder = null
+        dictationRecordingFile = null
+        stopDictationTimer()
+        updateMicRecordingState(false)
+        val stopped = recorder?.let { runCatching { it.stop() }.isSuccess } ?: false
+        runCatching { recorder?.release() }
+        if (transcribe && stopped && recording != null && recording.length() > 0L) {
+            transcribeDictation(recording)
+        } else {
+            recording?.delete()
+        }
+    }
+
+    private fun transcribeDictation(recording: File) {
+        if (dictationTranscriptionJob?.isActive == true) return
+        showTransientMessage(getString(R.string.dictation_transcribing))
+        showDictationTranscriptionDialog()
+        dictationTranscriptionJob = lifecycleScope.launch {
+            val normalized = File(cacheDir, "temporary_dictation/${recording.nameWithoutExtension}.wav")
+            try {
+                val transcriptionWork: suspend () -> String = {
+                    val audio = withContext(Dispatchers.IO) { AudioNormalizer().normalize(recording, normalized) }
+                    val descriptor = AttachmentDescriptor(
+                        sessionId = "temporary",
+                        displayName = recording.name,
+                        mimeType = "audio/wav",
+                        kind = AttachmentKind.AUDIO,
+                        status = AttachmentStatus.READY,
+                        processingRoute = AttachmentProcessingRoute.SHERPA_WHISPER,
+                        sourcePath = audio.file.absolutePath,
+                        sizeBytes = audio.file.length(),
+                        durationMillis = audio.durationMillis
+                    )
+                    WhisperAttachmentTranscriber(this@PocketChatActivity)
+                        .transcribe(descriptor)
+                        .joinToString(" ") { it.text }
+                        .let(PromptPreprocessor::normalize)
+                }
+                val transcript = chatController?.withRuntimeLease { transcriptionWork() }
+                    ?: transcriptionWork()
+                if (transcript.isBlank()) {
+                    showTransientMessage(getString(R.string.dictation_no_speech))
+                } else {
+                    setPromptInputText(
+                        PromptPreprocessor.mergeTypedAndRecognized(inputEditText.text.toString(), transcript)
+                    )
+                }
+            } catch (_: CancellationException) {
+                // Lifecycle cancellation owns cleanup below.
+            } catch (error: Throwable) {
+                showTransientMessage(error.message ?: getString(R.string.dictation_transcription_failed))
+            } finally {
+                recording.delete()
+                normalized.delete()
+                dictationTranscriptionJob = null
+                dictationTranscriptionDialog?.dismiss()
+                dictationTranscriptionDialog = null
+            }
+        }
+    }
+
+    private fun showDictationTranscriptionDialog() {
+        if (dictationTranscriptionDialog?.isShowing == true) return
+        dictationTranscriptionDialog = MaterialAlertDialogBuilder(this)
+            .setView(R.layout.dialog_dictation_transcribing)
+            .setCancelable(false)
+            .create()
+            .also(AlertDialog::show)
+    }
+
+    private fun discardDictationRecording() {
+        finishDictationRecording(transcribe = false)
+        dictationRecordingDialog?.dismiss()
+        dictationRecordingDialog = null
+    }
+
+    private fun startDictationTimer(timer: TextView) {
+        stopDictationTimer()
+        dictationStartedAtMillis = SystemClock.elapsedRealtime()
+        val ticker = object : Runnable {
+            override fun run() {
+                val seconds = (SystemClock.elapsedRealtime() - dictationStartedAtMillis) / 1_000L
+                timer.text = formatDictationDuration(seconds)
+                dictationTimerHandler.postDelayed(this, 250L)
+            }
+        }
+        dictationTimer = ticker
+        ticker.run()
+    }
+
+    private fun stopDictationTimer() {
+        dictationTimer?.let(dictationTimerHandler::removeCallbacks)
+        dictationTimer = null
+    }
+
+    private fun formatDictationDuration(seconds: Long): String = if (seconds >= 3_600L) {
+        String.format(Locale.getDefault(), "%02d:%02d:%02d", seconds / 3_600L, (seconds % 3_600L) / 60L, seconds % 60L)
+    } else {
+        String.format(Locale.getDefault(), "%02d:%02d", seconds / 60L, seconds % 60L)
     }
 
     private fun importAttachment(uri: Uri, requestedKind: AttachmentKind) {
@@ -2388,134 +2586,6 @@ open class PocketChatActivity : AppCompatActivity() {
         observeAttachmentWork(record)
     }
 
-    private fun showAudioRecordingDialog() {
-        if (!hasPermission(Manifest.permission.RECORD_AUDIO)) {
-            pendingAttachmentRecordingStart = true
-            attachmentRecordingPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            return
-        }
-        startAttachmentRecording()
-    }
-
-    @Suppress("DEPRECATION")
-    private fun startAttachmentRecording() {
-        if (attachmentRecorder != null || chatController?.state?.value?.isGenerating == true) return
-        val directory = File(cacheDir, "attachment_recordings").apply { mkdirs() }
-        val outputFile = File.createTempFile("audio_attachment_", ".m4a", directory)
-        val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            MediaRecorder(this)
-        } else {
-            MediaRecorder()
-        }
-        try {
-            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            recorder.setAudioSamplingRate(44_100)
-            recorder.setAudioEncodingBitRate(128_000)
-            recorder.setMaxDuration(AttachmentLimits.MAX_AUDIO_DURATION_MILLIS.toInt())
-            recorder.setOutputFile(outputFile.absolutePath)
-            recorder.prepare()
-            recorder.start()
-            attachmentRecorder = recorder
-            attachmentRecordingFile = outputFile
-            updateMicRecordingState(true)
-        } catch (error: Throwable) {
-            runCatching { recorder.release() }
-            outputFile.delete()
-            showTransientMessage(error.message ?: getString(R.string.record_audio_coming_soon))
-            return
-        }
-
-        val recordingView = layoutInflater.inflate(R.layout.dialog_audio_recording, null)
-        val statusView: TextView = recordingView.findViewById(R.id.audioRecordingStatus)
-        val timerView: TextView = recordingView.findViewById(R.id.audioRecordingTimer)
-        val useButton: MaterialButton = recordingView.findViewById(R.id.useAudioRecordingButton)
-        val discardButton: MaterialButton = recordingView.findViewById(R.id.discardAudioRecordingButton)
-        statusView.text = when (currentModel) {
-            is GemmaLiteRtSpec -> getString(R.string.audio_recording_gemma_status)
-            else -> getString(R.string.audio_recording_whisper_status)
-        }
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle(getString(R.string.attachment_record_audio))
-            .setView(recordingView)
-            .create()
-        attachmentRecordingDialog = dialog
-        startAttachmentRecordingTimer(timerView)
-        dialog.setOnShowListener {
-            useButton.setOnClickListener {
-                finishAttachmentRecording(useRecording = true)
-                dialog.dismiss()
-            }
-            discardButton.setOnClickListener {
-                finishAttachmentRecording(useRecording = false)
-                dialog.dismiss()
-            }
-        }
-        dialog.setOnCancelListener { finishAttachmentRecording(useRecording = false) }
-        dialog.setOnDismissListener {
-            if (attachmentRecordingDialog === dialog) attachmentRecordingDialog = null
-        }
-        dialog.show()
-    }
-
-    private fun finishAttachmentRecording(useRecording: Boolean) {
-        val recorder = attachmentRecorder
-        val file = attachmentRecordingFile
-        attachmentRecorder = null
-        attachmentRecordingFile = null
-        stopAttachmentRecordingTimer()
-        updateMicRecordingState(false)
-        if (recorder == null) {
-            if (!useRecording) file?.delete()
-            return
-        }
-        val stopped = runCatching { recorder.stop() }.isSuccess
-        runCatching { recorder.release() }
-        if (useRecording && stopped && file != null && file.length() > 0L) {
-            importAttachment(Uri.fromFile(file), AttachmentKind.AUDIO)
-        } else {
-            file?.delete()
-        }
-    }
-
-    private fun discardUnfinishedAttachmentRecording() {
-        finishAttachmentRecording(useRecording = false)
-        attachmentRecordingDialog?.dismiss()
-        attachmentRecordingDialog = null
-    }
-
-    private fun startAttachmentRecordingTimer(timerView: TextView) {
-        stopAttachmentRecordingTimer()
-        attachmentRecordingStartedAtMillis = SystemClock.elapsedRealtime()
-        val ticker = object : Runnable {
-            override fun run() {
-                val elapsedSeconds = (SystemClock.elapsedRealtime() - attachmentRecordingStartedAtMillis) / 1_000L
-                timerView.text = getString(R.string.audio_recording_elapsed, formatRecordingDuration(elapsedSeconds))
-                recordingTimerHandler.postDelayed(this, 250L)
-            }
-        }
-        attachmentRecordingTimer = ticker
-        ticker.run()
-    }
-
-    private fun stopAttachmentRecordingTimer() {
-        attachmentRecordingTimer?.let(recordingTimerHandler::removeCallbacks)
-        attachmentRecordingTimer = null
-        attachmentRecordingStartedAtMillis = 0L
-    }
-
-    private fun formatRecordingDuration(elapsedSeconds: Long): String {
-        val hours = elapsedSeconds / 3_600L
-        val minutes = (elapsedSeconds % 3_600L) / 60L
-        val seconds = elapsedSeconds % 60L
-        return if (hours > 0L) {
-            String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
-        } else {
-            String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
-        }
-    }
-
     private fun detachActiveAttachment() {
         activeAttachmentWork?.let(::cancelAndForgetWork)
         attachmentImportJob?.cancel()
@@ -2529,8 +2599,20 @@ open class PocketChatActivity : AppCompatActivity() {
         renderActiveAttachment()
     }
 
+    private val dictationRecordingPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val shouldStart = pendingDictationRecordingStart
+        pendingDictationRecordingStart = false
+        if (granted && shouldStart) {
+            startDictationRecording()
+        } else if (!granted) {
+            showTransientMessage(getString(R.string.speech_permission_denied))
+        }
+    }
+
     private fun clearSentAttachmentFromComposer() {
-        if (activeAttachment == null) return
+        if (activeAttachment?.kind != AttachmentKind.AUDIO) return
         activeAttachment = null
         chatController?.setActiveAttachment(null)
         renderActiveAttachment()
@@ -2958,6 +3040,7 @@ open class PocketChatActivity : AppCompatActivity() {
         controllerStateJob?.cancel()
         chatController?.close()
         chatController = controller
+        LanServerControllerRegistry.register(descriptor.id, controller)
         currentModel = descriptor
         ensureImageInputModeAllowedForCurrentModel()
         retainedState.chatController = controller
@@ -2975,8 +3058,12 @@ open class PocketChatActivity : AppCompatActivity() {
         observeController(controller)
         applyChatState(controller.state.value)
         if (attempt != null) {
-            controller.initialize(activeChatSnapshot) { result ->
-                handleModelInitializationResult(descriptor, attempt, result)
+            if (controller.state.value.isReady) {
+                handleModelInitializationResult(descriptor, attempt, Result.success(Unit))
+            } else {
+                controller.initialize(activeChatSnapshot) { result ->
+                    handleModelInitializationResult(descriptor, attempt, result)
+                }
             }
         }
     }
@@ -3036,7 +3123,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val attempt = modelLoadCoordinator.begin(descriptor.id, System.currentTimeMillis())
         persistModelLoadRecord()
         retainedState.pendingModelLoadSnapshot = activeChatSnapshot
-        val controller = PersistentChatController(this, descriptor, policy)
+        val controller = LanServerControllerRegistry.getOrCreate(this, descriptor, policy)
         switchToController(descriptor, controller, activeChatSnapshot, attempt)
     }
 
@@ -3207,6 +3294,10 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun showModelSelectionDialog(forceSelection: Boolean) {
+        if (LanServerService.isRunning()) {
+            showTransientMessage(getString(R.string.lan_server_model_switch_blocked))
+            return
+        }
         val existingDialog = modelDialogViews?.dialog
         if (existingDialog != null && existingDialog.isShowing) {
             modelDialogForceSelection = forceSelection || modelDialogForceSelection
@@ -3545,6 +3636,13 @@ open class PocketChatActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<View>(R.id.drawerLanServerRow).setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            drawerLayout.post {
+                showLanServerDialog()
+            }
+        }
+
         findViewById<View>(R.id.drawerImagesRow).setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             drawerLayout.post {
@@ -3564,6 +3662,146 @@ open class PocketChatActivity : AppCompatActivity() {
             drawerLayout.post {
                 showAboutDialog()
             }
+        }
+    }
+
+    private fun showLanServerDialog() {
+        val dialogBuilder = MaterialAlertDialogBuilder(this)
+        val dialogView = LayoutInflater.from(dialogBuilder.context)
+            .inflate(R.layout.dialog_lan_server, null)
+        val statusView: TextView = dialogView.findViewById(R.id.lanServerStatus)
+        val endpointView: TextView = dialogView.findViewById(R.id.lanServerEndpoint)
+        val apiEndpointView: TextView = dialogView.findViewById(R.id.lanServerApiEndpoint)
+        val copyApiUrlLink: TextView = dialogView.findViewById(R.id.lanServerCopyApiUrlLink)
+        val passwordInput: EditText = dialogView.findViewById(R.id.lanServerPasswordInput)
+        val generatePasswordButton: MaterialButton = dialogView.findViewById(R.id.lanServerGeneratePasswordButton)
+        val copyUrlLink: TextView = dialogView.findViewById(R.id.lanServerCopyUrlLink)
+        val startButton: MaterialButton = dialogView.findViewById(R.id.lanServerStartButton)
+        val closeButton: MaterialButton = dialogView.findViewById(R.id.lanServerCloseButton)
+        copyUrlLink.paintFlags = copyUrlLink.paintFlags or Paint.UNDERLINE_TEXT_FLAG
+        copyApiUrlLink.paintFlags = copyApiUrlLink.paintFlags or Paint.UNDERLINE_TEXT_FLAG
+        val dialog = dialogBuilder
+            .setView(dialogView)
+            .create()
+
+        fun renderState() {
+            val storedState = LanServerStateStore.read(this)
+            if (storedState.isActive && !LanServerService.isRunning()) {
+                LanServerStateStore.markStopped(this)
+            }
+            val state = LanServerStateStore.read(this)
+            statusView.text = when (state.status) {
+                LanServerStatus.STOPPED -> getString(R.string.lan_server_status_stopped)
+                LanServerStatus.STARTING -> getString(R.string.lan_server_status_starting)
+                LanServerStatus.RUNNING -> getString(R.string.lan_server_status_running)
+                LanServerStatus.FAILED -> getString(R.string.lan_server_status_failed) +
+                    ": " + state.errorMessage.orEmpty()
+            }
+            endpointView.text = state.endpoint ?: "—"
+            apiEndpointView.text = state.endpoint?.let(::lanApiBaseUrl) ?: "—"
+            val modelReady = chatController?.state?.value?.isReady == true
+            startButton.isEnabled = !state.isActive && modelReady
+            val webUiAvailable = state.status == LanServerStatus.RUNNING && !state.endpoint.isNullOrBlank()
+            copyUrlLink.isEnabled = webUiAvailable
+            copyApiUrlLink.isEnabled = webUiAvailable
+            passwordInput.isEnabled = !state.isActive
+            generatePasswordButton.isEnabled = !state.isActive
+            passwordInput.hint = if (LanServerStateStore.hasPassword(this)) {
+                getString(R.string.lan_server_password_keep_hint)
+            } else {
+                getString(R.string.lan_server_password_hint)
+            }
+        }
+
+        val refreshRunnable = object : Runnable {
+            override fun run() {
+                if (!dialog.isShowing) return
+                renderState()
+                dialogView.postDelayed(this, 500L)
+            }
+        }
+
+        startButton.setOnClickListener {
+            val model = currentModel
+            val controller = chatController
+            if (model == null || controller?.state?.value?.isReady != true) {
+                showTransientMessage(getString(R.string.model_required_message))
+                return@setOnClickListener
+            }
+            if (controller.state.value.isGenerating) {
+                showTransientMessage(getString(R.string.lan_server_generation_blocked))
+                return@setOnClickListener
+            }
+            val requestedPassword = passwordInput.text.toString().trim()
+            if (!LanServerStateStore.hasPassword(this) && requestedPassword.isBlank()) {
+                showTransientMessage(getString(R.string.lan_server_password_required))
+                return@setOnClickListener
+            }
+            if (requestedPassword.isNotBlank()) {
+                if (requestedPassword.length < LanServerStateStore.MIN_PASSWORD_LENGTH) {
+                    showTransientMessage(
+                        getString(
+                            R.string.lan_server_password_too_short,
+                            LanServerStateStore.MIN_PASSWORD_LENGTH
+                        )
+                    )
+                    return@setOnClickListener
+                }
+                LanServerStateStore.setPassword(this, requestedPassword)
+            }
+            LanServerControllerRegistry.register(model.id, controller)
+            LanServerService.start(this, model.id)
+            renderState()
+        }
+        generatePasswordButton.setOnClickListener {
+            passwordInput.setText(LanServerStateStore.generatePassword())
+            passwordInput.setSelection(passwordInput.text.length)
+        }
+        copyUrlLink.setOnClickListener {
+            val endpoint = LanServerStateStore.read(this).endpoint
+            if (endpoint.isNullOrBlank()) {
+                showTransientMessage(getString(R.string.lan_server_not_running))
+                return@setOnClickListener
+            }
+            getSystemService(ClipboardManager::class.java)?.setPrimaryClip(
+                ClipData.newPlainText(getString(R.string.lan_server_url_label), endpoint)
+            )
+            showTransientMessage(getString(R.string.lan_server_url_copied))
+        }
+        copyApiUrlLink.setOnClickListener {
+            val apiEndpoint = LanServerStateStore.read(this).endpoint?.let(::lanApiBaseUrl)
+            if (apiEndpoint.isNullOrBlank()) {
+                showTransientMessage(getString(R.string.lan_server_not_running))
+                return@setOnClickListener
+            }
+            getSystemService(ClipboardManager::class.java)?.setPrimaryClip(
+                ClipData.newPlainText(getString(R.string.lan_server_api_url_label), apiEndpoint)
+            )
+            showTransientMessage(getString(R.string.lan_server_api_url_copied))
+        }
+        closeButton.setOnClickListener {
+            if (LanServerStateStore.read(this).isActive) {
+                LanServerService.stop(this)
+            }
+            dialog.dismiss()
+        }
+        dialog.setOnShowListener {
+            renderState()
+            dialogView.post(refreshRunnable)
+        }
+        dialog.setOnDismissListener {
+            dialogView.removeCallbacks(refreshRunnable)
+        }
+        dialog.show()
+        renderState()
+    }
+
+    private fun lanApiBaseUrl(webUiUrl: String): String {
+        val normalized = webUiUrl.trimEnd('/')
+        return if (normalized.endsWith("/ui")) {
+            normalized.removeSuffix("/ui") + "/v1"
+        } else {
+            "$normalized/v1"
         }
     }
 
@@ -4126,6 +4364,11 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
+        if (LanServerService.isRunning()) {
+            showTransientMessage(getString(R.string.model_settings_lan_blocked))
+            return
+        }
+
         if (!modelFileResolver.isModelDownloaded(descriptor)) {
             showTransientMessage(getString(R.string.model_settings_download_required))
             return
@@ -4135,12 +4378,24 @@ open class PocketChatActivity : AppCompatActivity() {
         val dialogView = LayoutInflater.from(dialogBuilder.context)
             .inflate(R.layout.dialog_model_settings, null)
         val modelNameView: TextView = dialogView.findViewById(R.id.modelSettingsModelName)
+        val contextLengthInput: EditText = dialogView.findViewById(R.id.modelContextLengthInput)
+        val contextLengthHelp: TextView = dialogView.findViewById(R.id.modelContextLengthHelp)
         val presetSpinner: AppCompatSpinner = dialogView.findViewById(R.id.modelInstructionPresetSpinner)
         val instructionInput: EditText = dialogView.findViewById(R.id.modelInstructionInput)
         val cancelButton: Button = dialogView.findViewById(R.id.modelSettingsCancelButton)
         val saveButton: Button = dialogView.findViewById(R.id.modelSettingsSaveButton)
 
         modelNameView.text = descriptor.displayName
+        val runtimeSettings = modelRuntimeSettingsStore.load(descriptor)
+        val minContextLength = ModelRuntimeSettingsLimits.minFor(descriptor)
+        val maxContextLength = ModelRuntimeSettingsLimits.maxFor(descriptor)
+        contextLengthInput.setText(runtimeSettings.contextLengthTokens.toString())
+        contextLengthInput.setSelection(contextLengthInput.text.length)
+        contextLengthHelp.text = getString(
+            R.string.model_context_length_help,
+            minContextLength,
+            maxContextLength
+        )
         val presets = InstructionPreset.entries.toList()
         val presetLabels = presets.map { it.label }
         val presetAdapter = ArrayAdapter(
@@ -4258,6 +4513,21 @@ open class PocketChatActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
+            val requestedContextLength = contextLengthInput.text.toString().trim().toIntOrNull()
+            if (
+                requestedContextLength == null ||
+                requestedContextLength !in minContextLength..maxContextLength
+            ) {
+                showTransientMessage(
+                    getString(
+                        R.string.model_context_length_invalid,
+                        minContextLength,
+                        maxContextLength
+                    )
+                )
+                return@setOnClickListener
+            }
+
             val presetToSave = if (
                 selectedPreset != InstructionPreset.CUSTOM &&
                 instruction != selectedPreset.instruction
@@ -4268,11 +4538,35 @@ open class PocketChatActivity : AppCompatActivity() {
             }
 
             modelInstructionStore.saveInstruction(descriptor, instruction, presetToSave)
+            val updatedRuntimeSettings = modelRuntimeSettingsStore.save(
+                descriptor,
+                ModelRuntimeSettings(requestedContextLength)
+            )
+            val runtimeSettingsChanged =
+                updatedRuntimeSettings.contextLengthTokens != runtimeSettings.contextLengthTokens
             dialog.dismiss()
-            showTransientMessage(getString(R.string.model_instruction_saved))
+            if (runtimeSettingsChanged) {
+                showTransientMessage(getString(R.string.model_context_length_saved))
+                reloadCurrentModelAfterRuntimeSettings()
+            } else {
+                showTransientMessage(getString(R.string.model_instruction_saved))
+            }
         }
 
         showPanelDialog(dialog)
+    }
+
+    private fun reloadCurrentModelAfterRuntimeSettings() {
+        val descriptor = currentModel ?: return
+        val controller = chatController ?: return
+        val activeChatSnapshot = controller.snapshotActiveChat()
+        controllerStateJob?.cancel()
+        LanServerControllerRegistry.clearIf(controller)
+        chatController = null
+        retainedState.chatController = null
+        controller.close()
+        renderNoControllerState(getString(R.string.model_loading_message), preserveTranscript = true)
+        requestModelLoad(descriptor, activeChatSnapshot)
     }
 
     private fun showPanelDialog(dialog: AlertDialog) {

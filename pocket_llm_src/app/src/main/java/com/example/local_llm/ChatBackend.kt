@@ -34,6 +34,47 @@ interface ChatBackend : AutoCloseable {
         return capabilities.contextWindowTokens - request.outputTokenReserve
     }
 
+    fun fitHistoryWithinContext(request: InferenceRequest): List<ChatTurn> {
+        val limit = promptTokenLimit(request)
+        require(limit > 0) { "The requested output reserve leaves no room for an input prompt." }
+        if (estimateSerializedPromptTokens(request) <= limit) {
+            return request.history
+        }
+
+        val blocks = mutableListOf<List<ChatTurn>>()
+        var end = request.history.size
+        while (end > 0) {
+            val last = request.history[end - 1]
+            if (
+                last.role == ChatRole.ASSISTANT &&
+                end >= 2 &&
+                request.history[end - 2].role == ChatRole.USER
+            ) {
+                blocks += request.history.subList(end - 2, end)
+                end -= 2
+            } else {
+                blocks += listOf(last)
+                end -= 1
+            }
+        }
+
+        val retained = mutableListOf<ChatTurn>()
+        for (block in blocks) {
+            val candidate = block + retained
+            val candidateRequest = request.copy(history = candidate)
+            if (estimateSerializedPromptTokens(candidateRequest) > limit) {
+                if (retained.isEmpty()) {
+                    throw IllegalArgumentException(
+                        "The current user message exceeds the ${limit}-token prompt budget."
+                    )
+                }
+                continue
+            }
+            retained.addAll(0, block)
+        }
+        return retained
+    }
+
     fun requirePromptFits(request: InferenceRequest): Int {
         val limit = promptTokenLimit(request)
         require(limit > 0) { "The requested output reserve leaves no room for an input prompt." }

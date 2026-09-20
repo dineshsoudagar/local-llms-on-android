@@ -3,6 +3,7 @@ package com.example.local_llm
 import android.content.Context
 import android.os.SystemClock
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -51,6 +52,7 @@ class PersistentChatController(
     private val appContext = context.applicationContext
     private val sessionStore = ChatSessionStore(appContext)
     private val modelInstructionStore = ModelInstructionStore(appContext)
+    private val modelRuntimeSettings = ModelRuntimeSettingsStore(appContext).load(modelDescriptor)
     private val backend: ChatBackend
     private val committedTurns = mutableListOf<ChatTurn>()
     private val _state = MutableStateFlow(
@@ -65,6 +67,7 @@ class PersistentChatController(
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
     private var generationJob: Job? = null
+    private var latestGenerationResult: CompletableDeferred<BackendResponse>? = null
     private var initializationJob: Job? = null
     private var streamingAssistantTurn: ChatTurn? = null
     private var thinkingEnabled = false
@@ -88,9 +91,21 @@ class PersistentChatController(
     init {
         val modelFileResolver = ModelFileResolver(appContext)
         backend = when (modelDescriptor) {
-            is OnnxQwenSpec -> OnnxChatBackend(appContext, modelDescriptor, modelFileResolver)
-            is GemmaLiteRtSpec -> GemmaLiteRtBackend(appContext, modelDescriptor, modelFileResolver, initializationPolicy)
-            is QwenLiteRtSpec -> QwenLiteRtBackend(appContext, modelDescriptor, modelFileResolver, initializationPolicy)
+            is OnnxQwenSpec -> OnnxChatBackend(appContext, modelDescriptor, modelFileResolver, modelRuntimeSettings)
+            is GemmaLiteRtSpec -> GemmaLiteRtBackend(
+                appContext,
+                modelDescriptor,
+                modelFileResolver,
+                modelRuntimeSettings,
+                initializationPolicy
+            )
+            is QwenLiteRtSpec -> QwenLiteRtBackend(
+                appContext,
+                modelDescriptor,
+                modelFileResolver,
+                modelRuntimeSettings,
+                initializationPolicy
+            )
         }
     }
 
@@ -409,10 +424,57 @@ class PersistentChatController(
         return startGeneration(imageFilePaths, nativeAudioInputs, attachmentContext)
     }
 
+    suspend fun sendPromptAndAwait(text: String): BackendResponse {
+        val generation = withContext(Dispatchers.Main.immediate) {
+            if (!sendPrompt(text)) {
+                throw IllegalStateException("The model is busy or not ready.")
+            }
+            latestGenerationResult
+                ?: error("The generation request was not created.")
+        }
+        return generation.await()
+    }
+
+    suspend fun sendExternalChatAndAwait(
+        history: List<ChatTurn>,
+        systemInstruction: String? = null,
+        outputTokenReserve: Int? = null,
+        onPartial: (BackendResponse) -> Unit = {}
+    ): BackendResponse {
+        val generation = withContext(Dispatchers.Main.immediate) {
+            val modelHistory = history.asModelMemoryTurns()
+            if (modelHistory.isEmpty() || modelHistory.last().role != ChatRole.USER) {
+                throw IllegalArgumentException("External chat requests must end with a user message.")
+            }
+            val modelInstruction = listOfNotNull(
+                currentModelInstruction().takeIf(String::isNotBlank),
+                systemInstruction?.trim()?.takeIf(String::isNotBlank)
+            ).joinToString("\n\n")
+            if (!startGeneration(
+                    historyOverride = modelHistory,
+                    modelInstructionOverride = modelInstruction,
+                    outputTokenReserveOverride = outputTokenReserve,
+                    persistResult = false,
+                    onExternalPartial = onPartial
+                )
+            ) {
+                throw IllegalStateException("The model is busy or not ready.")
+            }
+            latestGenerationResult
+                ?: error("The external generation request was not created.")
+        }
+        return generation.await()
+    }
+
     private fun startGeneration(
         imageFilePaths: List<String> = emptyList(),
         nativeAudioInputs: List<NativeAudioInput> = emptyList(),
-        attachmentContext: AttachmentContext? = null
+        attachmentContext: AttachmentContext? = null,
+        historyOverride: List<ChatTurn>? = null,
+        modelInstructionOverride: String? = null,
+        outputTokenReserveOverride: Int? = null,
+        persistResult: Boolean = true,
+        onExternalPartial: (BackendResponse) -> Unit = {}
     ): Boolean {
         if (generationJob != null || !_state.value.isReady) {
             return false
@@ -427,25 +489,32 @@ class PersistentChatController(
         currentGenerationImageFilePaths = imageFilePaths
         currentNativeAudioInputs = nativeAudioInputs
         currentAttachmentContext = attachmentContext
+        val generationResult = CompletableDeferred<BackendResponse>()
+        latestGenerationResult = generationResult
 
         generationJob = scope.launch {
             try {
                 val response = withContext(Dispatchers.IO) {
                     executeInferenceRequest(
                         request = InferenceRequest(
-                            history = committedTurns.asModelMemoryTurns(),
+                            history = historyOverride ?: committedTurns.asModelMemoryTurns(),
                             thinkingEnabled = thinkingEnabled,
-                            modelInstruction = currentModelInstruction(),
+                            modelInstruction = modelInstructionOverride ?: currentModelInstruction(),
                             imageFilePaths = currentGenerationImageFilePaths,
                             nativeAudioInputs = currentNativeAudioInputs,
                             attachmentContext = currentAttachmentContext,
-                            outputTokenReserve = if (currentAttachmentContext != null) attachmentOutputReserve() else 0
+                            outputTokenReserve = if (currentAttachmentContext != null) {
+                                attachmentOutputReserve()
+                            } else {
+                                outputTokenReserveOverride?.coerceAtLeast(0) ?: 0
+                            }
                         ),
                         onPartial = partialCallback@{ partial ->
                             if (generationId != currentGenerationId) {
                                 return@partialCallback
                             }
 
+                            onExternalPartial(partial)
                             liveMarkdownEnabled = liveMarkdownEnabled || shouldEnableLiveMarkdown(partial)
                             if (!shouldPublishStreamingUpdate(partial)) {
                                 return@partialCallback
@@ -472,6 +541,7 @@ class PersistentChatController(
                 }
 
                 if (generationId != currentGenerationId) {
+                    generationResult.cancel()
                     return@launch
                 }
 
@@ -488,7 +558,9 @@ class PersistentChatController(
                     isStreaming = false
                 )
 
-                if (finalAssistantTurn.text.isNotBlank() || !finalAssistantTurn.thinkingText.isNullOrBlank()) {
+                if (persistResult &&
+                    (finalAssistantTurn.text.isNotBlank() || !finalAssistantTurn.thinkingText.isNullOrBlank())
+                ) {
                     committedTurns += finalAssistantTurn
                     persistCurrentSession()
                 }
@@ -498,14 +570,20 @@ class PersistentChatController(
                 resetLiveMarkdownState()
                 resetGenerationTimer()
                 publishState(isGenerating = false)
+                generationResult.complete(response)
             } catch (_: CancellationException) {
                 if (generationId == currentGenerationId) {
                     currentGenerationId = 0L
                 }
-                commitStoppedAssistantTurn()
+                if (persistResult) {
+                    commitStoppedAssistantTurn()
+                } else {
+                    streamingAssistantTurn = null
+                }
                 resetLiveMarkdownState()
                 resetGenerationTimer()
                 publishState(statusMessage = "Generation stopped.", isGenerating = false)
+                generationResult.cancel()
             } catch (e: Exception) {
                 if (generationId == currentGenerationId) {
                     currentGenerationId = 0L
@@ -517,6 +595,7 @@ class PersistentChatController(
                     statusMessage = "Error: ${e.message ?: "Unknown error."}",
                     isGenerating = false
                 )
+                generationResult.completeExceptionally(e)
             } finally {
                 deleteTransientImageFiles(currentGenerationImageFilePaths)
                 currentAttachmentContext?.temporaryFiles?.forEach { path -> runCatching { File(path).delete() } }

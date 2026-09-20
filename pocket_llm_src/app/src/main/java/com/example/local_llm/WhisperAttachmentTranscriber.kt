@@ -173,7 +173,7 @@ class WhisperAttachmentTranscriber(
                 provider = "cpu"
             )
         )
-        val recognizer = OfflineRecognizer(context.assets, config)
+        val recognizer = OfflineRecognizer(null, config)
         val segmented = GemmaAudioSegmenter(context).segment(descriptor)
         try {
             val merged = existingChunks.sortedBy(AttachmentChunk::ordinal).toMutableList()

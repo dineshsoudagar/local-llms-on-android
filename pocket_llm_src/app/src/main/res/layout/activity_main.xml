@@ -456,7 +456,7 @@
                             android:layout_height="34dp"
                             android:layout_gravity="bottom"
                             android:layout_marginStart="5dp"
-                            android:contentDescription="@string/record_audio_for_model"
+                            android:contentDescription="@string/voice_input"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"
                             android:insetRight="0dp"
@@ -674,6 +674,35 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="14dp"
                 android:text="@string/settings"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/drawerLanServerRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:minHeight="52dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="20dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_network_20"
+                android:tint="?attr/colorStatusText" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:text="@string/lan_server_menu"
                 android:textColor="?attr/colorAssistantText"
                 android:textSize="16sp"
                 android:textStyle="bold" />

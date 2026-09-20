@@ -21,13 +21,15 @@ class GemmaLiteRtBackend(
     private val context: Context,
     private val spec: GemmaLiteRtSpec,
     private val modelFileResolver: ModelFileResolver,
+    private val runtimeSettings: ModelRuntimeSettings = ModelRuntimeSettings(
+        ModelRuntimeSettingsLimits.LITERT_DEFAULT_CONTEXT_LENGTH
+    ),
     private val initializationPolicy: BackendInitializationPolicy = BackendInitializationPolicy()
 ) : ChatBackend {
 
     companion object {
         private const val TAG = "GemmaLiteRtBackend"
         private const val THOUGHT_CHANNEL_NAME = "thought"
-        private const val DEFAULT_MAX_NUM_TOKENS = 2048
         private const val DEFAULT_MAX_NUM_IMAGES = 1
         private const val CPU_THREAD_COUNT = 4
         private const val AUDIO_COMPATIBILITY_PREFS = "gemma_audio_compatibility"
@@ -42,7 +44,7 @@ class GemmaLiteRtBackend(
         get() = BackendCapabilities(
             supportsNativeImage = directImageInputInitialized,
             supportsNativeAudio = directAudioInputInitialized,
-            contextWindowTokens = DEFAULT_MAX_NUM_TOKENS
+            contextWindowTokens = runtimeSettings.contextLengthTokens
         )
 
     override suspend fun initialize() = withContext(Dispatchers.IO) {
@@ -61,7 +63,7 @@ class GemmaLiteRtBackend(
             Log.i(
                 TAG,
                 "Initializing ${spec.displayName} from $modelPath (${modelFile.length()} bytes) " +
-                    "with ${attempt.label}, maxNumTokens=$DEFAULT_MAX_NUM_TOKENS."
+                "with ${attempt.label}, maxNumTokens=${runtimeSettings.contextLengthTokens}."
             )
             val result = createInitializedEngine(modelPath, attempt)
             val initializedEngine = result.getOrNull()
@@ -119,7 +121,14 @@ class GemmaLiteRtBackend(
         thinkingEnabled: Boolean,
         modelInstruction: String
     ) {
-        recreateConversation(history, thinkingEnabled, modelInstruction)
+        val boundedHistory = fitHistoryWithinContext(
+            InferenceRequest(
+                history = history,
+                thinkingEnabled = thinkingEnabled,
+                modelInstruction = modelInstruction
+            )
+        )
+        recreateConversation(boundedHistory, thinkingEnabled, modelInstruction)
     }
 
     override suspend fun streamReply(
@@ -135,12 +144,13 @@ class GemmaLiteRtBackend(
         require(request.imageFilePaths.isEmpty() || request.nativeAudioInputs.isEmpty()) {
             "Image and document/audio attachments cannot be mixed in the same send."
         }
-        require(request.history.isNotEmpty() && request.history.last().role == ChatRole.USER) {
+        val boundedHistory = fitHistoryWithinContext(request)
+        require(boundedHistory.isNotEmpty() && boundedHistory.last().role == ChatRole.USER) {
             "Gemma backend expects the final history turn to be the user's prompt."
         }
 
-        val initialHistory = request.history.dropLast(1)
-        val userTurn = request.history.last()
+        val initialHistory = boundedHistory.dropLast(1)
+        val userTurn = boundedHistory.last()
         recreateConversation(initialHistory, request.thinkingEnabled, request.modelInstruction)
 
         val activeConversation = conversation
@@ -191,7 +201,7 @@ class GemmaLiteRtBackend(
                     backend = attempt.backend,
                     visionBackend = attempt.visionBackend,
                     audioBackend = attempt.audioBackend,
-                    maxNumTokens = DEFAULT_MAX_NUM_TOKENS,
+                    maxNumTokens = runtimeSettings.contextLengthTokens,
                     maxNumImages = if (attempt.visionBackend != null) DEFAULT_MAX_NUM_IMAGES else null,
                     cacheDir = context.cacheDir.absolutePath
                 )

@@ -7,21 +7,11 @@
     android:paddingVertical="16dp">
 
     <TextView
+        android:id="@+id/dictationDownloadMessage"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/dictation_recording_subtitle"
-        android:textColor="?attr/colorStatusText"
-        android:textSize="13sp" />
-
-    <TextView
-        android:id="@+id/audioRecordingTimer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:gravity="center"
-        android:textColor="?attr/colorStopFill"
-        android:textSize="32sp"
-        android:textStyle="bold" />
+        android:textColor="?attr/colorAssistantText"
+        android:textSize="15sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -31,18 +21,18 @@
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/discardAudioRecordingButton"
+            android:id="@+id/notNowDictationButton"
             style="@style/DialogSecondaryButton"
             android:layout_width="wrap_content"
             android:layout_height="48dp"
-            android:text="@string/discard_recording" />
+            android:text="@string/not_now" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/useAudioRecordingButton"
+            android:id="@+id/downloadDictationButton"
             style="@style/DialogPrimaryButton"
             android:layout_width="wrap_content"
             android:layout_height="48dp"
             android:layout_marginStart="12dp"
-            android:text="@string/transcribe_recording" />
+            android:text="@string/download_model" />
     </LinearLayout>
 </LinearLayout>

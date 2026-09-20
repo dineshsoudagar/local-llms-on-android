@@ -118,6 +118,73 @@ Attachment manifests, normalized sources, extracted text/transcripts, chunks, an
 
 ---
 
+## LAN API and Web UI
+
+Pocket LLM can expose the selected on-device model to another device on the same private network. The main integration surface is an OpenAI-compatible API, so scripts and tools can call the phone directly without a custom chat UI.
+
+1. Load a model and open the navigation drawer.
+2. Choose **LAN Server**, set a Web UI password of at least eight characters, then tap **Start**. You can use **Generate** for a random password.
+3. The **Web UI password** is the simplest credential and works for both browser chat and API clients. A generated API key is optional for advanced clients.
+4. From another device on the same network, use the phone's displayed URL with `/v1`, for example `http://PHONE_IP:8080/v1`.
+
+The phone dialog shows the address chosen from the phone's local network interfaces. The computer must be on that same Wi-Fi or LAN; a VPN, guest network, mobile-data address, or a different interface can show a different IP and will not work. This is a private-LAN endpoint, not a public Internet URL.
+
+### OpenAI-compatible endpoints
+
+The API uses `Authorization: Bearer PASSWORD_OR_API_KEY` and exposes:
+
+- `GET /v1/models` - returns the currently loaded model id.
+- `GET /v1/models/MODEL_ID` - returns metadata for that model.
+- `POST /v1/chat/completions` - accepts standard `messages`, `model`, `stream`, and `max_tokens` fields; `max_tokens` currently reserves context budget rather than hard-capping decoder output.
+
+Example from PowerShell:
+
+```powershell
+$base = "http://PHONE_IP:8080/v1"
+$password = "YOUR_WEB_UI_PASSWORD"
+
+Invoke-RestMethod "$base/models" -Headers @{ Authorization = "Bearer $password" }
+
+Invoke-RestMethod "$base/chat/completions" -Method Post `
+  -Headers @{ Authorization = "Bearer $password" } `
+  -ContentType "application/json" `
+  -Body (@{
+    model = "MODEL_ID_FROM_MODELS"
+    messages = @(@{ role = "user"; content = "Explain photosynthesis in one sentence." })
+  } | ConvertTo-Json -Depth 5)
+```
+
+### Python client
+
+Install the standard client library and run the included example:
+
+```powershell
+python -m pip install openai
+$env:POCKET_LLM_BASE_URL = "http://PHONE_IP:8080/v1"
+$env:POCKET_LLM_PASSWORD = "YOUR_WEB_UI_PASSWORD"
+python scripts/pocket_llm_openai.py "Give me three German words for travel."
+python scripts/pocket_llm_openai.py --stream "Write a short greeting."
+```
+
+The script discovers the model id automatically. It also accepts `--model`, `--system`, `--base-url`, `--password`, and optional `--api-key` for automation environments.
+
+For Open WebUI or another OpenAI-compatible client, add a connection with base URL `http://PHONE_IP:8080/v1`, enter the same LAN password as the credential, and select the model id returned by `GET /v1/models`.
+
+### Browser Web UI
+
+The built-in `/ui` page remains available for quick manual testing. Open `http://PHONE_IP:8080/ui` in a browser and enter the Web UI password set on the phone. Browser login uses a short-lived session; API clients can use the same LAN password directly, so they do not need to log in through the browser. The optional generated API key is also accepted.
+
+Compatible tools can use the password directly:
+
+```bash
+curl -X POST http://PHONE_IP:8080/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_WEB_UI_PASSWORD" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"MODEL_ID_FROM_MODELS","messages":[{"role":"user","content":"Explain photosynthesis in one sentence."}]}'
+```
+
+The password is stored on the phone as a salted hash and is accepted as a Bearer credential for the API. The generated API key is optional and can be regenerated when needed. Stop the LAN server before changing the password or model; leaving the password field blank keeps the current password. Android may still stop background work because of device power-management policy, so this is intended for local-network use rather than unattended public hosting.
+
 ## 🧠 Backend Support
 
 This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 models**.

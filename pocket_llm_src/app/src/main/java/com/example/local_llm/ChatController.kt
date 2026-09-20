@@ -45,11 +45,22 @@ class ChatController(
     init {
         val appContext = context.applicationContext
         modelInstructionStore = ModelInstructionStore(appContext)
+        val modelRuntimeSettings = ModelRuntimeSettingsStore(appContext).load(modelDescriptor)
         val modelFileResolver = ModelFileResolver(appContext)
         backend = when (modelDescriptor) {
-            is OnnxQwenSpec -> OnnxChatBackend(appContext, modelDescriptor, modelFileResolver)
-            is GemmaLiteRtSpec -> GemmaLiteRtBackend(appContext, modelDescriptor, modelFileResolver)
-            is QwenLiteRtSpec -> QwenLiteRtBackend(appContext, modelDescriptor, modelFileResolver)
+            is OnnxQwenSpec -> OnnxChatBackend(appContext, modelDescriptor, modelFileResolver, modelRuntimeSettings)
+            is GemmaLiteRtSpec -> GemmaLiteRtBackend(
+                appContext,
+                modelDescriptor,
+                modelFileResolver,
+                modelRuntimeSettings
+            )
+            is QwenLiteRtSpec -> QwenLiteRtBackend(
+                appContext,
+                modelDescriptor,
+                modelFileResolver,
+                modelRuntimeSettings
+            )
         }
     }
 
