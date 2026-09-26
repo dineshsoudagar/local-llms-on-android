@@ -231,14 +231,6 @@ class LanHttpServer(
     @Volatile
     private var serverSocket: ServerSocket? = null
 
-    private data class ParsedChatRequest(
-        val model: String?,
-        val history: List<ChatTurn>,
-        val systemInstruction: String?,
-        val stream: Boolean,
-        val outputTokenReserve: Int?
-    )
-
     val endpoint: String
         get() = "http://${localLanAddress().hostAddress}:$port$UI_PATH"
 
@@ -392,6 +384,26 @@ class LanHttpServer(
             return
         }
 
+        if (
+            (request.tools.isNotEmpty() || request.hasToolMessages) &&
+            !controller.supportsNativeToolCalling()
+        ) {
+            writeJson(
+                writer,
+                400,
+                errorJson("The configured model backend does not support native tool calling. Select a LiteRT model.")
+            )
+            return
+        }
+        if (
+            request.toolChoice.mode != ExternalToolChoiceMode.NONE &&
+            request.toolChoice.mode != ExternalToolChoiceMode.AUTO &&
+            request.toolsForInference().isEmpty()
+        ) {
+            writeJson(writer, 400, errorJson("tool_choice requires at least one declared function tool."))
+            return
+        }
+
         val completionId = "chatcmpl-${UUID.randomUUID()}"
         val created = System.currentTimeMillis() / 1000L
         try {
@@ -405,11 +417,15 @@ class LanHttpServer(
                     null
                 )
                 var streamedText = ""
+                var streamedToolCallCount = 0
                 val response = runBlocking(Dispatchers.IO) {
                     controller.sendExternalChatAndAwait(
                         history = request.history,
                         systemInstruction = request.systemInstruction,
                         outputTokenReserve = request.outputTokenReserve,
+                        tools = request.toolsForInference(),
+                        toolChoice = request.toolChoice,
+                        parallelToolCalls = request.parallelToolCalls,
                         onPartial = { partial ->
                             val delta = textDelta(streamedText, partial.text)
                             streamedText = partial.text
@@ -422,9 +438,28 @@ class LanHttpServer(
                                     null
                                 )
                             }
+                            if (partial.toolCalls.size > streamedToolCallCount) {
+                                val newToolCalls = partial.toolCalls.drop(streamedToolCallCount)
+                                writeSseChunk(
+                                    writer,
+                                    completionId,
+                                    created,
+                                    JSONObject().put(
+                                        "tool_calls",
+                                        LanChatProtocol.toolCallsJson(
+                                            newToolCalls,
+                                            includeIndex = true,
+                                            startIndex = streamedToolCallCount
+                                        )
+                                    ),
+                                    null
+                                )
+                                streamedToolCallCount = partial.toolCalls.size
+                            }
                         }
                     )
                 }
+                validateToolChoice(request, response)
                 val finalDelta = textDelta(streamedText, response.text)
                 if (finalDelta.isNotEmpty()) {
                     writeSseChunk(
@@ -435,7 +470,30 @@ class LanHttpServer(
                         null
                     )
                 }
-                writeSseChunk(writer, completionId, created, JSONObject(), "stop")
+                if (response.toolCalls.size > streamedToolCallCount) {
+                    val newToolCalls = response.toolCalls.drop(streamedToolCallCount)
+                    writeSseChunk(
+                        writer,
+                        completionId,
+                        created,
+                        JSONObject().put(
+                            "tool_calls",
+                            LanChatProtocol.toolCallsJson(
+                                newToolCalls,
+                                includeIndex = true,
+                                startIndex = streamedToolCallCount
+                            )
+                        ),
+                        null
+                    )
+                }
+                writeSseChunk(
+                    writer,
+                    completionId,
+                    created,
+                    JSONObject(),
+                    if (response.toolCalls.isEmpty()) "stop" else "tool_calls"
+                )
                 writer.write("data: [DONE]\n\n")
                 writer.flush()
             } else {
@@ -443,33 +501,45 @@ class LanHttpServer(
                     controller.sendExternalChatAndAwait(
                         history = request.history,
                         systemInstruction = request.systemInstruction,
-                        outputTokenReserve = request.outputTokenReserve
+                        outputTokenReserve = request.outputTokenReserve,
+                        tools = request.toolsForInference(),
+                        toolChoice = request.toolChoice,
+                        parallelToolCalls = request.parallelToolCalls
                     )
                 }
-                writeJson(
-                    writer,
-                    200,
-                    JSONObject()
-                        .put("id", completionId)
-                        .put("object", "chat.completion")
-                        .put("created", created)
-                        .put("model", modelId)
-                        .put("choices", JSONArray().put(
-                            JSONObject()
-                                .put("index", 0)
-                                .put("message", JSONObject()
-                                    .put("role", "assistant")
-                                    .put("content", response.text))
-                                .put("finish_reason", "stop")
-                        ))
-                )
+                validateToolChoice(request, response)
+                writeJson(writer, 200, LanChatProtocol.completionResponse(completionId, created, modelId, response))
             }
+        } catch (error: ToolChoiceNotSatisfiedException) {
+            writeChatError(writer, request.stream, 422, error.message ?: "The requested tool choice was not satisfied.")
         } catch (error: IllegalStateException) {
             val message = error.message ?: "The model is not ready."
             val status = if (message.contains("busy", ignoreCase = true)) 409 else 503
             writeChatError(writer, request.stream, status, message)
         } catch (error: Exception) {
             writeChatError(writer, request.stream, 500, error.message ?: "Inference failed.")
+        }
+    }
+
+    private class ToolChoiceNotSatisfiedException(message: String) : Exception(message)
+
+    private fun validateToolChoice(request: ParsedChatRequest, response: BackendResponse) {
+        when (request.toolChoice.mode) {
+            ExternalToolChoiceMode.REQUIRED -> {
+                if (response.toolCalls.isEmpty()) {
+                    throw ToolChoiceNotSatisfiedException(
+                        "The model did not return a tool call required by tool_choice."
+                    )
+                }
+            }
+            ExternalToolChoiceMode.FUNCTION -> {
+                if (response.toolCalls.none { it.name == request.toolChoice.functionName }) {
+                    throw ToolChoiceNotSatisfiedException(
+                        "The model did not return the required tool '${request.toolChoice.functionName}'."
+                    )
+                }
+            }
+            else -> Unit
         }
     }
 
@@ -503,10 +573,11 @@ class LanHttpServer(
     }
 
     private fun isAuthorized(authorization: String): Boolean {
+        if (LanChatProtocol.isBearerCredentialAccepted(authorization, passwordVerifier, apiKeyVerifier)) {
+            return true
+        }
         if (!authorization.startsWith("Bearer ")) return false
         val token = authorization.removePrefix("Bearer ").trim()
-        if (apiKeyVerifier(token)) return true
-        if (passwordVerifier(token)) return true
         val expiresAt = sessionTokens[token] ?: return false
         if (expiresAt <= System.currentTimeMillis()) {
             sessionTokens.remove(token)
@@ -528,56 +599,7 @@ class LanHttpServer(
     }
 
     private fun parseChatRequest(body: String): ParsedChatRequest {
-        val request = JSONObject(body)
-        val messages = request.optJSONArray("messages")
-        val history = mutableListOf<ChatTurn>()
-        val systemInstructionParts = mutableListOf<String>()
-
-        if (messages != null) {
-            for (index in 0 until messages.length()) {
-                val message = messages.optJSONObject(index) ?: continue
-                val content = extractTextContent(message.opt("content"))
-                if (content.isBlank()) continue
-                when (message.optString("role").lowercase()) {
-                    "system", "developer" -> systemInstructionParts += content
-                    "user" -> history += ChatTurn(role = ChatRole.USER, text = content)
-                    "assistant" -> history += ChatTurn(role = ChatRole.ASSISTANT, text = content)
-                }
-            }
-        }
-
-        if (history.isEmpty()) {
-            val prompt = request.optString("prompt", "").trim()
-            if (prompt.isNotEmpty()) {
-                history += ChatTurn(role = ChatRole.USER, text = prompt)
-            }
-        }
-        require(history.isNotEmpty() && history.last().role == ChatRole.USER) {
-            "Provide at least one user message."
-        }
-
-        return ParsedChatRequest(
-            model = request.optString("model", "").trim().takeIf { it.isNotEmpty() },
-            history = history,
-            systemInstruction = systemInstructionParts.joinToString("\n\n").takeIf { it.isNotBlank() },
-            stream = request.optBoolean("stream", false),
-            outputTokenReserve = request.optInt("max_tokens", 0).takeIf { it > 0 }
-        )
-    }
-
-    private fun extractTextContent(value: Any?): String {
-        return when (value) {
-            is String -> value.trim()
-            is JSONArray -> buildString {
-                for (index in 0 until value.length()) {
-                    val part = value.optJSONObject(index) ?: continue
-                    if (part.optString("type") == "text") {
-                        append(part.optString("text"))
-                    }
-                }
-            }.trim()
-            else -> ""
-        }
+        return LanChatProtocol.parseChatRequest(body)
     }
 
     private fun writeModels(writer: BufferedWriter) {

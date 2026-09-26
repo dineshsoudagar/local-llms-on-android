@@ -17,9 +17,22 @@ interface ChatBackend : AutoCloseable {
             append(if (request.thinkingEnabled) " /think" else " /no_think")
             append("\n</system>\n")
             request.history.forEach { turn ->
-                val role = if (turn.role == ChatRole.USER) "user" else "assistant"
+                val role = when {
+                    turn.isToolResult -> "tool"
+                    turn.role == ChatRole.USER -> "user"
+                    else -> "assistant"
+                }
                 append('<').append(role).append(">\n")
                 append(turn.text).append("\n</").append(role).append(">\n")
+                turn.toolCalls.forEach { toolCall ->
+                    append("<tool_call id=").append(toolCall.id).append(">")
+                        .append(toolCall.name).append(':').append(toolCall.argumentsJson)
+                        .append("</tool_call>\n")
+                }
+            }
+            request.tools.forEach { tool ->
+                append("<tool_definition>").append(tool.name).append(':')
+                    .append(tool.parametersJson).append("</tool_definition>\n")
             }
             append("<assistant>\n")
         }

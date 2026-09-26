@@ -1,0 +1,23 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "pocket-llm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Pocket LLM (Android)",
+      "options": {
+        "baseURL": "http://PHONE_IP:8080/v1",
+        "apiKey": "{env:POCKET_LLM_PASSWORD}"
+      },
+      "models": {
+        "qwen3_litert": {
+          "name": "Qwen3 0.6B LiteRT",
+          "limit": {
+            "context": 2048,
+            "output": 256
+          }
+        }
+      }
+    }
+  },
+  "model": "pocket-llm/qwen3_litert"
+}

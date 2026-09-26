@@ -168,6 +168,17 @@ python scripts/pocket_llm_openai.py --stream "Write a short greeting."
 
 The script discovers the model id automatically. It also accepts `--model`, `--system`, `--base-url`, `--password`, and optional `--api-key` for automation environments.
 
+### OpenCode coding-agent backend
+
+Phase 1 adds OpenAI-compatible tool calling to `/v1/chat/completions` for LiteRT-backed models. Copy [`examples/opencode-pocket-llm.jsonc`](examples/opencode-pocket-llm.jsonc) into the OpenCode project configuration, replace `PHONE_IP`, and set the phone's LAN password in `POCKET_LLM_PASSWORD`. The example uses the actual model id `qwen3_litert`; if `GET /v1/models` returns a different selected model id, replace both occurrences in the example.
+
+```powershell
+$env:POCKET_LLM_PASSWORD = "YOUR_WEB_UI_PASSWORD"
+opencode
+```
+
+OpenCode owns tool execution: Pocket LLM returns native LiteRT tool calls with OpenAI-compatible ids and arguments, then accepts the follow-up `role: "tool"` message. ONNX-backed models return an explicit unsupported-backend error for tool requests; `/v1/responses`, Codex integration, and native Ollama routes are not part of this phase.
+
 For Open WebUI or another OpenAI-compatible client, add a connection with base URL `http://PHONE_IP:8080/v1`, enter the same LAN password as the credential, and select the model id returned by `GET /v1/models`.
 
 ### Browser Web UI

@@ -29,7 +29,11 @@ data class ChatTurn(
     val attachmentId: String? = null,
     val attachmentName: String? = null,
     val attachmentKind: AttachmentKind? = null,
-    val attachmentProcessingRoute: AttachmentProcessingRoute? = null
+    val attachmentProcessingRoute: AttachmentProcessingRoute? = null,
+    val toolCalls: List<ExternalToolCall> = emptyList(),
+    val toolCallId: String? = null,
+    val toolName: String? = null,
+    val isToolResult: Boolean = false
 ) {
     val isUser: Boolean
         get() = role == ChatRole.USER

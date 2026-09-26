@@ -9,7 +9,7 @@ data class ModelRuntimeSettings(
 object ModelRuntimeSettingsLimits {
     const val ONNX_CONTEXT_LENGTH = 512
     const val LITERT_DEFAULT_CONTEXT_LENGTH = 2_048
-    const val LITERT_CONTEXT_LENGTH = 32_000
+    const val LITERT_CONTEXT_LENGTH = 40_000
 
     fun defaultFor(descriptor: ModelDescriptor): Int = if (descriptor is OnnxQwenSpec) ONNX_CONTEXT_LENGTH else LITERT_DEFAULT_CONTEXT_LENGTH
 

@@ -44,6 +44,7 @@ class GemmaLiteRtBackend(
         get() = BackendCapabilities(
             supportsNativeImage = directImageInputInitialized,
             supportsNativeAudio = directAudioInputInitialized,
+            supportsNativeToolCalling = true,
             contextWindowTokens = runtimeSettings.contextLengthTokens
         )
 
@@ -145,13 +146,21 @@ class GemmaLiteRtBackend(
             "Image and document/audio attachments cannot be mixed in the same send."
         }
         val boundedHistory = fitHistoryWithinContext(request)
-        require(boundedHistory.isNotEmpty() && boundedHistory.last().role == ChatRole.USER) {
-            "Gemma backend expects the final history turn to be the user's prompt."
+        require(
+            boundedHistory.isNotEmpty() &&
+                (boundedHistory.last().role == ChatRole.USER || boundedHistory.last().isToolResult)
+        ) {
+            "Gemma backend expects the final history turn to be a user or tool message."
         }
 
         val initialHistory = boundedHistory.dropLast(1)
         val userTurn = boundedHistory.last()
-        recreateConversation(initialHistory, request.thinkingEnabled, request.modelInstruction)
+        recreateConversation(
+            initialHistory,
+            request.thinkingEnabled,
+            request.modelInstruction,
+            request.tools
+        )
 
         val activeConversation = conversation
             ?: throw IllegalStateException("Conversation was not created.")
@@ -164,7 +173,10 @@ class GemmaLiteRtBackend(
             request.imageFilePaths,
             request.nativeAudioInputs
         )
-        activeConversation.sendMessageAsync(messageForModel).collect { message ->
+        var externalToolCalls = emptyList<ExternalToolCall>()
+        activeConversation.sendMessageAsync(
+            if (userTurn.isToolResult) userTurn.toLiteRtMessage() else messageForModel
+        ).collect { message ->
             val chunkText = extractTextContent(message)
             if (chunkText.isNotEmpty()) {
                 textBuilder.append(chunkText)
@@ -175,17 +187,26 @@ class GemmaLiteRtBackend(
                 thinkingBuilder.append(thoughtChunk)
             }
 
+            if (message.toolCalls.isNotEmpty()) {
+                externalToolCalls = nativeToolCallsToExternal(
+                    message.toolCalls,
+                    externalToolCalls,
+                    request.parallelToolCalls
+                )
+            }
             onPartial(
                 BackendResponse(
                     text = textBuilder.toString(),
-                    thinkingText = thinkingBuilder.toString().takeIf { it.isNotBlank() }
+                    thinkingText = thinkingBuilder.toString().takeIf { it.isNotBlank() },
+                    toolCalls = externalToolCalls
                 )
             )
         }
 
         BackendResponse(
             text = textBuilder.toString(),
-            thinkingText = thinkingBuilder.toString().takeIf { it.isNotBlank() }
+            thinkingText = thinkingBuilder.toString().takeIf { it.isNotBlank() },
+            toolCalls = externalToolCalls
         )
     }
 
@@ -316,18 +337,18 @@ class GemmaLiteRtBackend(
     private fun recreateConversation(
         history: List<ChatTurn>,
         thinkingEnabled: Boolean,
-        modelInstruction: String
+        modelInstruction: String,
+        tools: List<ExternalToolDefinition> = emptyList()
     ) {
         closeConversation()
         conversation = engine.createConversation(
             ConversationConfig(
                 systemInstruction = Contents.of(buildSystemInstruction(thinkingEnabled, modelInstruction)),
                 initialMessages = history.map { turn ->
-                    when (turn.role) {
-                        ChatRole.USER -> Message.user(turn.text)
-                        ChatRole.ASSISTANT -> Message.model(turn.text)
-                    }
+                    turn.toLiteRtMessage()
                 },
+                tools = externalToolProviders(tools),
+                automaticToolCalling = false,
                 channels = if (thinkingEnabled) null else emptyList()
             )
         )
@@ -369,7 +390,7 @@ class GemmaLiteRtBackend(
         val text = message.contents.contents
             .filterIsInstance<Content.Text>()
             .joinToString(separator = "") { content -> content.text }
-        return text.ifBlank { message.contents.toString() }
+        return if (message.toolCalls.isNotEmpty()) text else text.ifBlank { message.contents.toString() }
     }
 
     private fun closeConversation() {

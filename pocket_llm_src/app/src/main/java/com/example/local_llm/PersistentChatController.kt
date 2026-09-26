@@ -439,12 +439,18 @@ class PersistentChatController(
         history: List<ChatTurn>,
         systemInstruction: String? = null,
         outputTokenReserve: Int? = null,
+        tools: List<ExternalToolDefinition> = emptyList(),
+        toolChoice: ExternalToolChoice = ExternalToolChoice(),
+        parallelToolCalls: Boolean = true,
         onPartial: (BackendResponse) -> Unit = {}
     ): BackendResponse {
         val generation = withContext(Dispatchers.Main.immediate) {
             val modelHistory = history.asModelMemoryTurns()
-            if (modelHistory.isEmpty() || modelHistory.last().role != ChatRole.USER) {
-                throw IllegalArgumentException("External chat requests must end with a user message.")
+            if (
+                modelHistory.isEmpty() ||
+                (modelHistory.last().role != ChatRole.USER && !modelHistory.last().isToolResult)
+            ) {
+                throw IllegalArgumentException("External chat requests must end with a user or tool message.")
             }
             val modelInstruction = listOfNotNull(
                 currentModelInstruction().takeIf(String::isNotBlank),
@@ -454,6 +460,9 @@ class PersistentChatController(
                     historyOverride = modelHistory,
                     modelInstructionOverride = modelInstruction,
                     outputTokenReserveOverride = outputTokenReserve,
+                    toolsOverride = tools,
+                    toolChoiceOverride = toolChoice,
+                    parallelToolCallsOverride = parallelToolCalls,
                     persistResult = false,
                     onExternalPartial = onPartial
                 )
@@ -473,6 +482,9 @@ class PersistentChatController(
         historyOverride: List<ChatTurn>? = null,
         modelInstructionOverride: String? = null,
         outputTokenReserveOverride: Int? = null,
+        toolsOverride: List<ExternalToolDefinition> = emptyList(),
+        toolChoiceOverride: ExternalToolChoice = ExternalToolChoice(),
+        parallelToolCallsOverride: Boolean = true,
         persistResult: Boolean = true,
         onExternalPartial: (BackendResponse) -> Unit = {}
     ): Boolean {
@@ -507,7 +519,10 @@ class PersistentChatController(
                                 attachmentOutputReserve()
                             } else {
                                 outputTokenReserveOverride?.coerceAtLeast(0) ?: 0
-                            }
+                            },
+                            tools = toolsOverride,
+                            toolChoice = toolChoiceOverride,
+                            parallelToolCalls = parallelToolCallsOverride
                         ),
                         onPartial = partialCallback@{ partial ->
                             if (generationId != currentGenerationId) {
@@ -786,6 +801,8 @@ class PersistentChatController(
         backend.cancelGeneration()
         job.cancel(CancellationException("Generation stopped by user."))
     }
+
+    fun supportsNativeToolCalling(): Boolean = backend.capabilities.supportsNativeToolCalling
 
     fun startNewChat() {
         if (generationJob != null) {

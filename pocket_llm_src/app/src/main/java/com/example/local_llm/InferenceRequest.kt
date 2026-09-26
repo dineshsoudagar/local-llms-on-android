@@ -3,6 +3,7 @@ package com.example.local_llm
 data class BackendCapabilities(
     val supportsNativeImage: Boolean = false,
     val supportsNativeAudio: Boolean = false,
+    val supportsNativeToolCalling: Boolean = false,
     val contextWindowTokens: Int = 512
 )
 
@@ -13,5 +14,8 @@ data class InferenceRequest(
     val imageFilePaths: List<String> = emptyList(),
     val nativeAudioInputs: List<NativeAudioInput> = emptyList(),
     val attachmentContext: AttachmentContext? = null,
-    val outputTokenReserve: Int = 0
+    val outputTokenReserve: Int = 0,
+    val tools: List<ExternalToolDefinition> = emptyList(),
+    val toolChoice: ExternalToolChoice = ExternalToolChoice(),
+    val parallelToolCalls: Boolean = true
 )

@@ -23,6 +23,7 @@ class QwenLiteRtBackend(
 ) : ChatBackend {
 
     override val capabilities = BackendCapabilities(
+        supportsNativeToolCalling = true,
         contextWindowTokens = runtimeSettings.contextLengthTokens
     )
 
@@ -100,13 +101,21 @@ class QwenLiteRtBackend(
             "Qwen LiteRT models do not support native audio input."
         }
         val boundedHistory = fitHistoryWithinContext(request)
-        require(boundedHistory.isNotEmpty() && boundedHistory.last().role == ChatRole.USER) {
-            "Qwen LiteRT backend expects the final history turn to be the user's prompt."
+        require(
+            boundedHistory.isNotEmpty() &&
+                (boundedHistory.last().role == ChatRole.USER || boundedHistory.last().isToolResult)
+        ) {
+            "Qwen LiteRT backend expects the final history turn to be a user or tool message."
         }
 
         val initialHistory = boundedHistory.dropLast(1)
         val userTurn = boundedHistory.last()
-        recreateConversation(initialHistory, request.thinkingEnabled, request.modelInstruction)
+        recreateConversation(
+            initialHistory,
+            request.thinkingEnabled,
+            request.modelInstruction,
+            request.tools
+        )
 
         val activeConversation = conversation
             ?: throw IllegalStateException("Conversation was not created.")
@@ -114,8 +123,9 @@ class QwenLiteRtBackend(
         val rawOutputBuilder = StringBuilder()
         val channelThinkingBuilder = StringBuilder()
 
-        activeConversation.sendMessageAsync(userTurn.text).collect { message ->
-            val chunkText = message.contents.toString()
+        var externalToolCalls = emptyList<ExternalToolCall>()
+        activeConversation.sendMessageAsync(userTurn.toLiteRtMessage()).collect { message ->
+            val chunkText = message.visibleText()
             if (chunkText.isNotEmpty()) {
                 rawOutputBuilder.append(chunkText)
             }
@@ -125,18 +135,26 @@ class QwenLiteRtBackend(
                 channelThinkingBuilder.append(thoughtChunk)
             }
 
-            onPartial(
-                QwenResponseParser.parseVisibleResponse(
+            val parsed = QwenResponseParser.parseVisibleResponse(
                     rawOutput = rawOutputBuilder.toString(),
                     channelThinking = channelThinkingBuilder.toString().takeIf { it.isNotBlank() }
                 )
+            if (message.toolCalls.isNotEmpty()) {
+                externalToolCalls = nativeToolCallsToExternal(
+                    message.toolCalls,
+                    externalToolCalls,
+                    request.parallelToolCalls
+                )
+            }
+            onPartial(
+                parsed.copy(toolCalls = externalToolCalls)
             )
         }
 
         QwenResponseParser.parseVisibleResponse(
             rawOutput = rawOutputBuilder.toString(),
             channelThinking = channelThinkingBuilder.toString().takeIf { it.isNotBlank() }
-        )
+        ).copy(toolCalls = externalToolCalls)
     }
 
     override fun cancelGeneration() {
@@ -153,18 +171,18 @@ class QwenLiteRtBackend(
     private fun recreateConversation(
         history: List<ChatTurn>,
         thinkingEnabled: Boolean,
-        modelInstruction: String
+        modelInstruction: String,
+        tools: List<ExternalToolDefinition> = emptyList()
     ) {
         closeConversation()
         conversation = engine.createConversation(
             ConversationConfig(
                 systemInstruction = Contents.of(buildSystemInstruction(thinkingEnabled, modelInstruction)),
                 initialMessages = history.map { turn ->
-                    when (turn.role) {
-                        ChatRole.USER -> Message.user(turn.text)
-                        ChatRole.ASSISTANT -> Message.model(turn.text)
-                    }
+                    turn.toLiteRtMessage()
                 },
+                tools = externalToolProviders(tools),
+                automaticToolCalling = false,
                 channels = if (spec.thinkingModeAvailable && !thinkingEnabled) emptyList() else null
             )
         )
