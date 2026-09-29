@@ -13,7 +13,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val liteRtLmVersion = "0.10.2"
+val liteRtLmVersion = "0.17.1"
 
 android {
     namespace = "com.example.local_llm"
@@ -95,9 +95,6 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.4.2")
     implementation("androidx.camera:camera-view:1.4.2")
     implementation("com.google.mlkit:text-recognition:16.0.1")
-    // Keep the last device-verified runtime from the stable main branch. Gemma 4 native audio
-    // is capability-gated separately because the Kotlin conversation API cannot render its
-    // required audio marker; unavailable native audio uses an explicit local Whisper fallback.
     implementation("com.google.ai.edge.litertlm:litertlm-android:$liteRtLmVersion")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("androidx.work:work-runtime-ktx:2.11.2")

@@ -42,7 +42,7 @@ object ModelPreflightEvaluator {
 
         val backendOverhead = when (descriptor) {
             is OnnxQwenSpec -> 768L * MIB
-            is GemmaLiteRtSpec, is QwenLiteRtSpec -> 1024L * MIB
+            is GemmaLiteRtSpec, is QwenLiteRtSpec, is CustomLiteRtSpec -> 1024L * MIB
         }
         val estimatedWorkingSet = modelBytes + backendOverhead
         val risky = resources.lowMemory ||
@@ -53,7 +53,7 @@ object ModelPreflightEvaluator {
         return ModelPreflightResult(
             kind = ModelPreflightKind.READY,
             estimatedWorkingSetBytes = estimatedWorkingSet,
-            allowCpuFallback = !risky
+            allowCpuFallback = descriptor is CustomLiteRtSpec || !risky
         )
     }
 
@@ -143,7 +143,9 @@ class ModelFileValidator(private val resolver: ModelFileResolver) {
         for (artifact in descriptor.downloadFiles) {
             val file = runCatching { resolver.resolveFile(descriptor, artifact.localFileName) }
                 .getOrElse { return ModelValidationResult(false, it.message ?: "A required model file is missing.") }
-            val problem = ModelArtifactInspector.findProblem(
+            val problem = if (descriptor is CustomLiteRtSpec) {
+                if (file.length() != descriptor.fileBytes) "The imported model file has changed." else null
+            } else ModelArtifactInspector.findProblem(
                 file,
                 artifact,
                 manifest.expectedLength(artifact.localFileName)

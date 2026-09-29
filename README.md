@@ -12,19 +12,18 @@ The app ships as a small base APK. Users download only the models they want, swi
 
 ---
 
-## 🆕 New in v1.5.0
+## 🆕 New in v1.6.0
 
-Pocket LLM now supports richer local input workflows beyond text chat.
+Pocket LLM can now use your Android phone as a private local AI server for a computer on the same network.
 
-- 🎙️ Added voice input for faster prompting
-- 🖼️ Added image input with OCR and Gemma direct image input
-- 📷 Added camera capture with retake, crop, and photo review
-- 🗂️ Added a side panel for quick access to previous chats
-- 🗑️ Added easier chat deletion from the history panel
-- 💾 Added downloaded model deletion to free device storage
-- ⚙️ Added editable model instructions with presets and custom prompts
-- 🎨 Added dark mode, light mode, accent colors, and chat font-size control
-- 📋 Added copy button for assistant responses
+- 🌐 Added a password-protected LAN server with an OpenAI-compatible API and built-in browser UI
+- 💻 Start a chat on your computer while the selected model continues to run on your phone
+- 🗂️ Added browser chat history saved in the phone's private storage, with per-chat deletion
+- 📎 Added browser uploads for PDFs and images; PDF questions use lightweight on-device retrieval
+- 🎨 Refined the browser chat UI with a focused transcript, purple light/dark themes, and keyboard sending
+- ⚙️ Added a per-model context-length input with clear high-memory warnings
+- 🔌 Added tested OpenAI-compatible connectivity for OpenCode and other compatible clients
+- 🛡️ Added safer recovery after interrupted model initialization and clearer high-context memory guidance
 
 #### ➡️ [See all releases](https://github.com/dineshsoudagar/local-llms-on-android/releases)
 
@@ -80,11 +79,11 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 ---
 
-## 📦 Download APK - v1.5.0
+## 📦 Download APK - v1.6.0
 
 The app ships as a **single smaller base APK**.
 
-#### ➡️ [Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.5.0/pocket_llm_v1.5.0.apk)
+#### ➡️ [Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.6.0/pocket_llm_v1.6.0.apk)
 
 Models are **not bundled inside the APK**. After installation, choose and download the models you want directly on device.
 
@@ -120,7 +119,7 @@ Attachment manifests, normalized sources, extracted text/transcripts, chunks, an
 
 ## LAN API and Web UI
 
-Pocket LLM can expose the selected on-device model to another device on the same private network. The main integration surface is an OpenAI-compatible API, so scripts and tools can call the phone directly without a custom chat UI.
+Pocket LLM can expose the selected on-device model to a computer or another device on the same private network. Start the server in the Android app, then open the displayed `/ui` address on your computer to chat in a browser while inference remains on the phone. The same server also exposes an OpenAI-compatible API for scripts and compatible tools.
 
 1. Load a model and open the navigation drawer.
 2. Choose **LAN Server**, set a Web UI password of at least eight characters, then tap **Start**. You can use **Generate** for a random password.
@@ -128,6 +127,25 @@ Pocket LLM can expose the selected on-device model to another device on the same
 4. From another device on the same network, use the phone's displayed URL with `/v1`, for example `http://PHONE_IP:8080/v1`.
 
 The phone dialog shows the address chosen from the phone's local network interfaces. The computer must be on that same Wi-Fi or LAN; a VPN, guest network, mobile-data address, or a different interface can show a different IP and will not work. This is a private-LAN endpoint, not a public Internet URL.
+
+### LAN screenshots
+
+Add the server-start screenshot here:
+
+<!-- ![Start the LAN server from the Android app](data/lan-server-start.png) -->
+
+Add the browser-chat screenshot here:
+
+<!-- ![Pocket LLM browser chat UI](data/lan-browser-ui.png) -->
+
+### Browser Web UI
+
+The `/ui` page provides saved browser conversations, a left-side chat history, light and dark purple themes, and Enter-to-send with Shift+Enter for a new line. Chat history is stored in the phone's private app storage. The selected model remains controlled in the Android app.
+
+Use the attachment button to upload a PDF or image with a message:
+
+- **PDFs:** Pocket LLM extracts embedded text, uses OCR only for pages that need it, then selects relevant chunks for question answering. This is lightweight retrieval for specific questions, not a full long-document research workflow. Retrieval and document workflows will continue to improve in future releases.
+- **Images:** Direct image input is available only when the model currently selected in the Android app supports it.
 
 ### OpenAI-compatible endpoints
 
@@ -170,7 +188,7 @@ The script discovers the model id automatically. It also accepts `--model`, `--s
 
 ### OpenCode coding-agent backend
 
-Phase 1 adds OpenAI-compatible tool calling to `/v1/chat/completions` for LiteRT-backed models. Copy [`examples/opencode-pocket-llm.jsonc`](examples/opencode-pocket-llm.jsonc) into the OpenCode project configuration, replace `PHONE_IP`, and set the phone's LAN password in `POCKET_LLM_PASSWORD`. The example uses the actual model id `qwen3_litert`; if `GET /v1/models` returns a different selected model id, replace both occurrences in the example.
+OpenCode connectivity has been tested against the OpenAI-compatible LiteRT endpoint. Copy [`examples/opencode-pocket-llm.jsonc`](examples/opencode-pocket-llm.jsonc) into the OpenCode project configuration, replace `PHONE_IP`, and set the phone's LAN password in `POCKET_LLM_PASSWORD`. The example uses the actual model id `qwen3_litert`; if `GET /v1/models` returns a different selected model id, replace both occurrences in the example.
 
 ```powershell
 $env:POCKET_LLM_PASSWORD = "YOUR_WEB_UI_PASSWORD"
@@ -179,11 +197,9 @@ opencode
 
 OpenCode owns tool execution: Pocket LLM returns native LiteRT tool calls with OpenAI-compatible ids and arguments, then accepts the follow-up `role: "tool"` message. ONNX-backed models return an explicit unsupported-backend error for tool requests; `/v1/responses`, Codex integration, and native Ollama routes are not part of this phase.
 
+> OpenCode can connect, but coding-agent workloads often need more context than the validated mobile range. Treat this as tested compatibility, not a recommended long-context coding setup.
+
 For Open WebUI or another OpenAI-compatible client, add a connection with base URL `http://PHONE_IP:8080/v1`, enter the same LAN password as the credential, and select the model id returned by `GET /v1/models`.
-
-### Browser Web UI
-
-The built-in `/ui` page remains available for quick manual testing. Open `http://PHONE_IP:8080/ui` in a browser and enter the Web UI password set on the phone. Browser login uses a short-lived session; API clients can use the same LAN password directly, so they do not need to log in through the browser. The optional generated API key is also accepted.
 
 Compatible tools can use the password directly:
 
@@ -195,6 +211,16 @@ curl -X POST http://PHONE_IP:8080/v1/chat/completions \
 ```
 
 The password is stored on the phone as a salted hash and is accepted as a Bearer credential for the API. The generated API key is optional and can be regenerated when needed. Stop the LAN server before changing the password or model; leaving the password field blank keeps the current password. Android may still stop background work because of device power-management policy, so this is intended for local-network use rather than unattended public hosting.
+
+### Context-length setting
+
+LiteRT models expose a context-length field in the Android app's model settings. This is a device-memory trade-off: a larger context can require substantially more native and GPU memory.
+
+- **Recommended tested baseline:** 8K tokens.
+- **Limited manual testing:** 10K to 15K worked on the tested device, but this is not broad device validation.
+- **Configurable maximum:** Qwen LiteRT models allow up to 40K and Gemma LiteRT models up to 128K. Those values are configuration ceilings, not guarantees that a phone can initialize or run safely at that size.
+
+The app warns above 8K. A native LiteRT-LM crash was observed with Gemma 4 E2B at 20K on a tested device, consistent with high-context memory pressure. Keep the context near 8K unless you have tested the selected model on your own device.
 
 ## 🧠 Backend Support
 

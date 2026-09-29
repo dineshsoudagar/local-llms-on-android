@@ -14,7 +14,7 @@ import kotlinx.coroutines.withContext
 
 class QwenLiteRtBackend(
     private val context: Context,
-    private val spec: QwenLiteRtSpec,
+    private val spec: ModelDescriptor,
     private val modelFileResolver: ModelFileResolver,
     private val runtimeSettings: ModelRuntimeSettings = ModelRuntimeSettings(
         ModelRuntimeSettingsLimits.LITERT_DEFAULT_CONTEXT_LENGTH
@@ -23,7 +23,7 @@ class QwenLiteRtBackend(
 ) : ChatBackend {
 
     override val capabilities = BackendCapabilities(
-        supportsNativeToolCalling = true,
+        supportsNativeToolCalling = spec is QwenLiteRtSpec,
         contextWindowTokens = runtimeSettings.contextLengthTokens
     )
 
@@ -95,10 +95,10 @@ class QwenLiteRtBackend(
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse = withContext(Dispatchers.IO) {
         require(request.imageFilePaths.isEmpty()) {
-            "Qwen LiteRT models do not support direct image input."
+            "This text model does not support direct image input. Use OCR."
         }
         require(request.nativeAudioInputs.isEmpty()) {
-            "Qwen LiteRT models do not support native audio input."
+            "This text model does not support native audio input."
         }
         val boundedHistory = fitHistoryWithinContext(request)
         require(
@@ -135,7 +135,9 @@ class QwenLiteRtBackend(
                 channelThinkingBuilder.append(thoughtChunk)
             }
 
-            val parsed = QwenResponseParser.parseVisibleResponse(
+            val parsed = if (spec is CustomLiteRtSpec) {
+                BackendResponse(rawOutputBuilder.toString(), toolCalls = externalToolCalls)
+            } else QwenResponseParser.parseVisibleResponse(
                     rawOutput = rawOutputBuilder.toString(),
                     channelThinking = channelThinkingBuilder.toString().takeIf { it.isNotBlank() }
                 )
@@ -151,10 +153,13 @@ class QwenLiteRtBackend(
             )
         }
 
-        QwenResponseParser.parseVisibleResponse(
+        val finalResponse = if (spec is CustomLiteRtSpec) {
+            BackendResponse(rawOutputBuilder.toString())
+        } else QwenResponseParser.parseVisibleResponse(
             rawOutput = rawOutputBuilder.toString(),
             channelThinking = channelThinkingBuilder.toString().takeIf { it.isNotBlank() }
-        ).copy(toolCalls = externalToolCalls)
+        )
+        finalResponse.copy(toolCalls = externalToolCalls)
     }
 
     override fun cancelGeneration() {
@@ -183,13 +188,13 @@ class QwenLiteRtBackend(
                 },
                 tools = externalToolProviders(tools),
                 automaticToolCalling = false,
-                channels = if (spec.thinkingModeAvailable && !thinkingEnabled) emptyList() else null
+                channels = if (spec is CustomLiteRtSpec || (spec is QwenLiteRtSpec && !thinkingEnabled)) emptyList() else null
             )
         )
     }
 
     private fun buildSystemInstruction(thinkingEnabled: Boolean, modelInstruction: String): String {
-        if (!spec.thinkingModeAvailable) {
+        if (spec !is QwenLiteRtSpec || !spec.thinkingModeAvailable) {
             return modelInstruction.trim()
         }
 

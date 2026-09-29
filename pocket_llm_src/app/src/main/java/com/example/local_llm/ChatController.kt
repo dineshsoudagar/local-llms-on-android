@@ -61,6 +61,7 @@ class ChatController(
                 modelFileResolver,
                 modelRuntimeSettings
             )
+            is CustomLiteRtSpec -> QwenLiteRtBackend(appContext, modelDescriptor, modelFileResolver, modelRuntimeSettings)
         }
     }
 

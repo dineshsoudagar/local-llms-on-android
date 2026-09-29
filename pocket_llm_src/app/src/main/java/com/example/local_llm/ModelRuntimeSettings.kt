@@ -24,6 +24,7 @@ object ModelRuntimeSettingsLimits {
             is OnnxQwenSpec -> ONNX_CONTEXT_LENGTH
             is GemmaLiteRtSpec -> GEMMA_CONTEXT_LENGTH
             is QwenLiteRtSpec -> LITERT_CONTEXT_LENGTH
+            is CustomLiteRtSpec -> LITERT_CONTEXT_LENGTH
         }
     }
 

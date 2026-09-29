@@ -12,6 +12,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.drawable.ColorDrawable
 import android.media.MediaRecorder
 import android.net.Uri
@@ -44,7 +45,9 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.PopupMenu
+import android.widget.PopupWindow
 import android.widget.RadioGroup
+import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.result.PickVisualMediaRequest
@@ -195,7 +198,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private var lastGemmaDirectImageInputAvailable: Boolean? = null
     private var modelDialogViews: ModelDialogViews? = null
     private var modelRecoveryDialog: AlertDialog? = null
-    private var modelDialogForceSelection = false
+    private var modelPickerPopup: PopupWindow? = null
     private lateinit var chatAdapter: ChatAdapter
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var drawerChatsRecyclerView: RecyclerView
@@ -205,6 +208,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var inputEditText: EditText
     private lateinit var toolbarSubtitleView: TextView
     private lateinit var toolbarModelSelector: View
+    private lateinit var selectedModelLabel: TextView
     private lateinit var thinkingToggleContainer: View
     private lateinit var thinkingToggle: CheckBox
     private lateinit var newChatButton: View
@@ -330,6 +334,7 @@ open class PocketChatActivity : AppCompatActivity() {
         modelRuntimeSettingsStore = ModelRuntimeSettingsStore(this)
         modelSelectionStore = ModelSelectionStore(this)
         modelFileResolver = ModelFileResolver(this)
+        ModelRegistry.loadCustomModels(this)
         modelLoadRecoveryStore = ModelLoadRecoveryStore(this)
         modelLoadCoordinator = ModelLoadCoordinator(modelLoadRecoveryStore.load())
         modelPreflightChecker = ModelPreflightChecker(this, modelFileResolver)
@@ -354,6 +359,7 @@ open class PocketChatActivity : AppCompatActivity() {
         drawerChatsRecyclerView = findViewById(R.id.drawerChatsRecyclerView)
         drawerChatsEmptyView = findViewById(R.id.drawerChatsEmpty)
         toolbarModelSelector = findViewById(R.id.modelSelector)
+        selectedModelLabel = findViewById(R.id.selectedModelLabel)
         toolbarSubtitleView = findViewById(R.id.toolbarSubtitle)
         thinkingToggleContainer = findViewById(R.id.thinkingToggleContainer)
         thinkingToggle = findViewById(R.id.thinkingToggle)
@@ -412,20 +418,7 @@ open class PocketChatActivity : AppCompatActivity() {
         })
 
         toolbarModelSelector.setOnClickListener {
-            if (LanServerService.isRunning()) {
-                showTransientMessage(getString(R.string.lan_server_model_switch_blocked))
-                return@setOnClickListener
-            }
-            if (
-                chatController?.state?.value?.isGenerating == true ||
-                isImagePreprocessingForSend ||
-                attachmentImportInProgress ||
-                audioPreparationJob?.isActive == true
-            ) {
-                showTransientMessage(getString(R.string.model_switch_generation_blocked))
-                return@setOnClickListener
-            }
-            showModelSelectionDialog(forceSelection = false)
+            showModelPickerPopup()
         }
 
         newChatButton.setOnClickListener {
@@ -472,6 +465,7 @@ open class PocketChatActivity : AppCompatActivity() {
         currentImageInputMode = modelSelectionStore.loadSelectedImageInputMode()
         ensureImageInputModeAllowedForCurrentModel()
         updateImageInputButtonDescriptions()
+        updateModelSelectorLabel()
 
         val retainedController = retainedState.chatController
         if (retainedController != null && currentModel != null) {
@@ -498,16 +492,15 @@ open class PocketChatActivity : AppCompatActivity() {
                 requestModelLoad(startupModel, activeChatSnapshot = null)
             } else {
                 if (startupModel != null) {
-                    recordPreflightFailure(
-                        startupModel,
-                        getString(R.string.model_missing_message, startupModel.displayName)
-                    )
-                } else {
-                    renderNoControllerState(
-                        getString(R.string.model_required_message),
-                        preserveTranscript = false
-                    )
+                    currentModel = null
+                    retainedState.modelId = null
+                    modelSelectionStore.clearSelectedModel()
+                    updateModelSelectorLabel()
                 }
+                renderNoControllerState(
+                    getString(R.string.model_required_message),
+                    preserveTranscript = false
+                )
                 thinkingToggle.isChecked = false
             }
         }
@@ -521,12 +514,6 @@ open class PocketChatActivity : AppCompatActivity() {
             chatRecyclerView.post {
                 reopenSettingsDialogOnStart = false
                 showSettingsDialog()
-            }
-        } else if (modelLoadCoordinator.record?.phase == ModelLoadPhase.FAILED) {
-            chatRecyclerView.post { showModelRecoveryDialog() }
-        } else if (chatController == null) {
-            chatRecyclerView.post {
-                showModelSelectionDialog(forceSelection = true)
             }
         }
     }
@@ -561,6 +548,7 @@ open class PocketChatActivity : AppCompatActivity() {
         clearPendingImageInputs()
         modelDialogViews?.dialog?.dismiss()
         modelRecoveryDialog?.dismiss()
+        modelPickerPopup?.dismiss()
         super.onDestroy()
     }
 
@@ -576,7 +564,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val controller = chatController
         if (controller == null) {
             showTransientMessage(getString(R.string.model_required_message))
-            showModelSelectionDialog(forceSelection = true)
+            showModelPickerPopup()
             return null
         }
 
@@ -2987,27 +2975,15 @@ open class PocketChatActivity : AppCompatActivity() {
             }
 
             is ModelDownloadState.Completed -> {
-                val textDescriptor = ModelRegistry.findById(state.modelId)
                 modelOperationStatusMessage = null
                 resetDownloadState()
                 refreshModelSelectionDialog()
-
-                val shouldOpenDownloadedModel = textDescriptor != null &&
-                    (chatController == null || currentModel?.id == textDescriptor.id)
-
-                if (textDescriptor != null && shouldOpenDownloadedModel) {
-                    modelDialogViews?.dialog?.dismiss()
-                    requestModelLoad(
-                        textDescriptor,
-                        activeChatSnapshot = chatController?.snapshotActiveChat()
-                            ?: retainedState.pendingModelLoadSnapshot,
-                    )
+                if (chatController != null) {
+                    applyChatState(chatController!!.state.value)
                 } else {
-                    chatController?.let { applyChatState(it.state.value) }
-                    showTransientMessage(
-                        getString(R.string.download_notification_complete, state.modelName)
-                    )
+                    renderNoControllerState(getString(R.string.model_required_message), preserveTranscript = true)
                 }
+                showTransientMessage(getString(R.string.download_notification_complete, state.modelName))
 
                 ModelDownloadStateStore.clearTerminalState(state.modelId)
             }
@@ -3053,6 +3029,7 @@ open class PocketChatActivity : AppCompatActivity() {
         autoScrollPendingFinalUpdate = false
         wasGenerating = false
         toolbarSubtitleView.text = descriptor.displayName
+        updateModelSelectorLabel()
         lastGemmaDirectImageInputAvailable = null
         updateImageInputButtonDescriptions()
         refreshDrawerSessions()
@@ -3077,6 +3054,50 @@ open class PocketChatActivity : AppCompatActivity() {
     private val audioPickerLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let { importAttachment(it, AttachmentKind.AUDIO) } }
+
+    private val customModelPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let(::importCustomModel) }
+
+    private fun showCustomModelWarning() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.custom_model_warning_title)
+            .setMessage(R.string.custom_model_warning)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.custom_model_choose_file) { _, _ ->
+                customModelPickerLauncher.launch(arrayOf("*/*"))
+            }
+            .show()
+    }
+
+    private fun importCustomModel(uri: Uri) {
+        val progress = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.custom_model_add)
+            .setMessage(R.string.custom_model_importing)
+            .setCancelable(false)
+            .create()
+        progress.show()
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { CustomLiteRtModelStore(this@PocketChatActivity).import(uri) }
+            }
+            progress.dismiss()
+            result.fold(
+                onSuccess = { descriptor ->
+                    ModelRegistry.loadCustomModels(this@PocketChatActivity)
+                    refreshModelSelectionDialog()
+                    handleModelSelection(descriptor)
+                },
+                onFailure = { error ->
+                    MaterialAlertDialogBuilder(this@PocketChatActivity)
+                        .setTitle(R.string.custom_model_add)
+                        .setMessage(getString(R.string.custom_model_import_failed, error.message ?: "Unknown error"))
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show()
+                }
+            )
+        }
+    }
 
     private fun requestModelLoad(
         descriptor: ModelDescriptor,
@@ -3240,10 +3261,12 @@ open class PocketChatActivity : AppCompatActivity() {
 
         title = state.title
         toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
+        updateModelSelectorLabel()
         thinkingToggleContainer.visibility = if (state.supportsThinking) View.VISIBLE else View.GONE
         val gemmaDirectAvailable = isGemmaDirectImageInputAvailable()
         if (!gemmaDirectAvailable && currentImageInputMode == ImageInputMode.GEMMA_DIRECT) {
             selectOcrImageInputMode(resetGemmaDirectInputs = true)
+            updateModelSelectorLabel()
         }
         if (lastGemmaDirectImageInputAvailable != gemmaDirectAvailable) {
             lastGemmaDirectImageInputAvailable = gemmaDirectAvailable
@@ -3258,7 +3281,11 @@ open class PocketChatActivity : AppCompatActivity() {
             !attachmentImportInProgress && audioPreparationJob?.isActive != true
         stopButton.isEnabled = state.isGenerating
 
-        val effectiveStatus = modelOperationStatusMessage ?: state.statusMessage
+        val effectiveStatus = if (state.isReady) {
+            state.statusMessage
+        } else {
+            modelOperationStatusMessage ?: state.statusMessage
+        }
         statusView.text = effectiveStatus
         val showInlineStatus = effectiveStatus.isNotBlank() &&
             (state.transcript.isEmpty() || !state.isReady)
@@ -3278,6 +3305,7 @@ open class PocketChatActivity : AppCompatActivity() {
     ) {
         title = getString(R.string.toolbar_app_title)
         toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
+        updateModelSelectorLabel()
         thinkingToggleContainer.visibility = View.GONE
         newChatButton.isEnabled = false
         sendButton.visibility = View.VISIBLE
@@ -3295,19 +3323,154 @@ open class PocketChatActivity : AppCompatActivity() {
         wasGenerating = false
     }
 
-    private fun showModelSelectionDialog(forceSelection: Boolean) {
-        if (LanServerService.isRunning()) {
-            showTransientMessage(getString(R.string.lan_server_model_switch_blocked))
-            return
+    private fun updateModelSelectorLabel() {
+        if (!::selectedModelLabel.isInitialized) return
+        selectedModelLabel.text = currentModel?.displayName
+            ?: getString(R.string.model_picker_empty_subtitle)
+        toolbarModelSelector.contentDescription = getString(
+            R.string.model_popup_selected_format,
+            selectedModelLabel.text,
+            if (currentImageInputMode == ImageInputMode.GEMMA_DIRECT) {
+                getString(R.string.gemma_direct_image_model_name)
+            } else {
+                getString(R.string.ocr_image_model_name)
+            }
+        )
+    }
+
+    private fun showModelPickerPopup() {
+        modelPickerPopup?.dismiss()
+        val content = layoutInflater.inflate(R.layout.popup_model_picker, null)
+        val options: LinearLayout = content.findViewById(R.id.modelPickerOptions)
+        val scroll: ScrollView = content.findViewById(R.id.modelPickerScroll)
+        val manageLink: TextView = content.findViewById(R.id.modelPickerManageLink)
+        val panelWidth = minOf(dp(310), resources.displayMetrics.widthPixels - dp(24))
+        val popup = PopupWindow(content, panelWidth, ViewGroup.LayoutParams.WRAP_CONTENT, true).apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            isOutsideTouchable = true
+            elevation = dp(12).toFloat()
         }
+        modelPickerPopup = popup
+        popup.setOnDismissListener {
+            if (modelPickerPopup === popup) modelPickerPopup = null
+        }
+        val mutedColor = resolveThemeColor(R.attr.colorStatusText)
+        val textColor = resolveThemeColor(R.attr.colorAssistantText)
+        val accentColor = resolveThemeColor(R.attr.colorSendFill)
+
+        fun addHeading(title: String) {
+            options.addView(TextView(this).apply {
+                text = title
+                setTextColor(mutedColor)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setPadding(dp(8), dp(8), dp(8), dp(3))
+            })
+        }
+
+        fun addOption(label: String, selected: Boolean, enabled: Boolean = true, action: () -> Unit) {
+            val row = LinearLayout(this).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(42)
+                )
+                gravity = Gravity.CENTER_VERTICAL
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(dp(8), 0, dp(8), 0)
+                isClickable = enabled
+                isFocusable = enabled
+                isEnabled = enabled
+                val ripple = TypedValue()
+                if (theme.resolveAttribute(android.R.attr.selectableItemBackground, ripple, true)) {
+                    setBackgroundResource(ripple.resourceId)
+                }
+                contentDescription = if (selected) {
+                    "$label, ${getString(R.string.model_status_current)}"
+                } else {
+                    label
+                }
+                if (enabled) setOnClickListener {
+                    popup.dismiss()
+                    action()
+                }
+            }
+            row.addView(TextView(this).apply {
+                text = label
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setTextColor(if (!enabled) mutedColor else if (selected) accentColor else textColor)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            if (selected) {
+                row.addView(TextView(this).apply {
+                    text = "✓"
+                    setTextColor(accentColor)
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                    setPadding(dp(8), 0, 0, 0)
+                })
+            }
+            options.addView(row)
+        }
+
+        val availableModels = ModelRegistry.all.filter(modelFileResolver::isModelAvailable)
+        addHeading(getString(R.string.model_popup_text_heading))
+        if (availableModels.isEmpty()) {
+            addOption(getString(R.string.model_popup_no_text), selected = false, enabled = false) {}
+        } else {
+            availableModels.forEach { descriptor ->
+                addOption(
+                    descriptor.displayName,
+                    selected = descriptor.id == currentModel?.id && chatController != null
+                ) { handleModelSelection(descriptor) }
+            }
+        }
+        addHeading(getString(R.string.model_popup_image_heading))
+        addOption(
+            getString(R.string.ocr_image_model_name),
+            selected = currentImageInputMode == ImageInputMode.OCR
+        ) { handleOcrImageModelSelection() }
+        if (isGemmaDirectImageInputSupportedBySelectedModel()) {
+            addOption(
+                getString(R.string.gemma_direct_image_model_name),
+                selected = currentImageInputMode == ImageInputMode.GEMMA_DIRECT,
+                enabled = isGemmaDirectImageInputAvailable()
+            ) { handleGemmaDirectImageModelSelection() }
+        }
+        manageLink.setOnClickListener {
+            popup.dismiss()
+            showManageModelsDialog()
+        }
+
+        val anchorLocation = IntArray(2)
+        toolbarModelSelector.getLocationOnScreen(anchorLocation)
+        val visibleFrame = Rect()
+        window.decorView.getWindowVisibleDisplayFrame(visibleFrame)
+        val spaceAbove = (anchorLocation[1] - visibleFrame.top - dp(12)).coerceAtLeast(dp(120))
+        val optionsWidth = panelWidth - dp(20)
+        options.measure(
+            View.MeasureSpec.makeMeasureSpec(optionsWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        scroll.layoutParams = scroll.layoutParams.apply {
+            height = minOf(options.measuredHeight, (spaceAbove - dp(64)).coerceAtLeast(dp(56)))
+        }
+        content.measure(
+            View.MeasureSpec.makeMeasureSpec(panelWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        popup.height = content.measuredHeight
+        val x = (anchorLocation[0] + toolbarModelSelector.width - panelWidth)
+            .coerceIn(dp(12), (resources.displayMetrics.widthPixels - panelWidth - dp(12)).coerceAtLeast(dp(12)))
+        val y = (anchorLocation[1] - popup.height - dp(6)).coerceAtLeast(visibleFrame.top + dp(4))
+        popup.showAtLocation(toolbarModelSelector, Gravity.TOP or Gravity.START, x, y)
+    }
+
+    private fun showManageModelsDialog() {
         val existingDialog = modelDialogViews?.dialog
         if (existingDialog != null && existingDialog.isShowing) {
-            modelDialogForceSelection = forceSelection || modelDialogForceSelection
             refreshModelSelectionDialog()
             return
         }
 
-        modelDialogForceSelection = forceSelection
         val dialogBuilder = MaterialAlertDialogBuilder(this)
         val dialogView = LayoutInflater.from(dialogBuilder.context)
             .inflate(R.layout.dialog_model_selection, null)
@@ -3322,9 +3485,12 @@ open class PocketChatActivity : AppCompatActivity() {
             listContainer = dialogView.findViewById(R.id.modelListContainer)
         )
 
+        dialogView.findViewById<Button>(R.id.importLocalModelButton).setOnClickListener {
+            showCustomModelWarning()
+        }
+
         dialog.setOnDismissListener {
             modelDialogViews = null
-            modelDialogForceSelection = false
         }
 
         modelDialogViews = dialogUi
@@ -3355,7 +3521,7 @@ open class PocketChatActivity : AppCompatActivity() {
                 when (which) {
                     0 -> {
                         dialog.dismiss()
-                        showModelSelectionDialog(forceSelection = false)
+                        showModelPickerPopup()
                     }
                     1 -> {
                         dialog.dismiss()
@@ -3394,25 +3560,14 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun refreshModelSelectionDialog() {
         val dialogUi = modelDialogViews ?: return
-        val canCancel = !modelDialogForceSelection || activeDownloadModelId != null
-        dialogUi.dialog.setCancelable(canCancel)
-        dialogUi.dialog.setCanceledOnTouchOutside(canCancel)
-        dialogUi.introView.text = if (modelDialogForceSelection) {
-            getString(R.string.model_picker_required_intro)
-        } else {
-            getString(R.string.model_picker_optional_intro)
-        }
+        dialogUi.dialog.setCancelable(true)
+        dialogUi.dialog.setCanceledOnTouchOutside(true)
+        dialogUi.introView.text = getString(R.string.manage_models_intro)
 
         dialogUi.listContainer.removeAllViews()
         val inflater = LayoutInflater.from(this)
-        addModelSectionHeader(dialogUi.listContainer, getString(R.string.chat_model_section_title))
         ModelRegistry.all.forEach { descriptor ->
             addTextModelOption(inflater, dialogUi.listContainer, descriptor)
-        }
-        addModelSectionHeader(dialogUi.listContainer, getString(R.string.image_model_section_title))
-        addOcrImageModelOption(inflater, dialogUi.listContainer)
-        if (isGemmaDirectImageInputSupportedBySelectedModel()) {
-            addGemmaDirectImageModelOption(inflater, dialogUi.listContainer)
         }
     }
 
@@ -3657,6 +3812,11 @@ open class PocketChatActivity : AppCompatActivity() {
             drawerLayout.post {
                 showModelSettingsDialog()
             }
+        }
+
+        findViewById<View>(R.id.drawerManageModelsRow).setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            drawerLayout.post { showManageModelsDialog() }
         }
 
         findViewById<View>(R.id.drawerAboutRow).setOnClickListener {
@@ -4023,6 +4183,7 @@ open class PocketChatActivity : AppCompatActivity() {
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(getString(R.string.delete)) { _, _ ->
                 if (modelFileResolver.deleteDownloadedModel(descriptor)) {
+                    if (descriptor is CustomLiteRtSpec) ModelRegistry.loadCustomModels(this)
                     if (isFailedModel) {
                         controllerStateJob?.cancel()
                         chatController?.close()
@@ -4057,8 +4218,6 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun handleModelSelection(descriptor: ModelDescriptor) {
-        ensureImageInputModeAllowedForModel(descriptor)
-
         if (descriptor.id == currentModel?.id && chatController != null) {
             modelDialogViews?.dialog?.dismiss()
             return
@@ -4066,6 +4225,18 @@ open class PocketChatActivity : AppCompatActivity() {
 
         val isAvailable = modelFileResolver.isModelAvailable(descriptor)
         if (isAvailable) {
+            if (LanServerService.isRunning()) {
+                showTransientMessage(getString(R.string.lan_server_model_switch_blocked))
+                return
+            }
+            if (chatController?.state?.value?.isGenerating == true ||
+                isImagePreprocessingForSend || attachmentImportInProgress ||
+                audioPreparationJob?.isActive == true
+            ) {
+                showTransientMessage(getString(R.string.model_switch_generation_blocked))
+                return
+            }
+            ensureImageInputModeAllowedForModel(descriptor)
             val activeChatSnapshot = chatController?.snapshotActiveChat()
                 ?: retainedState.pendingModelLoadSnapshot
             modelDialogViews?.dialog?.dismiss()
@@ -4082,13 +4253,22 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun handleOcrImageModelSelection() {
+        if (chatController?.state?.value?.isGenerating == true || isImagePreprocessingForSend) {
+            showTransientMessage(getString(R.string.model_switch_generation_blocked))
+            return
+        }
         selectOcrImageInputMode(resetGemmaDirectInputs = true)
+        updateModelSelectorLabel()
         refreshModelSelectionDialog()
         dismissModelDialogAfterImageSelectionIfAllowed()
         showTransientMessage(getString(R.string.ocr_image_model_selected))
     }
 
     private fun handleGemmaDirectImageModelSelection() {
+        if (chatController?.state?.value?.isGenerating == true || isImagePreprocessingForSend) {
+            showTransientMessage(getString(R.string.model_switch_generation_blocked))
+            return
+        }
         if (!isGemmaDirectImageInputAvailable()) {
             showTransientMessage(getString(R.string.gemma_direct_image_model_unavailable))
             return
@@ -4097,15 +4277,14 @@ open class PocketChatActivity : AppCompatActivity() {
         currentImageInputMode = ImageInputMode.GEMMA_DIRECT
         modelSelectionStore.saveSelectedImageInputMode(ImageInputMode.GEMMA_DIRECT)
         updateImageInputButtonDescriptions()
+        updateModelSelectorLabel()
         refreshModelSelectionDialog()
         dismissModelDialogAfterImageSelectionIfAllowed()
         showTransientMessage(getString(R.string.gemma_direct_image_model_selected))
     }
 
     private fun dismissModelDialogAfterImageSelectionIfAllowed() {
-        if (!modelDialogForceSelection || chatController != null) {
-            modelDialogViews?.dialog?.dismiss()
-        }
+        modelDialogViews?.dialog?.dismiss()
     }
 
     private fun updateImageInputButtonDescriptions() {
@@ -4386,24 +4565,50 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun showModelSettingsDialog() {
-        val descriptor = currentModel
-        if (descriptor == null || chatController == null) {
-            showTransientMessage(getString(R.string.model_required_message))
-            showModelSelectionDialog(forceSelection = true)
+        val selectedModel = currentModel?.takeIf(modelFileResolver::isModelAvailable)
+        if (selectedModel != null) {
+            showModelSettingsDialog(selectedModel)
             return
         }
 
-        if (chatController?.state?.value?.isGenerating == true) {
+        val availableModels = ModelRegistry.all.filter(modelFileResolver::isModelAvailable)
+        if (availableModels.isEmpty()) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.model_settings_title)
+                .setMessage(R.string.model_settings_no_models)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.manage_models) { _, _ -> showManageModelsDialog() }
+                .show()
+            return
+        }
+
+        if (availableModels.size == 1) {
+            showModelSettingsDialog(availableModels.single())
+            return
+        }
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.model_settings_choose_model)
+            .setItems(availableModels.map { it.displayName }.toTypedArray()) { _, index ->
+                showModelSettingsDialog(availableModels[index])
+            }
+            .show()
+    }
+
+    private fun showModelSettingsDialog(descriptor: ModelDescriptor) {
+        val editingActiveModel = currentModel?.id == descriptor.id && chatController != null
+
+        if (editingActiveModel && chatController?.state?.value?.isGenerating == true) {
             showTransientMessage(getString(R.string.model_settings_generation_blocked))
             return
         }
 
-        if (LanServerService.isRunning()) {
+        if (editingActiveModel && LanServerService.isRunning()) {
             showTransientMessage(getString(R.string.model_settings_lan_blocked))
             return
         }
 
-        if (!modelFileResolver.isModelDownloaded(descriptor)) {
+        if (!modelFileResolver.isModelAvailable(descriptor)) {
             showTransientMessage(getString(R.string.model_settings_download_required))
             return
         }
@@ -4550,8 +4755,12 @@ open class PocketChatActivity : AppCompatActivity() {
                 updatedRuntimeSettings.contextLengthTokens != runtimeSettings.contextLengthTokens
             dialog.dismiss()
             if (runtimeSettingsChanged) {
-                showTransientMessage(getString(R.string.model_context_length_saved))
-                reloadCurrentModelAfterRuntimeSettings()
+                if (editingActiveModel) {
+                    showTransientMessage(getString(R.string.model_context_length_saved))
+                    reloadCurrentModelAfterRuntimeSettings()
+                } else {
+                    showTransientMessage(getString(R.string.model_settings_saved))
+                }
             } else {
                 showTransientMessage(getString(R.string.model_instruction_saved))
             }
@@ -4610,6 +4819,8 @@ open class PocketChatActivity : AppCompatActivity() {
                 warningDialog.setOnShowListener {
                     warningDialog.findViewById<TextView>(androidx.appcompat.R.id.alertTitle)
                         ?.setTextColor(ContextCompat.getColor(this, R.color.delete_red))
+                    warningDialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                        ?.setTextColor(resolveThemeColor(R.attr.colorAssistantText))
                 }
                 warningDialog.show()
             } else {

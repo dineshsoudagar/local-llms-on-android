@@ -1,6 +1,7 @@
 package com.example.local_llm
 
 import android.content.Context
+import android.net.Uri
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -9,6 +10,7 @@ import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedWriter
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -18,6 +20,7 @@ import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.security.SecureRandom
 import java.util.Collections
@@ -34,178 +37,27 @@ class LanHttpServer(
     private val apiKeyVerifier: (String) -> Boolean,
     private val port: Int = DEFAULT_PORT
 ) {
+    private enum class LanUiUploadKind { PDF, IMAGE }
+
+    private data class LanUiUpload(
+        val id: String,
+        val chatId: String,
+        val displayName: String,
+        val kind: LanUiUploadKind,
+        val attachmentId: String? = null,
+        val file: File? = null
+    )
+
     companion object {
         const val DEFAULT_PORT = 8080
         private const val UI_PATH = "/ui"
         private const val MAX_LINE_LENGTH = 16 * 1024
         private const val MAX_BODY_BYTES = 1 * 1024 * 1024
+        private const val MAX_UPLOAD_BYTES = 16 * 1024 * 1024
+        private const val MAX_IMAGE_UPLOAD_BYTES = 12 * 1024 * 1024
         private const val REQUEST_TIMEOUT_MS = 5 * 60 * 1000
         private const val SESSION_TTL_MS = 12 * 60 * 60 * 1000L
 
-        private val WEB_UI_HTML = """
-            <!doctype html>
-            <html lang="en">
-            <head>
-              <meta charset="utf-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <title>Pocket LLM</title>
-              <style>
-                :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; }
-                * { box-sizing: border-box; }
-                body { margin: 0; background: #f5f2f8; color: #27222f; }
-                main { width: min(900px, calc(100% - 32px)); min-height: 100svh; margin: 0 auto; padding: 24px 0 32px; }
-                h1 { margin: 48px 0 8px; font-size: clamp(28px, 5vw, 42px); letter-spacing: -.03em; }
-                p { color: #6b6475; line-height: 1.5; }
-                label { display: block; margin: 24px 0 8px; color: #42384f; font-weight: 800; }
-                input, textarea { width: 100%; border: 1px solid #d9d0e2; border-radius: 14px; padding: 13px 15px; background: #fff; color: inherit; font: inherit; outline: none; }
-                input:focus, textarea:focus { border-color: #7953d5; box-shadow: 0 0 0 3px #7953d526; }
-                textarea { min-height: 56px; resize: vertical; }
-                button { border: 0; border-radius: 999px; padding: 12px 22px; background: #7650d2; color: #fff; font: inherit; font-weight: 800; cursor: pointer; transition: transform .15s ease, opacity .15s ease; }
-                button:hover { transform: translateY(-1px); }
-                button:disabled { opacity: .55; cursor: wait; transform: none; }
-                .brand { display: flex; align-items: center; gap: 12px; }
-                .brand img { width: 48px; height: 48px; border-radius: 14px; object-fit: cover; }
-                .brand strong, .brand span { display: block; }
-                .brand strong { color: #5c35bd; font-size: 18px; }
-                .brand span { margin-top: 2px; color: #81788f; font-size: 12px; }
-                .login-view { width: min(520px, 100%); margin: 9vh auto 0; }
-                .login-view button { margin-top: 20px; }
-                .error { min-height: 24px; margin-top: 12px; color: #b32f45; }
-                .topbar { display: flex; align-items: center; justify-content: space-between; padding-bottom: 18px; border-bottom: 1px solid #ddd4e5; }
-                .quiet { padding: 9px 15px; background: transparent; color: #6b528e; border: 1px solid #d5c9df; }
-                .messages { display: flex; flex-direction: column; gap: 14px; min-height: 52vh; padding: 28px 0; }
-                .message { max-width: min(78%, 680px); padding: 14px 16px; white-space: pre-wrap; line-height: 1.5; border-radius: 18px; animation: rise .18s ease-out; }
-                .message.user { align-self: flex-end; background: #7650d2; color: #fff; border-bottom-right-radius: 5px; }
-                .message.assistant { align-self: flex-start; background: #fff; color: #312a3b; border: 1px solid #e1d9e8; border-bottom-left-radius: 5px; }
-                .composer { display: flex; align-items: flex-end; gap: 10px; padding: 12px; background: #fff; border: 1px solid #d9d0e2; border-radius: 18px; box-shadow: 0 8px 24px #493b5a12; }
-                .composer textarea { min-height: 44px; max-height: 180px; padding: 10px 4px; border: 0; box-shadow: none; resize: none; }
-                .composer textarea:focus { box-shadow: none; }
-                .composer button { flex: 0 0 auto; }
-                .hint { margin-top: 12px; font-size: 13px; }
-                [hidden] { display: none !important; }
-                @keyframes rise { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-                @media (max-width: 560px) { main { width: min(100% - 24px, 900px); padding-top: 16px; } .message { max-width: 88%; } .topbar .brand img { width: 40px; height: 40px; } .topbar .brand strong { font-size: 16px; } }
-              </style>
-            </head>
-            <body>
-              <main>
-                <section id="loginView" class="login-view">
-                  <div class="brand"><img src="/logo.webp" alt=""><div><strong>Pocket LLM</strong><span>Private local server</span></div></div>
-                  <h1>Sign in to Pocket LLM</h1>
-                  <p>Enter the password set on the phone. The model stays on the phone and this browser only sends text over your private network.</p>
-                  <label for="password">Server password</label>
-                  <input id="password" type="password" autocomplete="current-password" placeholder="Enter your password">
-                  <button id="login" type="button">Log in</button>
-                  <div id="loginError" class="error" role="alert"></div>
-                </section>
-                <section id="chatView" hidden>
-                  <header class="topbar">
-                    <div class="brand"><img src="/logo.webp" alt=""><div><strong>Pocket LLM</strong><span>Private local server</span></div></div>
-                    <button id="logout" class="quiet" type="button">Log out</button>
-                  </header>
-                  <div id="messages" class="messages" aria-live="polite"></div>
-                  <form id="composer" class="composer">
-                    <textarea id="prompt" rows="1" placeholder="Ask the local model something..."></textarea>
-                    <button id="send" type="submit">Send</button>
-                  </form>
-                  <p class="hint">Text chat only for now. The selected model and its settings remain on the phone.</p>
-                </section>
-              </main>
-              <script>
-                const loginView = document.getElementById('loginView');
-                const chatView = document.getElementById('chatView');
-                const password = document.getElementById('password');
-                const login = document.getElementById('login');
-                const loginError = document.getElementById('loginError');
-                const messages = document.getElementById('messages');
-                const prompt = document.getElementById('prompt');
-                const send = document.getElementById('send');
-                const logout = document.getElementById('logout');
-                const composer = document.getElementById('composer');
-                let sessionToken = sessionStorage.getItem('pocket_llm_session');
-                function showChat() {
-                  loginView.hidden = true;
-                  chatView.hidden = false;
-                  if (!messages.children.length) addMessage('assistant', 'Connected. What would you like to ask?');
-                  prompt.focus();
-                }
-                function addMessage(role, text) {
-                  const item = document.createElement('div');
-                  item.className = 'message ' + role;
-                  item.textContent = text;
-                  messages.appendChild(item);
-                  messages.scrollTop = messages.scrollHeight;
-                  return item;
-                }
-                async function loginToServer() {
-                  const value = password.value.trim();
-                  if (!value) { loginError.textContent = 'Enter the server password.'; return; }
-                  login.disabled = true;
-                  loginError.textContent = '';
-                  try {
-                    const result = await fetch('/auth/login', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ password: value })
-                    });
-                    const payload = await result.json();
-                    if (!result.ok) throw new Error(payload.error && payload.error.message ? payload.error.message : 'Login failed.');
-                    sessionToken = payload.token;
-                    sessionStorage.setItem('pocket_llm_session', sessionToken);
-                    showChat();
-                  } catch (error) {
-                    loginError.textContent = error.message || 'Login failed.';
-                  } finally {
-                    login.disabled = false;
-                  }
-                }
-                login.addEventListener('click', loginToServer);
-                password.addEventListener('keydown', event => { if (event.key === 'Enter') loginToServer(); });
-                composer.addEventListener('submit', async event => {
-                  event.preventDefault();
-                  const text = prompt.value.trim();
-                  if (!text || !sessionToken) return;
-                  addMessage('user', text);
-                  prompt.value = '';
-                  const pending = addMessage('assistant', 'Thinking...');
-                  send.disabled = true;
-                  try {
-                    const result = await fetch('/v1/chat/completions', {
-                      method: 'POST',
-                      headers: { 'Authorization': 'Bearer ' + sessionToken, 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ prompt: text })
-                    });
-                    const payload = await result.json();
-                    if (result.status === 401) {
-                      sessionStorage.removeItem('pocket_llm_session');
-                      sessionToken = null;
-                      loginError.textContent = 'Your session expired. Log in again.';
-                      loginView.hidden = false;
-                      chatView.hidden = true;
-                      return;
-                    }
-                    if (!result.ok) throw new Error(payload.error && payload.error.message ? payload.error.message : 'Request failed.');
-                    pending.textContent = payload.choices && payload.choices[0] && payload.choices[0].message
-                      ? payload.choices[0].message.content
-                      : 'The server returned no assistant message.';
-                  } catch (error) {
-                    pending.textContent = error.message || 'The request failed.';
-                  } finally { send.disabled = false; }
-                });
-                logout.addEventListener('click', () => {
-                  sessionStorage.removeItem('pocket_llm_session');
-                  sessionToken = null;
-                  messages.textContent = '';
-                  chatView.hidden = true;
-                  loginView.hidden = false;
-                  password.value = '';
-                  password.focus();
-                });
-                if (sessionToken) showChat();
-              </script>
-            </body>
-            </html>
-        """.trimIndent()
 
         private val STATUS_REASONS = mapOf(
             200 to "OK",
@@ -225,6 +77,12 @@ class LanHttpServer(
     private val requestExecutor: ExecutorService = Executors.newFixedThreadPool(2)
     private val sessionTokens = ConcurrentHashMap<String, Long>()
     private val secureRandom = SecureRandom()
+    private val chatStore = LanChatStore(context)
+    private val attachmentRepository = AttachmentRepository(context)
+    private val attachmentImporter = AttachmentImporter(context, attachmentRepository)
+    private val uploads = ConcurrentHashMap<String, LanUiUpload>()
+    private val webUiHtml: String = context.assets.open("lan_ui.html")
+        .bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
     private val logoBytes: ByteArray = runCatching {
         context.resources.openRawResource(R.mipmap.ic_launcher_2_foreground).use { it.readBytes() }
     }.getOrDefault(ByteArray(0))
@@ -258,6 +116,8 @@ class LanHttpServer(
         serverSocket = null
         acceptExecutor.shutdownNow()
         requestExecutor.shutdownNow()
+        uploads.values.forEach { it.file?.delete() }
+        uploads.clear()
     }
 
     private fun handle(socket: Socket) {
@@ -301,7 +161,7 @@ class LanHttpServer(
 
             val path = requestParts[1].substringBefore('?')
             if (requestParts[0] == "GET" && (path == "/" || path == UI_PATH)) {
-                writeHtml(writer, 200, WEB_UI_HTML)
+                writeHtml(writer, 200, webUiHtml)
                 return
             }
             if (requestParts[0] == "GET" && path == "/logo.webp") {
@@ -309,8 +169,10 @@ class LanHttpServer(
                 return
             }
 
+            val isUpload = requestParts[0] == "POST" && path == "/ui/attachments"
+            val maximumBodyBytes = if (isUpload) MAX_UPLOAD_BYTES else MAX_BODY_BYTES
             val contentLength = headers["content-length"]?.toIntOrNull() ?: 0
-            if (contentLength < 0 || contentLength > MAX_BODY_BYTES) {
+            if (contentLength < 0 || contentLength > maximumBodyBytes) {
                 writeJson(writer, 413, errorJson("Request body is too large."))
                 return
             }
@@ -337,6 +199,14 @@ class LanHttpServer(
             }
 
             when {
+                requestParts[0] == "POST" && path == "/ui/attachments" -> {
+                    handleUiAttachmentUpload(writer, headers, bodyBytes)
+                }
+
+                path == "/ui/chats" || path == "/ui/chats/delete" || path.startsWith("/ui/chats/") -> {
+                    handleUiChats(writer, requestParts[0], path, String(bodyBytes, StandardCharsets.UTF_8))
+                }
+
                 requestParts[0] == "GET" && path == "/v1/models" -> {
                     writeModels(writer)
                 }
@@ -368,6 +238,112 @@ class LanHttpServer(
         }
     }
 
+    private fun handleUiChats(writer: BufferedWriter, method: String, path: String, body: String) {
+        try {
+            when {
+                method == "GET" && path == "/ui/chats" ->
+                    writeJson(writer, 200, JSONObject().put("chats", chatStore.list()))
+                method == "GET" && path.startsWith("/ui/chats/") -> {
+                    val chat = chatStore.get(path.removePrefix("/ui/chats/"))
+                    if (chat == null) writeJson(writer, 404, errorJson("Chat not found."))
+                    else writeJson(writer, 200, JSONObject().put("chat", chat))
+                }
+                method == "POST" && path == "/ui/chats" ->
+                    writeJson(writer, 200, JSONObject().put("chat", chatStore.save(JSONObject(body))))
+                method == "POST" && path == "/ui/chats/delete" -> {
+                    val chatId = JSONObject(body).optString("id")
+                    chatStore.delete(chatId)
+                    attachmentRepository.deleteSession(chatId)
+                    uploads.values
+                        .filter { it.chatId == chatId }
+                        .forEach { upload -> uploads.remove(upload.id)?.file?.delete() }
+                    writeJson(writer, 200, JSONObject().put("deleted", true))
+                }
+                else -> writeJson(writer, 405, errorJson("Unsupported chat operation."))
+            }
+        } catch (error: IllegalArgumentException) {
+            writeJson(writer, 400, errorJson(error.message ?: "Invalid chat."))
+        } catch (_: org.json.JSONException) {
+            writeJson(writer, 400, errorJson("Request body must be valid JSON."))
+        } catch (_: IOException) {
+            writeJson(writer, 500, errorJson("Could not save chat on the phone."))
+        }
+    }
+
+    private fun handleUiAttachmentUpload(
+        writer: BufferedWriter,
+        headers: Map<String, String>,
+        body: ByteArray
+    ) {
+        try {
+            val chatId = decodeUploadHeader(headers["x-chat-id"])
+            require(chatId.matches(Regex("[A-Za-z0-9_-]{1,64}"))) { "Invalid chat ID." }
+            val displayName = decodeUploadHeader(headers["x-upload-name"])
+                .takeIf(String::isNotBlank)?.take(160) ?: "attachment"
+            val contentType = headers["content-type"].orEmpty().substringBefore(';').lowercase()
+            val isPdf = contentType == "application/pdf" || displayName.endsWith(".pdf", ignoreCase = true)
+            val isImage = contentType.startsWith("image/")
+            require(isPdf || isImage) { "Choose a PDF or image file." }
+            if (isImage) {
+                require(body.size <= MAX_IMAGE_UPLOAD_BYTES) { "Images must be 12 MiB or smaller." }
+                require(controller.state.value.supportsDirectImageInput) {
+                    "The selected model does not support image input. Change the model in the app."
+                }
+            }
+
+            val uploadId = UUID.randomUUID().toString()
+            val extension = displayName.substringAfterLast('.', "").lowercase()
+                .filter(Char::isLetterOrDigit).take(8).ifBlank { if (isPdf) "pdf" else "image" }
+            val temporary = File(context.cacheDir, "lan-upload-$uploadId.$extension")
+            temporary.writeBytes(body)
+            if (isPdf) {
+                val descriptor = try {
+                    runBlocking(Dispatchers.IO) {
+                        controller.withRuntimeLease {
+                            attachmentImporter.import(
+                                uri = Uri.fromFile(temporary),
+                                sessionId = chatId,
+                                requestedKind = AttachmentKind.PDF,
+                                useGemmaNativeAudio = false
+                            )
+                        }
+                    }
+                } finally {
+                    temporary.delete()
+                }
+                uploads[uploadId] = LanUiUpload(
+                    id = uploadId,
+                    chatId = chatId,
+                    displayName = descriptor.displayName,
+                    kind = LanUiUploadKind.PDF,
+                    attachmentId = descriptor.id
+                )
+            } else {
+                uploads[uploadId] = LanUiUpload(
+                    id = uploadId,
+                    chatId = chatId,
+                    displayName = displayName,
+                    kind = LanUiUploadKind.IMAGE,
+                    file = temporary
+                )
+            }
+            val upload = checkNotNull(uploads[uploadId])
+            writeJson(writer, 200, JSONObject()
+                .put("id", upload.id)
+                .put("name", upload.displayName)
+                .put("kind", upload.kind.name.lowercase()))
+        } catch (error: IllegalArgumentException) {
+            writeJson(writer, 400, errorJson(error.message ?: "Invalid attachment."))
+        } catch (error: Exception) {
+            writeJson(writer, 500, errorJson(error.message ?: "Attachment upload failed."))
+        }
+    }
+
+    private fun decodeUploadHeader(value: String?): String {
+        require(!value.isNullOrBlank()) { "Attachment metadata is missing." }
+        return URLDecoder.decode(value, StandardCharsets.UTF_8.name())
+    }
+
     private fun handleChatRequest(writer: BufferedWriter, body: String) {
         val request = try {
             parseChatRequest(body)
@@ -378,6 +354,13 @@ class LanHttpServer(
             writeJson(writer, 400, errorJson("Request body must be valid JSON."))
             return
         }
+        val uploadsForRequest = try {
+            resolveUploads(body, request.history)
+        } catch (error: IllegalArgumentException) {
+            writeJson(writer, 400, errorJson(error.message ?: "Invalid attachment request."))
+            return
+        }
+        val history = uploadsForRequest.history
 
         if (!request.model.isNullOrBlank() && request.model != modelId) {
             writeJson(writer, 400, errorJson("Only the configured model '$modelId' is available."))
@@ -420,12 +403,13 @@ class LanHttpServer(
                 var streamedToolCallCount = 0
                 val response = runBlocking(Dispatchers.IO) {
                     controller.sendExternalChatAndAwait(
-                        history = request.history,
+                        history = history,
                         systemInstruction = request.systemInstruction,
                         outputTokenReserve = request.outputTokenReserve,
                         tools = request.toolsForInference(),
                         toolChoice = request.toolChoice,
                         parallelToolCalls = request.parallelToolCalls,
+                        imageFilePaths = uploadsForRequest.imageFilePaths,
                         onPartial = { partial ->
                             val delta = textDelta(streamedText, partial.text)
                             streamedText = partial.text
@@ -499,12 +483,13 @@ class LanHttpServer(
             } else {
                 val response = runBlocking(Dispatchers.IO) {
                     controller.sendExternalChatAndAwait(
-                        history = request.history,
+                        history = history,
                         systemInstruction = request.systemInstruction,
                         outputTokenReserve = request.outputTokenReserve,
                         tools = request.toolsForInference(),
                         toolChoice = request.toolChoice,
-                        parallelToolCalls = request.parallelToolCalls
+                    parallelToolCalls = request.parallelToolCalls,
+                    imageFilePaths = uploadsForRequest.imageFilePaths
                     )
                 }
                 validateToolChoice(request, response)
@@ -518,7 +503,60 @@ class LanHttpServer(
             writeChatError(writer, request.stream, status, message)
         } catch (error: Exception) {
             writeChatError(writer, request.stream, 500, error.message ?: "Inference failed.")
+        } finally {
+            uploadsForRequest.imageUploadIds.forEach { uploadId ->
+                uploads.remove(uploadId)?.file?.delete()
+            }
         }
+    }
+
+    private data class ResolvedUploads(
+        val history: List<ChatTurn>,
+        val imageFilePaths: List<String>,
+        val imageUploadIds: List<String>
+    )
+
+    private fun resolveUploads(body: String, history: List<ChatTurn>): ResolvedUploads {
+        val requestJson = JSONObject(body)
+        val attachmentIds = requestJson.optJSONArray("attachments") ?: return ResolvedUploads(
+            history = history,
+            imageFilePaths = emptyList(),
+            imageUploadIds = emptyList()
+        )
+        require(attachmentIds.length() <= 4) { "Attach up to four files per message." }
+        val chatId = requestJson.optString("chat_id")
+        require(chatId.matches(Regex("[A-Za-z0-9_-]{1,64}"))) { "Invalid chat ID." }
+        val selected = (0 until attachmentIds.length()).map { index ->
+            val id = attachmentIds.optString(index)
+            uploads[id] ?: throw IllegalArgumentException("Attachment is no longer available. Upload it again.")
+        }
+        require(selected.all { it.chatId == chatId }) { "Attachments belong to a different chat." }
+        val imageUploads = selected.filter { it.kind == LanUiUploadKind.IMAGE }
+        val pdfUploads = selected.filter { it.kind == LanUiUploadKind.PDF }
+        val enrichedHistory = history.toMutableList()
+        if (pdfUploads.isNotEmpty()) {
+            val lastUserIndex = enrichedHistory.indexOfLast { it.role == ChatRole.USER }
+            require(lastUserIndex >= 0) { "A PDF needs a user message." }
+            val prompt = enrichedHistory[lastUserIndex].text
+            val excerpts = pdfUploads.map { upload ->
+                val descriptor = attachmentRepository.loadDescriptor(chatId, checkNotNull(upload.attachmentId))
+                    ?: throw IllegalArgumentException("The PDF is no longer available.")
+                val chunks = attachmentRepository.loadChunks(descriptor)
+                require(chunks.isNotEmpty()) { "The PDF contains no usable text." }
+                val selectedChunks = Bm25AttachmentRetriever(chunks).retrieve(prompt, 900)
+                "[PDF: ${upload.displayName}]\n" + selectedChunks.joinToString("\n\n") { chunk ->
+                    "[${chunk.source.label()}]\n${chunk.text}"
+                }
+            }
+            enrichedHistory[lastUserIndex] = enrichedHistory[lastUserIndex].copy(
+                text = "$prompt\n\n${excerpts.joinToString("\n\n")}"
+            )
+        }
+        return ResolvedUploads(
+            history = enrichedHistory,
+            imageFilePaths = imageUploads.map { checkNotNull(it.file).absolutePath },
+            imageUploadIds = imageUploads.map(LanUiUpload::id)
+        )
     }
 
     private class ToolChoiceNotSatisfiedException(message: String) : Exception(message)

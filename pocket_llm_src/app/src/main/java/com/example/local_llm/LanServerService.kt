@@ -126,6 +126,7 @@ class LanServerService : Service() {
 
         startupJob = serviceScope.launch {
             try {
+                ModelRegistry.loadCustomModels(applicationContext)
                 val descriptor = ModelRegistry.findById(modelId)
                     ?: error(getString(R.string.lan_server_model_required))
                 val existingController = LanServerControllerRegistry.peek(modelId)

@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pocket LLM</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #f3f1f7; color: #292337; }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body { min-height: 100vh; min-height: 100dvh; margin: 0; }
+    button, textarea, input { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: wait; opacity: .56; }
+    [hidden] { display: none !important; }
+    .login { display: flex; flex-direction: column; justify-content: center; width: min(430px, calc(100% - 36px)); min-height: 100vh; min-height: 100dvh; margin: 0 auto; padding: 28px 0; }
+    .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+    .brand img { width: 38px; height: 38px; border-radius: 11px; object-fit: cover; background: white; }
+    .brand strong { display: block; color: #58359f; font-size: 16px; letter-spacing: -.02em; }
+    .brand small { display: block; margin-top: 1px; color: #776e85; font-size: 11px; }
+    .login h1 { margin: 42px 0 10px; font-size: clamp(28px, 5vw, 38px); letter-spacing: -.04em; }
+    .login p { color: #706979; line-height: 1.55; }
+    .login label { display: block; margin: 26px 0 8px; font-size: 13px; font-weight: 700; }
+    .login input { display: block; width: 100%; padding: 13px 14px; border: 1px solid #d6cfdf; border-radius: 12px; background: white; color: #292337; outline: none; }
+    .login input:focus, textarea:focus { border-color: #7652ca; box-shadow: 0 0 0 3px #7652ca20; }
+    .primary { border: 0; border-radius: 11px; padding: 11px 19px; background: #704dc2; color: white; font-weight: 700; }
+    .primary:hover:not(:disabled) { background: #613eaf; }
+    .login .primary { margin-top: 20px; }
+    .error { min-height: 22px; margin-top: 12px; color: #a32d50; font-size: 13px; }
+    .app { display: grid; grid-template-columns: 248px minmax(0, 1fr); height: 100vh; height: 100dvh; overflow: hidden; }
+    .sidebar { display: flex; flex-direction: column; min-height: 0; padding: 23px 14px 14px; background: #eae6f1; border-right: 1px solid #dcd5e7; }
+    .sidebar .brand { padding: 0 8px 24px; }
+    .new-chat { width: 100%; padding: 11px 13px; border: 1px solid #cbbbe5; border-radius: 11px; background: #f7f4fc; color: #593d96; text-align: left; font-weight: 700; }
+    .new-chat:hover { background: white; }
+    .side-label { margin: 26px 9px 10px; color: #776e85; font-size: 11px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+    .history { min-height: 0; overflow-y: auto; }
+    .history-row { display: flex; align-items: center; gap: 2px; margin: 2px 0; border-radius: 10px; }
+    .history-row:hover { background: #ded5eb; }
+    .history-row.active { background: #d9cbee; }
+    .history-item { display: block; min-width: 0; flex: 1; padding: 11px 5px 11px 12px; border: 0; border-radius: 10px; background: transparent; color: #393246; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+    .history-row.active .history-item { color: #4f2e93; font-weight: 700; }
+    .history-delete { flex: 0 0 auto; width: 28px; height: 30px; margin-right: 4px; border: 0; border-radius: 7px; background: transparent; color: #877a92; font-size: 16px; line-height: 1; opacity: 0; }
+    .history-row:hover .history-delete, .history-row.active .history-delete { opacity: 1; }
+    .history-delete:hover { background: #cdbfdc; color: #7f2948; }
+    .history-empty { padding: 10px 9px; color: #807788; font-size: 13px; line-height: 1.45; }
+    .sidebar-footer { margin-top: auto; padding: 16px 8px 0; border-top: 1px solid #d9d1e3; }
+    .sidebar-footer p { margin: 0 0 12px; color: #766d80; font-size: 11px; line-height: 1.4; }
+    .text-button { padding: 7px 0; border: 0; background: transparent; color: #654a99; font-size: 12px; font-weight: 700; }
+    .workspace { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 0 clamp(14px, 3vw, 48px) 20px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 72px; flex: 0 0 auto; border-bottom: 1px solid #e3dfe9; }
+    .topbar h1 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; letter-spacing: -.02em; }
+    .top-actions { display: flex; gap: 16px; flex: 0 0 auto; align-items: center; }
+    .theme-button { padding: 7px 10px; border: 1px solid #d7cfe4; border-radius: 9px; background: #faf9fc; color: #58359f; font-size: 12px; font-weight: 700; }
+    .menu-button { display: none; padding: 7px 9px; border: 1px solid #d7cfe4; border-radius: 9px; background: #faf9fc; color: #58359f; }
+    .conversation { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; width: min(100%, 920px); margin: 20px auto 12px; overflow: hidden; border: 1px solid #dfd9e8; border-radius: 18px; background: #f9f8fc; }
+    .conversation-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid #e8e3ee; color: #736981; font-size: 12px; }
+    .conversation-head strong { color: #4f4166; font-size: 12px; }
+    .messages { display: flex; flex: 1 1 auto; flex-direction: column; gap: 17px; min-height: 0; overflow-y: auto; padding: 26px clamp(16px, 4vw, 42px); }
+    .empty-state { margin: auto; color: #80768d; text-align: center; line-height: 1.5; }
+    .empty-state strong { display: block; margin-bottom: 5px; color: #4e3d6b; font-size: 19px; letter-spacing: -.03em; }
+    .message { max-width: min(78%, 680px); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; font-size: 14px; }
+    .message.user { align-self: flex-end; padding: 12px 16px; border-radius: 16px 16px 5px 16px; background: #704dc2; color: white; }
+    .message.assistant { align-self: flex-start; padding: 12px 16px; border: 1px solid #e4dfeb; border-radius: 16px 16px 16px 5px; background: white; color: #30293b; }
+    .message.pending { color: #796e85; }
+    .message.failed { border-color: #e8b9c7; color: #a32d50; }
+    .composer-wrap { width: min(100%, 920px); margin: 0 auto; }
+    .composer { display: flex; align-items: flex-end; gap: 12px; padding: 10px 10px 10px 16px; border: 1px solid #d8cfe4; border-radius: 16px; background: #fdfcff; box-shadow: 0 5px 20px #4b3c6210; }
+    .composer:focus-within { border-color: #a58ad5; }
+    .composer textarea { flex: 1; min-width: 0; min-height: 44px; max-height: 140px; padding: 11px 0; border: 0; outline: 0; background: transparent; color: #292337; resize: none; line-height: 1.45; }
+    .composer textarea:focus { box-shadow: none; }
+    .composer .primary { flex: 0 0 auto; min-height: 43px; }
+    .attach-button { flex: 0 0 auto; width: 38px; height: 38px; margin-bottom: 3px; border: 0; border-radius: 10px; background: transparent; color: #6843b1; font-size: 21px; line-height: 1; }
+    .attach-button:hover { background: #eee8f7; }
+    .attachments { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px 7px; }
+    .attachment-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 8px; border: 1px solid #d7cde5; border-radius: 8px; background: #f9f7fc; color: #57466c; font-size: 11px; }
+    .attachment-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .attachment-chip button { padding: 0; border: 0; background: transparent; color: inherit; font-size: 14px; line-height: 1; }
+    .composer-note { display: flex; justify-content: space-between; gap: 8px; min-height: 27px; padding: 8px 4px 0; color: #81778b; font-size: 11px; }
+    .status.error { margin: 0; min-height: 0; }
+    body.dark { color-scheme: dark; background: #17141f; color: #ede8f5; }
+    body.dark:has(.login:not([hidden])) { background: #17141f; }
+    body.dark .sidebar { background: #201b2a; border-color: #393047; }
+    body.dark .brand strong, body.dark .theme-button, body.dark .text-button { color: #b99af7; }
+    body.dark .brand small, body.dark .side-label, body.dark .sidebar-footer p,
+    body.dark .history-empty, body.dark .conversation-head, body.dark .composer-note { color: #aba1b8; }
+    body.dark .sidebar-footer, body.dark .topbar { border-color: #393047; }
+    body.dark .new-chat, body.dark .theme-button, body.dark .menu-button { background: #30263d; border-color: #57466f; color: #d1baff; }
+    body.dark .new-chat:hover, body.dark .history-item:hover { background: #3b304b; }
+    body.dark .history-item { color: #e0d9e9; }
+    body.dark .history-row.active { background: #45335f; }
+    body.dark .history-row:hover { background: #3b304b; }
+    body.dark .history-row.active .history-item { color: #dcc8ff; }
+    body.dark .history-delete { color: #b5a6c1; }
+    body.dark .history-delete:hover { background: #573448; color: #ffc0d2; }
+    body.dark .topbar h1, body.dark .conversation-head strong, body.dark .empty-state strong { color: #eee7f8; }
+    body.dark .conversation { background: #211c2b; border-color: #3c324a; }
+    body.dark .conversation-head { border-color: #3c324a; }
+    body.dark .empty-state { color: #aba1b8; }
+    body.dark .message.assistant { background: #302839; border-color: #46394f; color: #f0eaf7; }
+    body.dark .message.user { background: #7750c9; }
+    body.dark .message.pending { color: #baaecd; }
+    body.dark .message.failed { border-color: #9b526d; color: #ffc0d2; }
+    body.dark .composer { background: #2c2537; border-color: #56446d; box-shadow: none; }
+    body.dark .composer textarea { color: #f0eaf7; }
+    body.dark .composer textarea::placeholder { color: #aaa0b6; }
+    body.dark .attach-button { color: #c6aafa; }
+    body.dark .attach-button:hover { background: #3b304b; }
+    body.dark .attachment-chip { border-color: #57466f; background: #30263d; color: #d8cde4; }
+    body.dark .login p { color: #b4aabd; }
+    body.dark .login input { background: #2c2537; border-color: #56446d; color: #f0eaf7; }
+    body.dark .error { color: #ffb2c8; }
+    @media (max-width: 680px) {
+      .app { grid-template-columns: minmax(0, 1fr); }
+      .sidebar { position: fixed; z-index: 5; inset: 0 auto 0 0; width: min(290px, 84vw); box-shadow: 12px 0 30px #20173022; }
+      .sidebar[hidden] { display: none !important; }
+      .menu-button { display: inline-block; }
+      .workspace { padding: 0 12px 12px; }
+      .topbar { height: 59px; }
+      .conversation { margin: 12px auto 10px; border-radius: 14px; }
+      .conversation-head { padding: 12px 15px; }
+      .messages { padding: 20px 15px; }
+      .message { max-width: 91%; }
+      .history-delete { opacity: 1; }
+      .composer { padding-left: 12px; gap: 5px; }
+      .composer .primary { padding: 10px 13px; }
+    }
+  </style>
+</head>
+<body>
+  <section id="loginView" class="login">
+    <div class="brand"><img src="/logo.webp" alt=""><div><strong>Pocket LLM</strong><small>Private local server</small></div></div>
+    <h1>Sign in</h1>
+    <p>Enter the password set on your phone to use the local model.</p>
+    <label for="password">Server password</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="Enter your password">
+    <button id="login" class="primary" type="button">Log in</button>
+    <div id="loginError" class="error" role="alert"></div>
+  </section>
+  <div id="chatView" class="app" hidden>
+    <aside id="sidebar" class="sidebar">
+      <div class="brand"><img src="/logo.webp" alt=""><div><strong>Pocket LLM</strong><small>Private local server</small></div></div>
+      <button id="newChat" class="new-chat" type="button">＋ New chat</button>
+      <div class="side-label">Chat history</div>
+      <nav id="history" class="history" aria-label="Chat history"></nav>
+      <div class="sidebar-footer"><p>Chats are saved on this phone and available to anyone who signs in to this server.</p><button id="logout" class="text-button" type="button">Log out</button></div>
+    </aside>
+    <main class="workspace">
+      <header class="topbar">
+        <div class="top-actions"><button id="menuButton" class="menu-button" type="button" aria-label="Toggle chat history">☰</button><h1 id="chatTitle">New chat</h1></div>
+        <button id="themeButton" class="theme-button" type="button" aria-label="Switch color theme">Dark mode</button>
+      </header>
+      <section class="conversation" aria-label="Conversation">
+        <div class="conversation-head"><strong>Conversation</strong><span id="modelLabel">Local model</span></div>
+        <div id="messages" class="messages" aria-live="polite"></div>
+      </section>
+      <div class="composer-wrap">
+        <div id="attachments" class="attachments" hidden></div>
+        <form id="composer" class="composer">
+          <input id="attachmentInput" type="file" accept="application/pdf,image/*" multiple hidden>
+          <button id="attach" class="attach-button" type="button" aria-label="Attach PDF or image">＋</button>
+          <textarea id="prompt" rows="1" aria-label="Message" placeholder="Message the local model..."></textarea>
+          <button id="send" class="primary" type="submit">Send</button>
+        </form>
+        <div class="composer-note"><span>Enter to send · Shift+Enter for a new line</span><span id="status" class="status" role="status"></span></div>
+      </div>
+    </main>
+  </div>
+  <script>
+    const el = id => document.getElementById(id);
+    const loginView = el('loginView'), chatView = el('chatView'), messages = el('messages');
+    const prompt = el('prompt'), send = el('send'), history = el('history');
+    const attachmentInput = el('attachmentInput'), attachments = el('attachments');
+    const themeButton = el('themeButton');
+    function setTheme(mode) {
+      document.body.classList.toggle('dark', mode === 'dark');
+      themeButton.textContent = mode === 'dark' ? 'Light mode' : 'Dark mode';
+      localStorage.setItem('pocket_llm_theme', mode);
+    }
+    setTheme(localStorage.getItem('pocket_llm_theme') === 'dark' ? 'dark' : 'light');
+    themeButton.addEventListener('click', () => setTheme(document.body.classList.contains('dark') ? 'light' : 'dark'));
+    let sessionToken = sessionStorage.getItem('pocket_llm_session');
+    let chats = [], current = null, busy = false, selectedUploads = [];
+    const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    const titleFor = chat => chat.messages.length ? chat.messages[0].content.replace(/\s+/g, ' ').slice(0, 56) : 'New chat';
+    function historyForInference(chat) {
+      const budget = 12_000;
+      const selected = [];
+      let size = 0;
+      for (let index = chat.messages.length - 1; index >= 0; index--) {
+        const message = chat.messages[index];
+        if (selected.length && size + message.content.length > budget) break;
+        selected.push(message);
+        size += message.content.length;
+      }
+      return selected.reverse();
+    }
+    function setStatus(text, isError = false) {
+      el('status').textContent = text;
+      el('status').classList.toggle('error', isError);
+    }
+    function closeSidebar() {
+      if (matchMedia('(max-width: 680px)').matches) el('sidebar').hidden = true;
+    }
+    function renderHistory() {
+      history.replaceChildren();
+      if (!chats.length) {
+        const empty = document.createElement('div');
+        empty.className = 'history-empty';
+        empty.textContent = 'Your conversations will appear here.';
+        history.appendChild(empty);
+      }
+      for (const chat of chats) {
+        const row = document.createElement('div');
+        row.className = 'history-row' + (current && current.id === chat.id ? ' active' : '');
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'history-item';
+        item.textContent = chat.title || 'Untitled chat';
+        item.title = chat.title || 'Untitled chat';
+        item.addEventListener('click', () => openChat(chat.id));
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'history-delete';
+        remove.setAttribute('aria-label', 'Delete ' + (chat.title || 'chat'));
+        remove.textContent = '×';
+        remove.addEventListener('click', () => deleteChat(chat.id));
+        row.append(item, remove);
+        history.appendChild(row);
+      }
+    }
+    function renderAttachments() {
+      attachments.replaceChildren();
+      attachments.hidden = !selectedUploads.length;
+      selectedUploads.forEach(upload => {
+        const chip = document.createElement('div');
+        chip.className = 'attachment-chip';
+        const name = document.createElement('span');
+        name.textContent = (upload.kind === 'pdf' ? 'PDF · ' : 'Image · ') + upload.name;
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.setAttribute('aria-label', 'Remove ' + upload.name);
+        remove.textContent = '×';
+        remove.addEventListener('click', () => {
+          selectedUploads = selectedUploads.filter(item => item.id !== upload.id);
+          renderAttachments();
+        });
+        chip.append(name, remove);
+        attachments.appendChild(chip);
+      });
+    }
+    function renderMessages() {
+      messages.replaceChildren();
+      el('chatTitle').textContent = titleFor(current);
+      if (!current.messages.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        const heading = document.createElement('strong');
+        heading.textContent = 'Start a conversation';
+        empty.append(heading, document.createTextNode('Your chat will be saved on the phone.'));
+        messages.appendChild(empty);
+      } else {
+        for (const message of current.messages) addBubble(message.role, message.content);
+      }
+      renderHistory();
+    }
+    function addBubble(role, content, extra = '') {
+      const item = document.createElement('div');
+      item.className = 'message ' + role + (extra ? ' ' + extra : '');
+      item.textContent = content;
+      messages.appendChild(item);
+      messages.scrollTop = messages.scrollHeight;
+      return item;
+    }
+    async function api(path, options = {}) {
+      const result = await fetch(path, {
+        ...options,
+        headers: { Authorization: 'Bearer ' + sessionToken, ...(options.body ? { 'Content-Type': 'application/json' } : {}) }
+      });
+      const payload = await result.json();
+      if (result.status === 401) {
+        sessionStorage.removeItem('pocket_llm_session');
+        sessionToken = null;
+        chatView.hidden = true;
+        loginView.hidden = false;
+        el('loginError').textContent = 'Session expired. Log in again.';
+        throw new Error('Session expired.');
+      }
+      if (!result.ok) throw new Error(payload.error?.message || 'Request failed.');
+      return payload;
+    }
+    async function loadHistory() {
+      const payload = await api('/ui/chats');
+      chats = payload.chats || [];
+      const previous = sessionStorage.getItem('pocket_llm_chat');
+      if (previous && chats.some(chat => chat.id === previous)) {
+        await openChat(previous);
+      } else {
+        startNewChat();
+      }
+    }
+    function startNewChat() {
+      if (busy) return;
+      current = { id: newId(), messages: [] };
+      selectedUploads = [];
+      renderAttachments();
+      sessionStorage.removeItem('pocket_llm_chat');
+      renderMessages();
+      setStatus('');
+      closeSidebar();
+      prompt.focus();
+    }
+    async function openChat(id) {
+      if (busy) return;
+      try {
+        const payload = await api('/ui/chats/' + encodeURIComponent(id));
+        current = payload.chat;
+        selectedUploads = [];
+        renderAttachments();
+        sessionStorage.setItem('pocket_llm_chat', id);
+        renderMessages();
+        setStatus('');
+        closeSidebar();
+        prompt.focus();
+      } catch (error) { setStatus(error.message, true); }
+    }
+    async function saveChat() {
+      const payload = await api('/ui/chats', { method: 'POST', body: JSON.stringify(current) });
+      current = payload.chat;
+      sessionStorage.setItem('pocket_llm_chat', current.id);
+      const list = await api('/ui/chats');
+      chats = list.chats;
+      renderHistory();
+    }
+    async function loginToServer() {
+      const value = el('password').value.trim();
+      if (!value) { el('loginError').textContent = 'Enter the server password.'; return; }
+      el('login').disabled = true;
+      el('loginError').textContent = '';
+      try {
+        const result = await fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: value }) });
+        const payload = await result.json();
+        if (!result.ok) throw new Error(payload.error?.message || 'Login failed.');
+        sessionToken = payload.token;
+        sessionStorage.setItem('pocket_llm_session', sessionToken);
+        el('modelLabel').textContent = payload.model || 'Local model';
+        loginView.hidden = true;
+        chatView.hidden = false;
+        await loadHistory();
+      } catch (error) { el('loginError').textContent = error.message || 'Login failed.'; }
+      finally { el('login').disabled = false; }
+    }
+    el('login').addEventListener('click', loginToServer);
+    el('password').addEventListener('keydown', event => { if (event.key === 'Enter') loginToServer(); });
+    el('newChat').addEventListener('click', startNewChat);
+    el('menuButton').addEventListener('click', () => { el('sidebar').hidden = !el('sidebar').hidden; });
+    async function deleteChat(id) {
+      if (busy || !confirm('Delete this chat from the phone?')) return;
+      try {
+        await api('/ui/chats/delete', { method: 'POST', body: JSON.stringify({ id }) });
+        chats = (await api('/ui/chats')).chats;
+        if (current && current.id === id) startNewChat();
+        else renderHistory();
+      } catch (error) { setStatus(error.message, true); }
+    }
+    el('attach').addEventListener('click', () => { if (!busy) attachmentInput.click(); });
+    attachmentInput.addEventListener('change', async () => {
+      const files = Array.from(attachmentInput.files || []);
+      attachmentInput.value = '';
+      if (!files.length || busy) return;
+      if (selectedUploads.length + files.length > 4) { setStatus('Attach up to four files per message.', true); return; }
+      busy = true;
+      send.disabled = true;
+      try {
+        for (const file of files) {
+          setStatus('Uploading ' + file.name + '…');
+          const result = await fetch('/ui/attachments', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + sessionToken,
+              'Content-Type': file.type || (file.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream'),
+              'X-Chat-Id': encodeURIComponent(current.id),
+              'X-Upload-Name': encodeURIComponent(file.name)
+            },
+            body: file
+          });
+          const payload = await result.json();
+          if (!result.ok) throw new Error(payload.error?.message || 'Attachment upload failed.');
+          selectedUploads.push(payload);
+          renderAttachments();
+        }
+        setStatus('Attachment ready');
+      } catch (error) { setStatus(error.message || 'Attachment upload failed.', true); }
+      finally { busy = false; send.disabled = false; prompt.focus(); }
+    });
+    prompt.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        if (!busy) el('composer').requestSubmit();
+      }
+    });
+    el('composer').addEventListener('submit', async event => {
+      event.preventDefault();
+      const text = prompt.value.trim();
+      if (!text || !sessionToken || busy) return;
+      busy = true;
+      send.disabled = true;
+      const chat = current;
+      const attachmentSummary = selectedUploads.length
+        ? '\n\n[Attached: ' + selectedUploads.map(upload => upload.name).join(', ') + ']'
+        : '';
+      chat.messages.push({ role: 'user', content: text + attachmentSummary });
+      prompt.value = '';
+      renderMessages();
+      setStatus('Saving…');
+      let pending = null;
+      try {
+        await saveChat();
+        setStatus('Thinking…');
+        pending = addBubble('assistant', 'Thinking…', 'pending');
+        const payload = await api('/v1/chat/completions', {
+          method: 'POST', body: JSON.stringify({
+            chat_id: current.id,
+            messages: historyForInference(current),
+            attachments: selectedUploads.map(upload => upload.id)
+          })
+        });
+        const answer = payload.choices?.[0]?.message?.content || 'The server returned no assistant message.';
+        pending.textContent = answer;
+        pending.classList.remove('pending');
+        current.messages.push({ role: 'assistant', content: answer });
+        await saveChat();
+        selectedUploads = [];
+        renderAttachments();
+        setStatus('Saved on phone');
+      } catch (error) {
+        if (pending) { pending.textContent = error.message || 'Request failed.'; pending.classList.add('failed'); pending.classList.remove('pending'); }
+        setStatus(error.message || 'Request failed.', true);
+      } finally { busy = false; send.disabled = false; prompt.focus(); }
+    });
+    el('logout').addEventListener('click', () => {
+      sessionStorage.removeItem('pocket_llm_session');
+      sessionToken = null;
+      chatView.hidden = true;
+      loginView.hidden = false;
+      el('password').value = '';
+      el('password').focus();
+    });
+    if (sessionToken) {
+      loginView.hidden = true;
+      chatView.hidden = false;
+      loadHistory().catch(error => setStatus(error.message, true));
+    }
+    if (matchMedia('(max-width: 680px)').matches) closeSidebar();
+  </script>
+</body>
+</html>

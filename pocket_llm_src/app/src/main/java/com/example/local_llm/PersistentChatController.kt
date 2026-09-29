@@ -106,6 +106,13 @@ class PersistentChatController(
                 modelRuntimeSettings,
                 initializationPolicy
             )
+            is CustomLiteRtSpec -> QwenLiteRtBackend(
+                appContext,
+                modelDescriptor,
+                modelFileResolver,
+                modelRuntimeSettings,
+                initializationPolicy
+            )
         }
     }
 
@@ -442,6 +449,7 @@ class PersistentChatController(
         tools: List<ExternalToolDefinition> = emptyList(),
         toolChoice: ExternalToolChoice = ExternalToolChoice(),
         parallelToolCalls: Boolean = true,
+        imageFilePaths: List<String> = emptyList(),
         onPartial: (BackendResponse) -> Unit = {}
     ): BackendResponse {
         val generation = withContext(Dispatchers.Main.immediate) {
@@ -463,6 +471,7 @@ class PersistentChatController(
                     toolsOverride = tools,
                     toolChoiceOverride = toolChoice,
                     parallelToolCallsOverride = parallelToolCalls,
+                    imageFilePaths = imageFilePaths,
                     persistResult = false,
                     onExternalPartial = onPartial
                 )
