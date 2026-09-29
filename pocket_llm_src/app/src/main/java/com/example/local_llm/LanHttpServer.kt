@@ -1,6 +1,8 @@
 package com.example.local_llm
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
@@ -84,7 +86,11 @@ class LanHttpServer(
     private val webUiHtml: String = context.assets.open("lan_ui.html")
         .bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
     private val logoBytes: ByteArray = runCatching {
-        context.resources.openRawResource(R.mipmap.ic_launcher_2_foreground).use { it.readBytes() }
+        val bitmap = BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher_2)
+            ?: BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher_2_foreground)
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+        stream.toByteArray()
     }.getOrDefault(ByteArray(0))
     @Volatile
     private var serverSocket: ServerSocket? = null

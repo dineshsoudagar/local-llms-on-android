@@ -47,7 +47,7 @@
                     android:contentDescription="@string/open_navigation_menu"
                     android:padding="8dp"
                     android:src="@drawable/ic_drawer_menu_24"
-                    android:tint="?attr/colorAssistantText"
+                    app:tint="?attr/colorAssistantText"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent" />
@@ -668,7 +668,7 @@
                 android:layout_height="20dp"
                 android:contentDescription="@null"
                 android:src="@drawable/ic_settings_20"
-                android:tint="?attr/colorStatusText" />
+                app:tint="?attr/colorStatusText" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -697,7 +697,7 @@
                 android:layout_height="20dp"
                 android:contentDescription="@null"
                 android:src="@drawable/ic_network_20"
-                android:tint="?attr/colorStatusText" />
+                app:tint="?attr/colorStatusText" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -726,7 +726,7 @@
                 android:layout_height="20dp"
                 android:contentDescription="@null"
                 android:src="@drawable/ic_image_24"
-                android:tint="?attr/colorStatusText" />
+                app:tint="?attr/colorStatusText" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -766,7 +766,7 @@
                 android:layout_height="20dp"
                 android:contentDescription="@null"
                 android:src="@drawable/ic_settings_20"
-                android:tint="?attr/colorStatusText" />
+                app:tint="?attr/colorStatusText" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -795,7 +795,7 @@
                 android:layout_height="20dp"
                 android:contentDescription="@null"
                 android:src="@drawable/ic_settings_20"
-                android:tint="?attr/colorStatusText" />
+                app:tint="?attr/colorStatusText" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -824,7 +824,7 @@
                 android:layout_height="20dp"
                 android:contentDescription="@null"
                 android:src="@drawable/ic_about_20"
-                android:tint="?attr/colorStatusText" />
+                app:tint="?attr/colorStatusText" />
 
             <TextView
                 android:layout_width="wrap_content"

@@ -186,6 +186,18 @@ python scripts/pocket_llm_openai.py --stream "Write a short greeting."
 
 The script discovers the model id automatically. It also accepts `--model`, `--system`, `--base-url`, `--password`, and optional `--api-key` for automation environments.
 
+For a small HTTP API example without installing a client library, use text alone or attach an image or PDF:
+
+```powershell
+$env:POCKET_LLM_BASE_URL = "http://PHONE_IP:8080/v1"
+$env:POCKET_LLM_PASSWORD = "YOUR_WEB_UI_PASSWORD"
+python scripts/pocket_llm_http.py "Give me three German words for travel."
+python scripts/pocket_llm_http.py --image "C:\path\photo.jpg" "What is in this picture?"
+python scripts/pocket_llm_http.py --pdf "C:\path\report.pdf" "Summarize the main findings."
+```
+
+The script selects the loaded model from `/v1/models`, sends the prompt to `/v1/chat/completions`, and prints the answer. For image or PDF input, it uploads up to four files through `/ui/attachments` with a unique temporary chat ID, then deletes that chat and its attachments after the request. Image input requires a model with direct image support. The original files stay at the paths you supplied. The server writes uploads to the phone's private storage temporarily while processing them; this example removes them afterward, including imported PDF data. If cleanup fails, the script reports it. The browser UI does not provide a permanent image preview.
+
 ### OpenCode coding-agent backend
 
 OpenCode connectivity has been tested against the OpenAI-compatible LiteRT endpoint. Copy [`examples/opencode-pocket-llm.jsonc`](examples/opencode-pocket-llm.jsonc) into the OpenCode project configuration, replace `PHONE_IP`, and set the phone's LAN password in `POCKET_LLM_PASSWORD`. The example uses the actual model id `qwen3_litert`; if `GET /v1/models` returns a different selected model id, replace both occurrences in the example.

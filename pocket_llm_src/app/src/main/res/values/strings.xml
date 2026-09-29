@@ -134,9 +134,10 @@
     <string name="models_section_title">MODELS</string>
     <string name="manage_models">Manage Models</string>
     <string name="manage_models_intro">Download or import chat models, then choose one to use.</string>
-    <string name="custom_model_add">Use your own model (beta)</string>
+    <string name="custom_model_add">use your own model (beta)</string>
     <string name="custom_model_warning_title">Use your own LiteRT model</string>
-    <string name="custom_model_warning">Choose a local .litertlm file. This app will use it for text chat only; images will use OCR. The app is not optimized or tested for your model. It may fail to load, behave incorrectly, or crash. Use at your own risk.</string>
+    <string name="custom_model_warning">Choose a local .litertlm file. This app will use it for text chat only; images will use OCR. The app is not optimized or tested for your model.</string>
+    <string name="custom_model_warning_risk">It may fail to load or crash. Use at your own risk.</string>
     <string name="custom_model_choose_file">Choose model file</string>
     <string name="custom_model_importing">Copying model into app storage…</string>
     <string name="custom_model_import_failed">Could not import model: %1$s</string>

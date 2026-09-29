@@ -29,11 +29,14 @@
         android:textColor="?attr/colorStatusText"
         android:textSize="13sp" />
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/importLocalModelButton"
+        style="@style/DialogPrimaryButton"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="52dp"
         android:layout_marginTop="12dp"
+        android:textAllCaps="false"
+        android:textSize="14sp"
         android:text="@string/custom_model_add" />
 
     <ScrollView

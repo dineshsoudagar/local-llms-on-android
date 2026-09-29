@@ -3060,14 +3060,23 @@ open class PocketChatActivity : AppCompatActivity() {
     ) { uri -> uri?.let(::importCustomModel) }
 
     private fun showCustomModelWarning() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.custom_model_warning_title)
-            .setMessage(R.string.custom_model_warning)
+        val dialogBuilder = MaterialAlertDialogBuilder(this)
+        val warningView = LayoutInflater.from(dialogBuilder.context)
+            .inflate(R.layout.dialog_custom_model_warning, null)
+        val dialog = dialogBuilder
+            .setView(warningView)
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.custom_model_choose_file) { _, _ ->
                 customModelPickerLauncher.launch(arrayOf("*/*"))
             }
-            .show()
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                ?.setTextColor(resolveThemeColor(R.attr.colorSendFill))
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+                ?.setTextColor(resolveThemeColor(R.attr.colorStatusText))
+        }
+        dialog.show()
     }
 
     private fun importCustomModel(uri: Uri) {
