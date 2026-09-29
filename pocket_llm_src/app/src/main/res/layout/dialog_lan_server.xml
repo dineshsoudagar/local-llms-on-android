@@ -110,37 +110,31 @@
             android:layout_weight="1"
             android:autofillHints="password"
             android:hint="@string/lan_server_password_hint"
-            android:inputType="textVisiblePassword"
+            android:inputType="textPassword"
             android:maxLines="1"
             android:textColor="?attr/colorInputText"
             android:textColorHint="?attr/colorStatusText" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/lanServerGeneratePasswordButton"
-            style="@style/DialogSecondaryButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+        <ImageButton
+            android:id="@+id/lanServerPasswordVisibilityButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:layout_marginStart="8dp"
-            android:text="@string/lan_server_generate_password" />
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/lan_server_show_password"
+            android:padding="12dp"
+            android:src="@drawable/ic_visibility"
+            android:tint="?attr/colorAssistantText" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/lanServerPasswordHint"
-        android:layout_width="match_parent"
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/lanServerSavePasswordButton"
+        style="@style/DialogSecondaryButton"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:text="@string/lan_server_password_help"
-        android:textColor="?attr/colorStatusText"
-        android:textSize="12sp" />
-
-    <TextView
-        android:id="@+id/lanServerInstructions"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:text="@string/lan_server_instructions"
-        android:textColor="?attr/colorStatusText"
-        android:textSize="13sp" />
+        android:text="@string/lan_server_save_password"
+        android:visibility="gone" />
 
     <LinearLayout
         android:id="@+id/lanServerWebActions"

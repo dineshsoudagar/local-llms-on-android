@@ -10,6 +10,8 @@ object ModelRuntimeSettingsLimits {
     const val ONNX_CONTEXT_LENGTH = 512
     const val LITERT_DEFAULT_CONTEXT_LENGTH = 2_048
     const val LITERT_CONTEXT_LENGTH = 40_000
+    const val GEMMA_CONTEXT_LENGTH = 128_000
+    const val HIGH_CONTEXT_WARNING_THRESHOLD = 8_192
 
     fun defaultFor(descriptor: ModelDescriptor): Int = if (descriptor is OnnxQwenSpec) ONNX_CONTEXT_LENGTH else LITERT_DEFAULT_CONTEXT_LENGTH
 
@@ -18,7 +20,15 @@ object ModelRuntimeSettingsLimits {
     }
 
     fun maxFor(descriptor: ModelDescriptor): Int {
-        return if (descriptor is OnnxQwenSpec) ONNX_CONTEXT_LENGTH else LITERT_CONTEXT_LENGTH
+        return when (descriptor) {
+            is OnnxQwenSpec -> ONNX_CONTEXT_LENGTH
+            is GemmaLiteRtSpec -> GEMMA_CONTEXT_LENGTH
+            is QwenLiteRtSpec -> LITERT_CONTEXT_LENGTH
+        }
+    }
+
+    fun requiresMemoryWarning(contextLengthTokens: Int): Boolean {
+        return contextLengthTokens > HIGH_CONTEXT_WARNING_THRESHOLD
     }
 
     fun normalize(descriptor: ModelDescriptor, contextLengthTokens: Int): Int {

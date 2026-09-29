@@ -1,10 +1,16 @@
 package com.example.local_llm
 
 import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.Base64
+import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.SecureRandom
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
 import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 
 enum class LanServerStatus {
@@ -33,6 +39,9 @@ object LanServerStateStore {
     private const val KEY_ENDPOINT = "endpoint"
     private const val KEY_PASSWORD_SALT = "password_salt"
     private const val KEY_PASSWORD_HASH = "password_hash"
+    private const val KEY_ENCRYPTED_PASSWORD = "encrypted_password"
+    private const val KEY_PASSWORD_IV = "password_iv"
+    private const val PASSWORD_KEY_ALIAS = "pocket_llm_lan_password"
     private const val KEY_API_KEY = "api_key"
     private const val KEY_ERROR = "error"
     private const val PASSWORD_ITERATIONS = 120_000
@@ -72,12 +81,46 @@ object LanServerStateStore {
         val salt = ByteArray(16)
         SecureRandom().nextBytes(salt)
         val hash = hashPassword(password, salt)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, passwordKey())
+        val encryptedPassword = cipher.doFinal(password.toByteArray(Charsets.UTF_8))
         context.applicationContext
             .getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_PASSWORD_SALT, encode(salt))
             .putString(KEY_PASSWORD_HASH, encode(hash))
+            .putString(KEY_ENCRYPTED_PASSWORD, encode(encryptedPassword))
+            .putString(KEY_PASSWORD_IV, encode(cipher.iv))
             .apply()
+    }
+
+    fun getPassword(context: Context): String? {
+        val preferences = context.applicationContext
+            .getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+        val encrypted = preferences.getString(KEY_ENCRYPTED_PASSWORD, null)?.let(::decode)
+            ?: return null
+        val iv = preferences.getString(KEY_PASSWORD_IV, null)?.let(::decode) ?: return null
+        return runCatching {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, passwordKey(), GCMParameterSpec(128, iv))
+            String(cipher.doFinal(encrypted), Charsets.UTF_8)
+        }.getOrNull()
+    }
+
+    private fun passwordKey(): java.security.Key {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        keyStore.getKey(PASSWORD_KEY_ALIAS, null)?.let { return it }
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        generator.init(
+            KeyGenParameterSpec.Builder(
+                PASSWORD_KEY_ALIAS,
+                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+            )
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .build()
+        )
+        return generator.generateKey()
     }
 
     fun generatePassword(): String {

@@ -23,8 +23,8 @@ android {
         applicationId = "com.example.local_llm"
         minSdk = 24
         targetSdk = 35
-        versionCode = 14
-        versionName = "1.5.0"
+        versionCode = 15
+        versionName = "1.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "LITERT_LM_RUNTIME_VERSION", "\"$liteRtLmVersion\"")

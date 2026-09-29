@@ -23,6 +23,8 @@ import android.os.SystemClock
 import android.text.Editable
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
+import android.text.method.PasswordTransformationMethod
+import android.text.method.HideReturnsTransformationMethod
 import android.text.format.Formatter
 import android.text.util.Linkify
 import android.util.Log
@@ -3674,10 +3676,19 @@ open class PocketChatActivity : AppCompatActivity() {
         val apiEndpointView: TextView = dialogView.findViewById(R.id.lanServerApiEndpoint)
         val copyApiUrlLink: TextView = dialogView.findViewById(R.id.lanServerCopyApiUrlLink)
         val passwordInput: EditText = dialogView.findViewById(R.id.lanServerPasswordInput)
-        val generatePasswordButton: MaterialButton = dialogView.findViewById(R.id.lanServerGeneratePasswordButton)
+        val passwordVisibilityButton: ImageButton = dialogView.findViewById(R.id.lanServerPasswordVisibilityButton)
+        val savePasswordButton: MaterialButton = dialogView.findViewById(R.id.lanServerSavePasswordButton)
         val copyUrlLink: TextView = dialogView.findViewById(R.id.lanServerCopyUrlLink)
         val startButton: MaterialButton = dialogView.findViewById(R.id.lanServerStartButton)
         val closeButton: MaterialButton = dialogView.findViewById(R.id.lanServerCloseButton)
+        var savedPassword = LanServerStateStore.getPassword(this)
+        var passwordVisible = false
+        passwordInput.setText(savedPassword.orEmpty())
+        passwordInput.hint = if (LanServerStateStore.hasPassword(this)) {
+            getString(R.string.lan_server_password_change_hint)
+        } else {
+            getString(R.string.lan_server_password_hint)
+        }
         copyUrlLink.paintFlags = copyUrlLink.paintFlags or Paint.UNDERLINE_TEXT_FLAG
         copyApiUrlLink.paintFlags = copyApiUrlLink.paintFlags or Paint.UNDERLINE_TEXT_FLAG
         val dialog = dialogBuilder
@@ -3700,17 +3711,53 @@ open class PocketChatActivity : AppCompatActivity() {
             endpointView.text = state.endpoint ?: "—"
             apiEndpointView.text = state.endpoint?.let(::lanApiBaseUrl) ?: "—"
             val modelReady = chatController?.state?.value?.isReady == true
-            startButton.isEnabled = !state.isActive && modelReady
+            startButton.isEnabled = !state.isActive && modelReady &&
+                LanServerStateStore.hasPassword(this) &&
+                passwordInput.text.toString() == savedPassword.orEmpty()
             val webUiAvailable = state.status == LanServerStatus.RUNNING && !state.endpoint.isNullOrBlank()
             copyUrlLink.isEnabled = webUiAvailable
             copyApiUrlLink.isEnabled = webUiAvailable
             passwordInput.isEnabled = !state.isActive
-            generatePasswordButton.isEnabled = !state.isActive
-            passwordInput.hint = if (LanServerStateStore.hasPassword(this)) {
-                getString(R.string.lan_server_password_keep_hint)
+            savePasswordButton.visibility = if (!state.isActive &&
+                passwordInput.text.toString() != savedPassword.orEmpty()
+            ) View.VISIBLE else View.GONE
+        }
+
+        passwordVisibilityButton.setOnClickListener {
+            passwordVisible = !passwordVisible
+            passwordInput.transformationMethod = if (passwordVisible) {
+                HideReturnsTransformationMethod.getInstance()
             } else {
-                getString(R.string.lan_server_password_hint)
+                PasswordTransformationMethod.getInstance()
             }
+            passwordInput.setSelection(passwordInput.text.length)
+            passwordVisibilityButton.setImageResource(
+                if (passwordVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility
+            )
+            passwordVisibilityButton.contentDescription = getString(
+                if (passwordVisible) R.string.lan_server_hide_password else R.string.lan_server_show_password
+            )
+        }
+        passwordInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = renderState()
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        savePasswordButton.setOnClickListener {
+            val password = passwordInput.text.toString()
+            if (password.length < LanServerStateStore.MIN_PASSWORD_LENGTH) {
+                showTransientMessage(getString(
+                    R.string.lan_server_password_too_short,
+                    LanServerStateStore.MIN_PASSWORD_LENGTH
+                ))
+                return@setOnClickListener
+            }
+            if (runCatching { LanServerStateStore.setPassword(this, password) }.isFailure) {
+                showTransientMessage(getString(R.string.lan_server_password_save_failed))
+                return@setOnClickListener
+            }
+            savedPassword = password
+            renderState()
         }
 
         val refreshRunnable = object : Runnable {
@@ -3732,30 +3779,17 @@ open class PocketChatActivity : AppCompatActivity() {
                 showTransientMessage(getString(R.string.lan_server_generation_blocked))
                 return@setOnClickListener
             }
-            val requestedPassword = passwordInput.text.toString().trim()
-            if (!LanServerStateStore.hasPassword(this) && requestedPassword.isBlank()) {
-                showTransientMessage(getString(R.string.lan_server_password_required))
+            if (passwordInput.text.toString() != savedPassword.orEmpty()) {
+                showTransientMessage(getString(R.string.lan_server_password_save_first))
                 return@setOnClickListener
             }
-            if (requestedPassword.isNotBlank()) {
-                if (requestedPassword.length < LanServerStateStore.MIN_PASSWORD_LENGTH) {
-                    showTransientMessage(
-                        getString(
-                            R.string.lan_server_password_too_short,
-                            LanServerStateStore.MIN_PASSWORD_LENGTH
-                        )
-                    )
-                    return@setOnClickListener
-                }
-                LanServerStateStore.setPassword(this, requestedPassword)
+            if (!LanServerStateStore.hasPassword(this)) {
+                showTransientMessage(getString(R.string.lan_server_password_required))
+                return@setOnClickListener
             }
             LanServerControllerRegistry.register(model.id, controller)
             LanServerService.start(this, model.id)
             renderState()
-        }
-        generatePasswordButton.setOnClickListener {
-            passwordInput.setText(LanServerStateStore.generatePassword())
-            passwordInput.setSelection(passwordInput.text.length)
         }
         copyUrlLink.setOnClickListener {
             val endpoint = LanServerStateStore.read(this).endpoint
@@ -4502,6 +4536,27 @@ open class PocketChatActivity : AppCompatActivity() {
             .setView(dialogView)
             .create()
 
+        fun saveModelSettings(
+            instruction: String,
+            presetToSave: InstructionPreset,
+            requestedContextLength: Int
+        ) {
+            modelInstructionStore.saveInstruction(descriptor, instruction, presetToSave)
+            val updatedRuntimeSettings = modelRuntimeSettingsStore.save(
+                descriptor,
+                ModelRuntimeSettings(requestedContextLength)
+            )
+            val runtimeSettingsChanged =
+                updatedRuntimeSettings.contextLengthTokens != runtimeSettings.contextLengthTokens
+            dialog.dismiss()
+            if (runtimeSettingsChanged) {
+                showTransientMessage(getString(R.string.model_context_length_saved))
+                reloadCurrentModelAfterRuntimeSettings()
+            } else {
+                showTransientMessage(getString(R.string.model_instruction_saved))
+            }
+        }
+
         cancelButton.setOnClickListener {
             dialog.dismiss()
         }
@@ -4537,19 +4592,28 @@ open class PocketChatActivity : AppCompatActivity() {
                 selectedPreset
             }
 
-            modelInstructionStore.saveInstruction(descriptor, instruction, presetToSave)
-            val updatedRuntimeSettings = modelRuntimeSettingsStore.save(
-                descriptor,
-                ModelRuntimeSettings(requestedContextLength)
-            )
-            val runtimeSettingsChanged =
-                updatedRuntimeSettings.contextLengthTokens != runtimeSettings.contextLengthTokens
-            dialog.dismiss()
-            if (runtimeSettingsChanged) {
-                showTransientMessage(getString(R.string.model_context_length_saved))
-                reloadCurrentModelAfterRuntimeSettings()
+            if (ModelRuntimeSettingsLimits.requiresMemoryWarning(requestedContextLength)) {
+                val warningDialog = MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.model_context_length_warning_title)
+                    .setMessage(
+                        getString(
+                            R.string.model_context_length_warning_message,
+                            ModelRuntimeSettingsLimits.HIGH_CONTEXT_WARNING_THRESHOLD,
+                            requestedContextLength
+                        )
+                    )
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(R.string.model_context_length_warning_continue) { _, _ ->
+                        saveModelSettings(instruction, presetToSave, requestedContextLength)
+                    }
+                    .create()
+                warningDialog.setOnShowListener {
+                    warningDialog.findViewById<TextView>(androidx.appcompat.R.id.alertTitle)
+                        ?.setTextColor(ContextCompat.getColor(this, R.color.delete_red))
+                }
+                warningDialog.show()
             } else {
-                showTransientMessage(getString(R.string.model_instruction_saved))
+                saveModelSettings(instruction, presetToSave, requestedContextLength)
             }
         }
 

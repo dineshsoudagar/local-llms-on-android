@@ -12,8 +12,10 @@
         "qwen3_litert": {
           "name": "Qwen3 0.6B LiteRT",
           "limit": {
-            "context": 2048,
-            "output": 256
+            // Leave room for OpenCode's system prompt and tool definitions on mobile.
+            // Match this with the selected model's context setting in the Android app.
+            "context": 8192,
+            "output": 512
           }
         }
       }

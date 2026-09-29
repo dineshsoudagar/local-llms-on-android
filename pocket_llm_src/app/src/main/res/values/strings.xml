@@ -99,11 +99,13 @@
     <string name="lan_server_url_label">Web UI URL</string>
     <string name="lan_server_password_label">Web UI password</string>
     <string name="lan_server_password_hint">Set a password before starting</string>
-    <string name="lan_server_password_keep_hint">Leave blank to keep the current password</string>
-    <string name="lan_server_password_help">Use at least 8 characters. This password works for browser chat and API clients.</string>
-    <string name="lan_server_instructions">Use the Web UI URL with this password for browser chat. Use the API base URL ending in /v1 with this same password for Python, Open WebUI, and other API clients. API clients do not log in through the Web UI. The generated API key is optional.</string>
+    <string name="lan_server_password_change_hint">Change password</string>
+    <string name="lan_server_show_password">Show password</string>
+    <string name="lan_server_hide_password">Hide password</string>
+    <string name="lan_server_save_password">Save password</string>
+    <string name="lan_server_password_save_first">Save the new password first.</string>
+    <string name="lan_server_password_save_failed">Could not save the password.</string>
     <string name="lan_server_start">Start</string>
-    <string name="lan_server_generate_password">Generate</string>
     <string name="lan_server_copy_url">Copy browser URL</string>
     <string name="lan_server_url_copied">Browser URL copied.</string>
     <string name="lan_server_stop_close_description">Stop the LAN server and close</string>
@@ -131,6 +133,9 @@
     <string name="model_context_length_hint">For example: 512</string>
     <string name="model_context_length_help">Higher values retain more chat history but use more memory. Allowed range: %1$d–%2$d tokens. The model may need to reload after this changes.</string>
     <string name="model_context_length_invalid">Enter a context length from %1$d to %2$d tokens.</string>
+    <string name="model_context_length_warning_title">Large context may exceed device memory</string>
+    <string name="model_context_length_warning_message">You are saving a %2$d-token context. Values above %1$d tokens can use substantially more RAM and graphics memory, slow the device, fail to load, or crash the native runtime. The safe limit depends on this device and model. Save this value anyway?</string>
+    <string name="model_context_length_warning_continue">Save anyway</string>
     <string name="model_context_length_saved">Model settings saved. Reloading the model…</string>
     <string name="model_settings_lan_blocked">Stop the LAN server before applying model runtime settings.</string>
     <string name="model_instruction_preset_label">Instruction Preset</string>
