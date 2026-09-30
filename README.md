@@ -134,10 +134,8 @@ Run the model on your phone and use it from other devices on your home network; 
       <sub><b>Start the server on your phone</b></sub>
     </td>
     <td align="center" valign="top" width="78%">
-      <video src="data/pocket_llm_v1.6_lan_server_demo.mp4" width="600" height="338" controls preload="metadata" aria-label="Pocket LLM LAN browser chat demonstration">
-        <a href="data/pocket_llm_v1.6_lan_server_demo.mp4">Watch the LAN server demo</a>
-      </video><br/>
-      <sub><b>Use the model from your browser</b> · <a href="data/pocket_llm_v1.6_lan_server_demo.mp4">Watch / download video</a></sub>
+      <img src="data/pocket_llm_v1.6_lan_server_demo.gif" alt="Pocket LLM LAN browser chat demonstration" width="600"/><br/>
+      <sub><b>Use the model from your browser</b> · <a href="data/pocket_llm_v1.6_lan_server_demo.gif">View demo GIF</a></sub>
     </td>
   </tr>
 </table>
