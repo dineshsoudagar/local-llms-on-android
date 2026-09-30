@@ -9,6 +9,9 @@ Pocket LLM v1.6.0 lets you use your Android phone as a private local AI server f
 - Added saved browser conversations, per-chat deletion in the history sidebar, and purple light/dark themes.
 - Added Enter to send and Shift+Enter for a new line in the browser composer.
 - Added browser PDF and image uploads.
+- Added local `.litertlm` model import (beta), with detected input capabilities and native image/audio support attempted when available on the selected device/backend. Custom tool calling and video input remain unavailable.
+- Added Android text/PDF and audio attachments, offline multilingual Whisper dictation, and segmented native audio processing for compatible Gemma or imported models.
+- Updated and pinned LiteRT-LM to 0.17.1.
 - PDF questions use lightweight on-device BM25 retrieval with embedded-text extraction and OCR fallback for pages that need it. This is intended for focused question answering; retrieval will improve in later releases.
 - Browser image input is available when the model selected in the Android app supports direct image input.
 - Added a per-model LiteRT context-length input and high-memory warning.

@@ -17,8 +17,8 @@ Connect your computer to the model running on your Android phone.
 Pocket LLM can expose the selected on-device model to a computer or another device on the same private network. Start the server in the Android app, then open the displayed `/ui` address on your computer to chat in a browser while inference remains on the phone. The same server also exposes an OpenAI-compatible API for scripts and compatible tools.
 
 1. Load a model and open the navigation drawer.
-2. Choose **LAN Server**, set a Web UI password of at least eight characters, then tap **Start**. You can use **Generate** for a random password.
-3. The **Web UI password** is the simplest credential and works for both browser chat and API clients. A generated API key is optional for advanced clients.
+2. Choose **LAN Server**, enter a Web UI password of at least eight characters, tap **Save password**, then tap **Start**. If a password is already saved, keep it in the field to reuse it.
+3. Use the same **Web UI password** for both browser chat and API clients.
 4. From another device on the same network, use the phone's displayed URL with `/v1`, for example `http://PHONE_IP:8080/v1`.
 
 The phone dialog shows the address chosen from the phone's local network interfaces. The computer must be on that same Wi-Fi or LAN; a VPN, guest network, mobile-data address, or a different interface can show a different IP and will not work. This is a private-LAN endpoint, not a public Internet URL.
@@ -60,7 +60,7 @@ python scripts/pocket_llm_openai.py "Give me three German words for travel."
 python scripts/pocket_llm_openai.py --stream "Write a short greeting."
 ```
 
-The script discovers the model id automatically. It also accepts `--model`, `--system`, `--base-url`, `--password`, and optional `--api-key` for automation environments.
+The script discovers the model id automatically. It also accepts `--model`, `--system`, `--base-url`, and `--password`. For automation, set `POCKET_LLM_PASSWORD` in the environment.
 
 ## HTTP script: text, images, and PDFs
 
@@ -106,7 +106,7 @@ curl -X POST http://PHONE_IP:8080/v1/chat/completions \
   -d '{"model":"MODEL_ID_FROM_MODELS","messages":[{"role":"user","content":"Explain photosynthesis in one sentence."}]}'
 ```
 
-The password is stored on the phone as a salted hash and is accepted as a Bearer credential for the API. The generated API key is optional and can be regenerated when needed. Stop the LAN server before changing the password or model; leaving the password field blank keeps the current password. Android may still stop background work because of device power-management policy, so this is intended for local-network use rather than unattended public hosting.
+The phone stores a salted password hash for verification and an encrypted copy protected by Android Keystore so you can reveal the saved password in the dialog. API clients use the same password as their credential. Stop the LAN server before changing the password or model. To reuse the saved password, keep it in the field; after editing it, tap **Save password** before starting. Android may still stop background work because of device power-management policy, so this is intended for local-network use rather than unattended public hosting.
 
 
 ## A local AI home server for repeated tasks

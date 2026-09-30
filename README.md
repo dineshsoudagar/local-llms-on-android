@@ -31,11 +31,11 @@ Run the model on your phone and use it from other devices on your home network; 
 
 #### 🧩 Models, documents and voice
 
-- 🧩 **[Your own model (beta)](#use-your-own-model-beta):** Import a local `.litertlm` file for text chat.
+- 🧩 **[Your own model (beta)](#use-your-own-model-beta):** Import a local `.litertlm` file for text chat, with native image and audio input attempted when supported.
 - 📄 **[Documents](#document-and-audio-attachments):** Attach text files and PDFs, including scanned pages read with OCR.
 - 🔎 **[Document answers](#document-and-audio-attachments):** Use simple BM25 retrieval for questions or process all source chunks for summaries.
 - 🎙️ **[Speech-to-text](#document-and-audio-attachments):** Transcribe offline with multilingual Whisper, including German, and edit before sending.
-- 🔊 **[Audio attachments](#document-and-audio-attachments):** Upload or record audio for native Gemma understanding or Whisper transcription.
+- 🔊 **[Audio attachments](#document-and-audio-attachments):** Upload or record audio for native understanding on compatible models or Whisper transcription.
 
 ### Improvements
 
@@ -98,7 +98,7 @@ Run the model on your phone and use it from other devices on your home network; 
 
 - 🧠 **Built-in models:** Choose Qwen2.5, Qwen3, DeepSeek R1 Distill Qwen, or Gemma 4.
 - 📦 **Model management:** Download, switch, and delete models inside the app.
-- 🧩 **Custom models (beta):** Import your own `.litertlm` text model from device storage.
+- 🧩 **Custom models (beta):** Import your own `.litertlm` model from device storage; native image and audio availability depend on the model and device backend.
 - 💭 **Thinking mode:** Toggle reasoning on supported Qwen3 and Gemma models.
 - 🎛️ **Instructions:** Edit model instructions or choose a prompt preset.
 - ⚙️ **Context length:** Set each LiteRT model's context size to balance history and memory use.
@@ -107,12 +107,12 @@ Run the model on your phone and use it from other devices on your home network; 
 ### Files and voice
 
 - 🎙️ **Dictation:** Turn recordings into editable text with offline multilingual Whisper, including German.
-- 🔊 **Audio:** Use native Gemma audio understanding or Whisper transcription for other models.
+- 🔊 **Audio:** Use native audio understanding on compatible Gemma or imported models, or Whisper transcription when native audio is unavailable.
 - 📄 **Documents:** Attach text files and PDFs, including scanned PDFs read with OCR.
 - 🔎 **Retrieval:** Ask document questions with BM25 or summarize source chunks within the context budget.
 - 📎 **References:** Keep document, page, or timestamp references with the owning chat.
 - ⏳ **Progress:** Track or cancel long document extraction and audio transcription jobs.
-- 🖼️ **Images:** Extract text with OCR or send images directly to supported Gemma models.
+- 🖼️ **Images:** Extract text with OCR or send images directly to compatible Gemma or imported models.
 - 📷 **Camera:** Capture, retake, crop, review, and send photos.
 
 ### LAN and integrations
@@ -167,14 +167,16 @@ You can download **multiple models**, switch between them inside the app, and de
 
 - Open **Manage Models → use your own model (beta)** and choose a local `.litertlm` file.
 - The app copies the file into private storage and adds it to the model picker.
-- Custom models support text chat; image input uses OCR and audio input uses Whisper transcription.
+- The app detects declared inputs and attempts native image and audio support when available. The ready message reports availability on the current device/backend; declared support is not a compatibility guarantee.
+- Text chat is required. Images can use OCR or **Native image input** when available; audio uses native input when available or optional Whisper transcription otherwise.
+- Video input, generated audio, and custom thinking controls are not enabled. See the [custom-model beta guide](CUSTOM_MODEL_BETA.md) for details and device checks.
 - Custom models do not expose native tool calling through the LAN API.
 - Custom-model compatibility is experimental; larger models or contexts may fail to load or crash.
 
 ### Image input support
 
 - **OCR mode** - Extract text from images
-- **Gemma native image mode** - Send images directly to supported Gemma models
+- **Native image input** - Send images directly to compatible Gemma or imported models
 - **Camera capture** - Take a photo, retake, crop, review, and send it as input
 
 > Note: internet is required only for downloading models. Chat, OCR, image input, camera workflows, and inference remain fully on-device after the required models are installed.
@@ -188,8 +190,8 @@ You can download **multiple models**, switch between them inside the app, and de
 - **Summaries:** Process all source chunks for summaries and ordered transformations.
 - **References:** Prompt answers to retain page, section, or timestamp markers.
 - **Audio files:** Attach Android-decodable audio up to 512 MiB and two hours, or record audio in-app.
-- **Gemma audio:** Use native audio understanding with overlapping segments for longer recordings.
-- **Other models:** Transcribe audio with multilingual Whisper tiny int8 after a separate download of about 100 MB.
+- **Native audio:** Use compatible Gemma or imported models for native audio understanding, with overlapping segments for longer recordings. Imported models use segments of at most 10 seconds.
+- **Whisper fallback:** When native audio is unavailable, transcribe with multilingual Whisper tiny int8 after a separate download of about 100 MB.
 - **Dictation:** Tap the microphone, record, transcribe, and edit the recognized text before sending.
 - **Attachment limits:** Keep one active document or audio source per Android chat; do not mix it with images in one send.
 - **Storage:** Detaching keeps the source data; deleting its chat removes it from private app storage.
@@ -199,7 +201,7 @@ You can download **multiple models**, switch between them inside the app, and de
 
 ## LAN API and Web UI
 
-1. Load a model, open **LAN Server** in the Android app, and set a password of at least eight characters.
+1. Load a model, open **LAN Server** in the Android app, enter a password of at least eight characters, and tap **Save password**.
 2. Tap **Start**, then open the displayed `/ui` URL on a computer on the same Wi-Fi or LAN.
 3. For API clients, use `http://PHONE_IP:8080/v1` and the same password.
 
@@ -229,7 +231,7 @@ This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma
 ### Backend overview
 
 - **ONNX backend**: supports **Qwen2.5** and **Qwen3**
-- **LiteRT backend**: supports **Qwen3**, **DeepSeek R1 Distill Qwen**, **Gemma 4**, and imported `.litertlm` text models (beta)
+- **LiteRT backend**: supports **Qwen3**, **DeepSeek R1 Distill Qwen**, **Gemma 4**, and imported `.litertlm` models (beta), with native image/audio input when available
 
 ### Thinking Mode
 

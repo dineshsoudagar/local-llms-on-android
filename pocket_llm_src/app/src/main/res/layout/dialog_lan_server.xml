@@ -124,7 +124,7 @@
             android:contentDescription="@string/lan_server_show_password"
             android:padding="12dp"
             android:src="@drawable/ic_visibility"
-            android:tint="?attr/colorAssistantText" />
+            app:tint="?attr/colorAssistantText" />
     </LinearLayout>
 
     <com.google.android.material.button.MaterialButton

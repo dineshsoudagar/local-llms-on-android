@@ -3,8 +3,10 @@
     <style name="ActionButton" parent="Widget.MaterialComponents.Button">
         <item name="android:textStyle">bold</item>
         <item name="android:textAllCaps">false</item>
-        <item name="android:paddingHorizontal">18dp</item>
-        <item name="android:paddingVertical">8dp</item>
+        <item name="android:paddingLeft">18dp</item>
+        <item name="android:paddingRight">18dp</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingBottom">8dp</item>
         <item name="android:minWidth">92dp</item>
         <item name="android:minHeight">56dp</item>
         <item name="cornerRadius">18dp</item>
@@ -14,7 +16,8 @@
 
     <style name="SendButton" parent="ActionButton">
         <item name="android:minWidth">0dp</item>
-        <item name="android:paddingHorizontal">10dp</item>
+        <item name="android:paddingLeft">10dp</item>
+        <item name="android:paddingRight">10dp</item>
         <item name="backgroundTint">?attr/colorSendFill</item>
         <item name="rippleColor">?attr/colorSendStroke</item>
         <item name="android:textColor">#FFFFFF</item>
@@ -22,7 +25,8 @@
 
     <style name="StopButton" parent="ActionButton">
         <item name="android:minWidth">0dp</item>
-        <item name="android:paddingHorizontal">10dp</item>
+        <item name="android:paddingLeft">10dp</item>
+        <item name="android:paddingRight">10dp</item>
         <item name="backgroundTint">?attr/colorStopFill</item>
         <item name="rippleColor">?attr/colorStopStroke</item>
         <item name="android:textColor">#FFFFFF</item>
@@ -61,8 +65,10 @@
         <item name="android:textAllCaps">false</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textSize">12sp</item>
-        <item name="android:paddingHorizontal">6dp</item>
-        <item name="android:paddingVertical">0dp</item>
+        <item name="android:paddingLeft">6dp</item>
+        <item name="android:paddingRight">6dp</item>
+        <item name="android:paddingTop">0dp</item>
+        <item name="android:paddingBottom">0dp</item>
         <item name="cornerRadius">10dp</item>
         <item name="elevation">0dp</item>
         <item name="backgroundTint">?attr/colorSendFill</item>
