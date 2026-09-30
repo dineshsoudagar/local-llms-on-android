@@ -24,6 +24,7 @@ Thumbs.db
 **/gradle/gradle-daemon-jvm.properties
 
 # Build outputs
+/pocket_llm_src/app/release/output-metadata.json
 **/build/
 **/captures/
 **/.externalNativeBuild/
