@@ -1,10 +1,10 @@
 # 🤖 Pocket LLM for Android (Offline, Private & Fast)
 
-An Android application that brings local LLM chat, voice input, image input, documents, PDF OCR, audio attachments, and camera-based prompting to your phone.
+Run private AI chat on your Android phone, with text, images, PDFs, audio, and offline speech-to-text.
 
-Pocket LLM runs fully on device after model download. It supports ONNX-based Qwen models, LiteRT-based Qwen 3 and Gemma 4 models, streaming responses, persistent local chat history, markdown-rendered replies, downloadable models, in-app model switching, editable model instructions, and multiple image input workflows.
+Chat in the app, open its Web UI on your computer, or connect a compatible OpenAI client while the model runs on your phone.
 
-The app ships as a small base APK. Users download only the models they want, switch between them inside the app, and delete unused models later to save device storage.
+Install the small base APK, then download a built-in model or import your own LiteRT model (beta).
 
 ---
 
@@ -14,16 +14,37 @@ The app ships as a small base APK. Users download only the models they want, swi
 
 ## 🆕 New in v1.6.0
 
-Pocket LLM can now use your Android phone as a private local AI server for a computer on the same network.
+Changes since v1.5.0:
 
-- 🌐 Added a password-protected LAN server with an OpenAI-compatible API and built-in browser UI
-- 💻 Start a chat on your computer while the selected model continues to run on your phone
-- 🗂️ Added browser chat history saved in the phone's private storage, with per-chat deletion
-- 📎 Added browser uploads for PDFs and images; PDF questions use lightweight on-device retrieval
-- 🎨 Refined the browser chat UI with a focused transcript, purple light/dark themes, and keyboard sending
-- ⚙️ Added a per-model context-length input with clear high-memory warnings
-- 🔌 Added tested OpenAI-compatible connectivity for OpenCode and other compatible clients
-- 🛡️ Added safer recovery after interrupted model initialization and clearer high-context memory guidance
+### New features
+
+- 🧩 **[Your own model (beta)](#use-your-own-model-beta):** Import a local `.litertlm` file for text chat.
+- 📄 **[Documents](#document-and-audio-attachments):** Attach text files and PDFs, including scanned pages read with OCR.
+- 🔎 **[Document answers](#document-and-audio-attachments):** Use simple BM25 retrieval for questions or process all source chunks for summaries.
+- 🎙️ **[Speech-to-text](#document-and-audio-attachments):** Transcribe offline with multilingual Whisper, including German, and edit before sending.
+- 🔊 **[Audio attachments](#document-and-audio-attachments):** Upload or record audio for native Gemma understanding or Whisper transcription.
+- 🌐 **[LAN and browser chat](#lan-api-and-web-ui):** Open the phone's password-protected Web UI on your PC while inference stays on the phone.
+- 🗂️ **[Browser history and uploads](#browser-web-ui):** Save, reopen, or delete chats on the phone, and upload PDFs or images from your PC.
+- 🔌 **[OpenAI-compatible API](#openai-compatible-endpoints):** Connect Open WebUI, [example scripts](#python-client), or compatible harnesses; [OpenCode](#opencode-coding-agent-backend) tool-call round trips tested.
+- ⚙️ **[Context settings](#context-length-setting):** Adjust context length per LiteRT model.
+
+### Improvements
+
+- ⏳ **Long inputs:** Added segmented audio processing and cancellable attachment jobs with progress.
+- 🎨 **Browser controls:** Added light/dark themes, Enter to send, and Shift+Enter for a new line.
+- ⚡ **Runtime:** Updated and pinned LiteRT-LM to **0.17.1**.
+
+### Fixes and cleanup
+
+- 🛡️ **Model loading:** Improved file validation, downloads, cancellation, and recovery after failed initialization.
+- 🖼️ **Image input:** Removed FastVLM descriptions; images now use OCR or native Gemma vision.
+
+### Limitations and next steps
+
+- 🧩 **Custom models:** Beta compatibility varies by model and phone; native tool calling is unavailable.
+- ⚠️ **Memory:** Large models and contexts can still fail to load or crash, including during long OpenCode sessions.
+- 🖼️ **Browser images:** Direct image uploads require a compatible model.
+- 🚀 **Coming next:** Improved document retrieval; this release uses lightweight BM25.
 
 #### ➡️ [See all releases](https://github.com/dineshsoudagar/local-llms-on-android/releases)
 
@@ -38,19 +59,41 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 
 ## ✨ Features
 
-- 📱 Fully on-device LLM chat for private offline use
-- 🎙️ Voice input for faster prompting
-- 🖼️ Image input with OCR and Gemma native image support
-- 📎 One active document, PDF, or audio attachment per chat, with persistent source references
-- 🔊 Native Gemma 4 audio understanding and on-device sherpa-onnx Whisper transcription for other models
-- 📷 Camera capture with retake, crop, and photo review
-- 💬 Persistent multi-turn chat with local history
-- 📦 Download, switch, and delete models inside the app
-- 🧠 Supports Qwen2.5, Qwen3, Qwen3 LiteRT, and Gemma 4 LiteRT models
-- ⚡ ONNX and LiteRT backend support
-- 🎛️ Editable model instructions with presets and custom prompts
-- 🎨 Light mode, dark mode, accent colors, and adjustable chat font size
-- 🔐 Offline after model download, with no telemetry
+### Chat and privacy
+
+- 📱 **Local inference:** Run models on your phone with ONNX or LiteRT, offline after installation.
+- 💬 **Chat:** Stream replies, keep multi-turn history, render Markdown, and copy responses.
+- 🗂️ **History:** Reopen or delete saved conversations in the Android app or browser.
+- 🎨 **Appearance:** Choose light/dark mode, accent colors, and chat font size in the Android app.
+- 🔐 **Privacy:** Keep inference and chat data on your phone, with no telemetry.
+
+### Models and settings
+
+- 🧠 **Built-in models:** Choose Qwen2.5, Qwen3, DeepSeek R1 Distill Qwen, or Gemma 4.
+- 📦 **Model management:** Download, switch, and delete models inside the app.
+- 🧩 **Custom models (beta):** Import your own `.litertlm` text model from device storage.
+- 💭 **Thinking mode:** Toggle reasoning on supported Qwen3 and Gemma models.
+- 🎛️ **Instructions:** Edit model instructions or choose a prompt preset.
+- ⚙️ **Context length:** Set each LiteRT model's context size to balance history and memory use.
+- 🛡️ **Recovery:** Validate model files and recover from interrupted loading without losing saved chats.
+
+### Files and voice
+
+- 🎙️ **Dictation:** Turn recordings into editable text with offline multilingual Whisper, including German.
+- 🔊 **Audio:** Use native Gemma audio understanding or Whisper transcription for other models.
+- 📄 **Documents:** Attach text files and PDFs, including scanned PDFs read with OCR.
+- 🔎 **Retrieval:** Ask document questions with BM25 or summarize source chunks within the context budget.
+- 📎 **References:** Keep document, page, or timestamp references with the owning chat.
+- ⏳ **Progress:** Track or cancel long document extraction and audio transcription jobs.
+- 🖼️ **Images:** Extract text with OCR or send images directly to supported Gemma models.
+- 📷 **Camera:** Capture, retake, crop, review, and send photos.
+
+### LAN and integrations
+
+- 🌐 **LAN server:** Serve the phone's selected model to devices on the same private network.
+- 💻 **Web UI:** Chat in a PC browser, upload PDFs or images, and save conversations on the phone.
+- 🔌 **OpenAI-compatible API:** Connect compatible clients through model and chat-completion endpoints.
+- 🛠️ **Agent tools:** Return native tool calls from supported LiteRT models for harnesses such as OpenCode to execute.
 
 ---
 
@@ -93,9 +136,18 @@ You can download **multiple models**, switch between them inside the app, and de
 
 - **Gemma 4 E4B LiteRT** - Best for **flagship mobiles**
 - **Gemma 4 E2B LiteRT** - Best for **decent to mid-range mobiles**
+- **DeepSeek R1 Distill Qwen 1.5B LiteRT** - Optional reasoning model for **high-RAM mobiles**
 - **Qwen3 0.6B LiteRT** - Best for **low-end mobiles**
 - **Qwen3 0.6B Q4F16 ONNX** - Good for **low to mid-range mobiles**
 - **Qwen2.5 0.5B ONNX** - Best for **mid to high-end mobiles**, **full precision**
+
+### Use your own model (beta)
+
+- Open **Manage Models → use your own model (beta)** and choose a local `.litertlm` file.
+- The app copies the file into private storage and adds it to the model picker.
+- Custom models support text chat; image input uses OCR and audio input uses Whisper transcription.
+- Custom models do not expose native tool calling through the LAN API.
+- Custom-model compatibility is experimental; larger models or contexts may fail to load or crash.
 
 ### Image input support
 
@@ -107,13 +159,19 @@ You can download **multiple models**, switch between them inside the app, and de
 
 ## Document and audio attachments
 
-The paperclip menu accepts safe UTF-8/UTF-16 text files, embedded-text or scanned PDFs, Android-decodable audio files, and microphone recordings. Text and PDFs are limited to 16 MiB and 64 MiB/500 pages respectively. Audio is limited to 512 MiB/two hours and is normalized to private mono 16-kHz PCM WAV. Document/audio and image inputs cannot be mixed in one send in the first version.
-
-PDFBox extracts embedded text page by page; only pages without enough embedded text are rendered and passed through the existing on-device ML Kit OCR path. Questions use budget-fitting BM25 retrieval, while summaries and ordered transformations process all source chunks. Answers are prompted to preserve page, section, or timestamp markers.
-
-Gemma 4 E2B/E4B uses the LiteRT-LM native audio backend directly. Inputs longer than 30 seconds are processed as overlapping 28-second native-audio segments; a failed audio-backend initialization disables Gemma audio and never falls back silently to Whisper. Other chat models use sherpa-onnx 1.13.4 with multilingual Whisper tiny int8 after a separate, explicit roughly 100 MB download confirmation. They do not switch to Gemma.
-
-Attachment manifests, normalized sources, extracted text/transcripts, chunks, and indexes live beneath the owning private chat directory. Detach keeps that data and deleting the chat removes it. Long extraction and transcription run as cancellable foreground WorkManager jobs with visible progress; inference remains local, and raw attachment payloads are excluded from ordinary saved model history.
+- **Text:** Attach UTF-8 or UTF-16 text files up to 16 MiB.
+- **PDFs:** Attach embedded-text or scanned PDFs up to 64 MiB and 500 pages in the Android app.
+- **PDF OCR:** Extract embedded text first and use on-device OCR only for pages that need it.
+- **Questions:** Use lightweight BM25 to select relevant passages that fit the model context.
+- **Summaries:** Process all source chunks for summaries and ordered transformations.
+- **References:** Prompt answers to retain page, section, or timestamp markers.
+- **Audio files:** Attach Android-decodable audio up to 512 MiB and two hours, or record audio in-app.
+- **Gemma audio:** Use native audio understanding with overlapping segments for longer recordings.
+- **Other models:** Transcribe audio with multilingual Whisper tiny int8 after a separate download of about 100 MB.
+- **Dictation:** Tap the microphone, record, transcribe, and edit the recognized text before sending.
+- **Attachment limits:** Keep one active document or audio source per Android chat; do not mix it with images in one send.
+- **Storage:** Detaching keeps the source data; deleting its chat removes it from private app storage.
+- **Progress:** Long extraction and transcription jobs show progress and can be cancelled.
 
 ---
 
@@ -241,7 +299,7 @@ This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma
 ### Backend overview
 
 - **ONNX backend**: supports **Qwen2.5** and **Qwen3**
-- **LiteRT backend**: supports **Qwen3** and **Gemma 4**
+- **LiteRT backend**: supports **Qwen3**, **DeepSeek R1 Distill Qwen**, **Gemma 4**, and imported `.litertlm` text models (beta)
 
 ### Thinking Mode
 
