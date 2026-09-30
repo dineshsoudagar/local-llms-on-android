@@ -20,7 +20,11 @@ class CustomLiteRtModelStore(private val context: Context) {
                 val file = File(directory, "model.litertlm")
                 val expectedBytes = metadata.getLong("bytes")
                 if (!file.isFile || expectedBytes <= 0L) return@runCatching null
-                CustomLiteRtSpec(file.name, expectedBytes, directory.name, metadata.getString("name"))
+                val inputs = metadata.optJSONObject("inputs")?.let {
+                    CustomModelCapabilities(it.getBoolean("text"), it.getBoolean("vision"),
+                        it.getBoolean("audio"), it.getBoolean("video"))
+                }
+                CustomLiteRtSpec(file.name, expectedBytes, directory.name, metadata.getString("name"), inputs)
             }.getOrNull()
         }
 
@@ -50,10 +54,16 @@ class CustomLiteRtModelStore(private val context: Context) {
                 "Could not finish importing the model."
             }
             val displayName = name.substringBeforeLast('.').ifBlank { "Local model" }
+            val inputs = inspectCustomModel(File(directory, "model.litertlm"))
+            val metadata = JSONObject().put("name", displayName).put("bytes", bytes)
+            inputs?.let {
+                metadata.put("inputs", JSONObject().put("text", it.text).put("vision", it.vision)
+                    .put("audio", it.audio).put("video", it.video))
+            }
             File(directory, "custom_model.json").writeText(
-                JSONObject().put("name", displayName).put("bytes", bytes).toString()
+                metadata.toString()
             )
-            return CustomLiteRtSpec("model.litertlm", bytes, id, displayName)
+            return CustomLiteRtSpec("model.litertlm", bytes, id, displayName, inputs)
         } catch (error: Throwable) {
             directory.deleteRecursively()
             throw error

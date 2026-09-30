@@ -22,8 +22,8 @@
     <string name="not_now">Not now</string>
     <string name="gallery_ocr_input">Read text from image</string>
     <string name="camera_ocr_input">Read text with camera</string>
-    <string name="gallery_gemma_direct_input">Send image directly to Gemma</string>
-    <string name="camera_gemma_direct_input">Send camera image directly to Gemma</string>
+    <string name="gallery_gemma_direct_input">Send image directly to selected model</string>
+    <string name="camera_gemma_direct_input">Send camera image directly to selected model</string>
     <string name="speech_listening">Listening</string>
     <string name="speech_permission_denied">Microphone permission is required for voice input.</string>
     <string name="speech_text_added">Added</string>
@@ -68,8 +68,8 @@
     <string name="image_input_error_title">Image processing result</string>
     <string name="image_input_file_error">Could not prepare that image.</string>
     <string name="gemma_direct_default_prompt">Describe the attached image.</string>
-    <string name="gemma_direct_image_processing_failed">Could not prepare that image for Gemma.</string>
-    <string name="gemma_direct_image_model_unavailable">Direct Gemma image input is not available for this model/backend. Use OCR image input.</string>
+    <string name="gemma_direct_image_processing_failed">Could not prepare that image for the selected model.</string>
+    <string name="gemma_direct_image_model_unavailable">Direct image input is not available for this model/backend. Use OCR image input.</string>
     <string name="cancel">Cancel</string>
     <string name="back">Back</string>
     <string name="delete">Delete</string>
@@ -120,7 +120,8 @@
     <string name="lan_server_notification_channel">LAN server</string>
     <string name="lan_server_notification_title">Pocket LLM LAN server</string>
     <string name="lan_server_starting">Loading the selected model…</string>
-    <string name="lan_server_notification_running">Accepting local requests at %1$s</string>
+    <string name="lan_server_notification_running">Screen-off server active at %1$s · Uses battery</string>
+    <string name="lan_server_stop">Stop server</string>
     <string name="settings_title">Chat Settings</string>
     <string name="about">About</string>
     <string name="about_title">About</string>
@@ -136,10 +137,10 @@
     <string name="manage_models_intro">Download or import chat models, then choose one to use.</string>
     <string name="custom_model_add">use your own model (beta)</string>
     <string name="custom_model_warning_title">Use your own LiteRT model</string>
-    <string name="custom_model_warning">Choose a local .litertlm file. This app will use it for text chat only; images will use OCR. The app is not optimized or tested for your model.</string>
+    <string name="custom_model_warning">Choose a local .litertlm file. The app detects its inputs and attempts native image and audio support when available. You can also use OCR for images. Video input is not enabled. The app is not optimized or tested for your model.</string>
     <string name="custom_model_warning_risk">It may fail to load or crash. Use at your own risk.</string>
     <string name="custom_model_choose_file">Choose model file</string>
-    <string name="custom_model_importing">Copying model into app storage…</string>
+    <string name="custom_model_importing">Copying model and checking supported inputs…</string>
     <string name="custom_model_import_failed">Could not import model: %1$s</string>
     <string name="model_popup_text_heading">Text model</string>
     <string name="model_popup_image_heading">Image input</string>
@@ -187,11 +188,11 @@
     <string name="ocr_image_model_name">OCR text extraction</string>
     <string name="ocr_image_model_meta">Built in - no download</string>
     <string name="ocr_image_model_detail">Extracts readable text only - %1$s</string>
-    <string name="gemma_direct_image_model_name">Gemma direct image input</string>
-    <string name="gemma_direct_image_model_meta">Uses selected Gemma model</string>
-    <string name="gemma_direct_image_model_detail">Sends the image directly to Gemma - %1$s</string>
+    <string name="gemma_direct_image_model_name">Native image input</string>
+    <string name="gemma_direct_image_model_meta">Uses selected chat model</string>
+    <string name="gemma_direct_image_model_detail">Sends the image directly to the selected model - %1$s</string>
     <string name="ocr_image_model_selected">Image input will use OCR.</string>
-    <string name="gemma_direct_image_model_selected">Image input will go directly to Gemma.</string>
+    <string name="gemma_direct_image_model_selected">Image input will go directly to the selected model.</string>
     <string name="model_required_message">Choose a model to continue.</string>
     <string name="model_missing_message">%1$s is not available on this device yet. Download it or choose another model.</string>
     <string name="model_loading_message">Wait for the selected model to finish loading.</string>
@@ -201,6 +202,7 @@
     <string name="model_file_invalid_generic">A required model file is missing, incomplete, or corrupted.</string>
     <string name="model_recovery_title">Model loading recovery</string>
     <string name="model_recovery_message">%1$s failed to load.\n\n%2$s\n\nIf this keeps failing, choose a smaller model.</string>
+    <string name="model_recovery_accelerator_message">%1$s failed to load.\n\n%2$s\n\nThe model has operators unsupported by the selected accelerator. If retrying fails, try another compatible model export.</string>
     <string name="model_recovery_choose_another">Choose another model</string>
     <string name="model_recovery_delete">Delete failed model</string>
     <string name="model_recovery_retry">Retry loading</string>
@@ -275,7 +277,7 @@
     <string name="attachment_failed">Failed: %1$s</string>
     <string name="attachment_mixed_input_blocked">Document/audio and image inputs cannot be used in the same send yet.</string>
     <string name="attachment_question_required">Ask a question or request a summary, translation, or rewrite for the attachment.</string>
-    <string name="gemma_audio_unavailable">Gemma native audio is unavailable on this device.</string>
+    <string name="gemma_audio_unavailable">Native audio for the selected model is unavailable on this device/backend.</string>
     <string name="gemma_audio_transcribing">Gemma native audio is unavailable. Transcribing locally with Whisper before sending the transcript to Gemma.</string>
     <string name="gemma_audio_transcription_download_required">Gemma native audio is unavailable. Download the multilingual Whisper tiny model to transcribe audio locally before sending the transcript to Gemma.</string>
     <string name="non_gemma_audio_download_required">This model needs the multilingual Whisper tiny transcription download before audio can be used.</string>

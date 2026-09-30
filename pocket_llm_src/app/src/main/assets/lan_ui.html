@@ -271,12 +271,11 @@
       messages.scrollTop = messages.scrollHeight;
       return item;
     }
-    async function api(path, options = {}) {
+    async function apiResponse(path, options = {}) {
       const result = await fetch(path, {
         ...options,
         headers: { Authorization: 'Bearer ' + sessionToken, ...(options.body ? { 'Content-Type': 'application/json' } : {}) }
       });
-      const payload = await result.json();
       if (result.status === 401) {
         sessionStorage.removeItem('pocket_llm_session');
         sessionToken = null;
@@ -285,8 +284,58 @@
         el('loginError').textContent = 'Session expired. Log in again.';
         throw new Error('Session expired.');
       }
-      if (!result.ok) throw new Error(payload.error?.message || 'Request failed.');
-      return payload;
+      if (!result.ok) {
+        const payload = await result.json();
+        throw new Error(payload.error?.message || 'Request failed.');
+      }
+      return result;
+    }
+    async function api(path, options = {}) {
+      return (await apiResponse(path, options)).json();
+    }
+    async function streamCompletion(body, onText) {
+      const response = await apiResponse('/v1/chat/completions', {
+        method: 'POST', body: JSON.stringify({ ...body, stream: true })
+      });
+      if (!response.headers.get('content-type')?.includes('text/event-stream') || !response.body) {
+        throw new Error('The server did not return a response stream.');
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '', answer = '', completed = false;
+      function consumeEvents() {
+        let boundary;
+        while ((boundary = buffer.search(/\r?\n\r?\n/)) !== -1) {
+          const event = buffer.slice(0, boundary);
+          const separator = buffer.slice(boundary).match(/^\r?\n\r?\n/)[0];
+          buffer = buffer.slice(boundary + separator.length);
+          const data = event.split(/\r?\n/).filter(line => line.startsWith('data:'))
+            .map(line => line.slice(5).replace(/^ /, '')).join('\n');
+          if (!data) continue;
+          if (data === '[DONE]') { completed = true; return; }
+          const chunk = JSON.parse(data);
+          if (chunk.error) throw new Error(chunk.error.message || 'Inference failed.');
+          const text = chunk.choices?.[0]?.delta?.content;
+          if (typeof text === 'string' && text) {
+            answer += text;
+            onText(answer);
+          }
+        }
+      }
+      try {
+        while (!completed) {
+          const { value, done } = await reader.read();
+          buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+          consumeEvents();
+          if (done) break;
+        }
+        if (!completed) throw new Error('Connection lost before the response finished. Partial text is shown above.');
+        if (!answer) throw new Error('The server returned no assistant message.');
+        return answer;
+      } finally {
+        await reader.cancel().catch(() => {});
+        reader.releaseLock();
+      }
     }
     async function loadHistory() {
       const payload = await api('/ui/chats');
@@ -417,14 +466,17 @@
         await saveChat();
         setStatus('Thinking…');
         pending = addBubble('assistant', 'Thinking…', 'pending');
-        const payload = await api('/v1/chat/completions', {
-          method: 'POST', body: JSON.stringify({
-            chat_id: current.id,
-            messages: historyForInference(current),
-            attachments: selectedUploads.map(upload => upload.id)
-          })
+        const answer = await streamCompletion({
+          chat_id: current.id,
+          messages: historyForInference(current),
+          attachments: selectedUploads.map(upload => upload.id)
+        }, answer => {
+          const follow = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 80;
+          pending.textContent = answer;
+          pending.classList.remove('pending');
+          setStatus('Responding…');
+          if (follow) messages.scrollTop = messages.scrollHeight;
         });
-        const answer = payload.choices?.[0]?.message?.content || 'The server returned no assistant message.';
         pending.textContent = answer;
         pending.classList.remove('pending');
         current.messages.push({ role: 'assistant', content: answer });
@@ -433,7 +485,12 @@
         renderAttachments();
         setStatus('Saved on phone');
       } catch (error) {
-        if (pending) { pending.textContent = error.message || 'Request failed.'; pending.classList.add('failed'); pending.classList.remove('pending'); }
+        if (pending) {
+          const partial = !pending.classList.contains('pending') ? pending.textContent : '';
+          pending.textContent = (partial ? partial + '\n\n' : '') + (error.message || 'Request failed.');
+          pending.classList.add('failed');
+          pending.classList.remove('pending');
+        }
         setStatus(error.message || 'Request failed.', true);
       } finally { busy = false; send.disabled = false; prompt.focus(); }
     });

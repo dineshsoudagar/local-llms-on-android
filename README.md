@@ -1,8 +1,10 @@
-# 🤖 Pocket LLM for Android (Offline, Private & Fast)
+# 🤖 Pocket LLM for Android (Local LLM Server, Offline & Private)
 
-Run private AI chat on your Android phone, with text, images, PDFs, audio, and offline speech-to-text.
+Turn your Android phone into a **local LLM server for your home network**, or chat privately on-device with text, images, PDFs, audio, and offline speech-to-text.
 
 Chat in the app, open its Web UI on your computer, or connect a compatible OpenAI client while the model runs on your phone.
+
+**Turn your Android phone into a local AI home server.** Serve built-in LiteRT models or compatible imported `.litertlm` models to your home network, and let scripts or other devices use the same local model for repeated tasks. [See the LAN server demo and automation use cases](#a-local-ai-home-server-for-repeated-tasks).
 
 Install the small base APK, then download a built-in model or import your own LiteRT model (beta).
 
@@ -18,15 +20,22 @@ Changes since v1.5.0:
 
 ### New features
 
+#### 🏠 Make your phone a local LLM server
+
+Run a built-in LiteRT model or a compatible imported `.litertlm` model on your phone and use it from other devices on your home network. Give scripts and scheduled workflows a local inference endpoint without keeping a desktop PC running solely for model inference. [See the demo and automation use cases](#a-local-ai-home-server-for-repeated-tasks).
+
+- 🌐 **[LAN and browser chat](#lan-api-and-web-ui):** Open the phone's password-protected Web UI on your PC while inference stays on the phone.
+- 🗂️ **[Browser history and uploads](#browser-web-ui):** Save, reopen, or delete chats on the phone, and upload PDFs or images from your PC.
+- 🔌 **[OpenAI-compatible API](#openai-compatible-endpoints):** Connect Open WebUI, [example scripts](#python-client), or compatible harnesses; [OpenCode](#opencode-coding-agent-backend) tool-call round trips tested.
+- ⚙️ **[Context settings](#context-length-setting):** Adjust context length per LiteRT model.
+
+#### 🧩 Models, documents and voice
+
 - 🧩 **[Your own model (beta)](#use-your-own-model-beta):** Import a local `.litertlm` file for text chat.
 - 📄 **[Documents](#document-and-audio-attachments):** Attach text files and PDFs, including scanned pages read with OCR.
 - 🔎 **[Document answers](#document-and-audio-attachments):** Use simple BM25 retrieval for questions or process all source chunks for summaries.
 - 🎙️ **[Speech-to-text](#document-and-audio-attachments):** Transcribe offline with multilingual Whisper, including German, and edit before sending.
 - 🔊 **[Audio attachments](#document-and-audio-attachments):** Upload or record audio for native Gemma understanding or Whisper transcription.
-- 🌐 **[LAN and browser chat](#lan-api-and-web-ui):** Open the phone's password-protected Web UI on your PC while inference stays on the phone.
-- 🗂️ **[Browser history and uploads](#browser-web-ui):** Save, reopen, or delete chats on the phone, and upload PDFs or images from your PC.
-- 🔌 **[OpenAI-compatible API](#openai-compatible-endpoints):** Connect Open WebUI, [example scripts](#python-client), or compatible harnesses; [OpenCode](#opencode-coding-agent-backend) tool-call round trips tested.
-- ⚙️ **[Context settings](#context-length-setting):** Adjust context length per LiteRT model.
 
 ### Improvements
 
@@ -91,6 +100,7 @@ A privacy-first offline document intelligence system with persistent local RAG, 
 ### LAN and integrations
 
 - 🌐 **LAN server:** Serve the phone's selected model to devices on the same private network.
+- 🏠 **Local AI home server:** Use built-in or compatible imported LiteRT models as a shared inference endpoint for scheduled jobs and monitoring workflows.
 - 💻 **Web UI:** Chat in a PC browser, upload PDFs or images, and save conversations on the phone.
 - 🔌 **OpenAI-compatible API:** Connect compatible clients through model and chat-completion endpoints.
 - 🛠️ **Agent tools:** Return native tool calls from supported LiteRT models for harnesses such as OpenCode to execute.
@@ -186,15 +196,36 @@ Pocket LLM can expose the selected on-device model to a computer or another devi
 
 The phone dialog shows the address chosen from the phone's local network interfaces. The computer must be on that same Wi-Fi or LAN; a VPN, guest network, mobile-data address, or a different interface can show a different IP and will not work. This is a private-LAN endpoint, not a public Internet URL.
 
-### LAN screenshots
+### LAN server demo
 
-Add the server-start screenshot here:
+<table align="center" width="100%">
+  <tr>
+    <td align="center" valign="top" width="22%">
+      <img src="data/pocket_llm_lan_server_start_img.jpg" alt="Pocket LLM Android LAN Server dialog showing the browser URL, API URL, and red Stop server button" height="338"/><br/>
+      <sub><b>Start the server on your phone</b></sub>
+    </td>
+    <td align="center" valign="top" width="78%">
+      <video src="data/pocket_llm_v1.6_lan_server_demo.mp4" width="600" height="338" controls preload="metadata" aria-label="Pocket LLM LAN browser chat demonstration">
+        <a href="data/pocket_llm_v1.6_lan_server_demo.mp4">Watch the LAN server demo</a>
+      </video><br/>
+      <sub><b>Use the model from your browser</b> · <a href="data/pocket_llm_v1.6_lan_server_demo.mp4">Watch / download video</a></sub>
+    </td>
+  </tr>
+</table>
 
-<!-- ![Start the LAN server from the Android app](data/lan-server-start.png) -->
+### A local AI home server for repeated tasks
 
-Add the browser-chat screenshot here:
+**The phone can be the model server for your home network, not just a chat screen.** Choose from the built-in LiteRT models or import a compatible `.litertlm` model, then expose the selected model through the same password-protected Web UI and OpenAI-compatible API. You can switch models in the app; the server serves one selected model at a time, and custom-model compatibility remains beta.
 
-<!-- ![Pocket LLM browser chat UI](data/lan-browser-ui.png) -->
+Use a script, scheduler, or another connected device to send repeated requests, for example:
+
+- Summarize new local reports or log excerpts on a schedule.
+- Classify incoming text or extract fields for a household workflow.
+- Ask the model to interpret status updates collected by a monitoring script.
+
+Your automation provides the schedule, data collection, retries, and any alerts; Pocket LLM provides local inference. This can avoid keeping your personal desktop PC running solely for small inference jobs, while keeping the model and its processing on the phone.
+
+For overnight or continuous use, keep the phone powered, check temperature and Android battery restrictions, and test the workload on your device. The LAN service supports screen-off operation while enabled, but **24/7 uptime and power savings have not been benchmarked**; energy use and reliability depend on the phone, model, workload, and network.
 
 ### Browser Web UI
 

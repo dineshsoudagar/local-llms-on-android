@@ -176,13 +176,16 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/lanServerCloseButton"
-            style="@style/DialogSecondaryButton"
+            style="@style/DialogPrimaryButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
             android:layout_weight="1"
             android:contentDescription="@string/lan_server_stop_close_description"
-            android:text="@string/close" />
+            android:enabled="false"
+            android:text="@string/lan_server_stop"
+            android:textColor="#FFFFFF"
+            app:backgroundTint="#B3261E" />
     </LinearLayout>
 
 </LinearLayout>

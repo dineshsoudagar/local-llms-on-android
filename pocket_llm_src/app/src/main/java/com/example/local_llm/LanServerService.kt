@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CancellationException
@@ -58,6 +59,7 @@ class LanServerService : Service() {
     private var server: LanHttpServer? = null
     private var preserveFailureState = false
     private var stopRequested = false
+    private var serverWakeLock: PowerManager.WakeLock? = null
     private lateinit var notificationManager: NotificationManager
 
     override fun onCreate() {
@@ -98,6 +100,7 @@ class LanServerService : Service() {
         server = null
         startupJob?.cancel()
         serviceScope.cancel()
+        releaseServerWakeLock()
         if (!preserveFailureState && !stopRequested) {
             LanServerStateStore.markStopped(applicationContext)
         }
@@ -126,6 +129,7 @@ class LanServerService : Service() {
 
         startupJob = serviceScope.launch {
             try {
+                acquireServerWakeLock()
                 ModelRegistry.loadCustomModels(applicationContext)
                 val descriptor = ModelRegistry.findById(modelId)
                     ?: error(getString(R.string.lan_server_model_required))
@@ -177,6 +181,7 @@ class LanServerService : Service() {
                     error.message ?: getString(R.string.lan_server_start_failed)
                 )
                 preserveFailureState = true
+                releaseServerWakeLock()
                 stopForegroundCompat()
                 stopSelf(startId)
             }
@@ -190,6 +195,7 @@ class LanServerService : Service() {
         startupJob = null
         server?.close()
         server = null
+        releaseServerWakeLock()
         LanServerStateStore.markStopped(applicationContext)
         stopForegroundCompat()
         stopSelf(startId)
@@ -206,6 +212,25 @@ class LanServerService : Service() {
                 NotificationManager.IMPORTANCE_LOW
             )
         )
+    }
+
+    private fun acquireServerWakeLock() {
+        if (serverWakeLock?.isHeld == true) return
+        val powerManager = getSystemService(PowerManager::class.java)
+        serverWakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "$packageName:LanServer"
+        ).apply {
+            setReferenceCounted(false)
+            // The user explicitly enables an always-available LAN server. Keep the CPU
+            // awake until Stop, startup failure, or service destruction; never the display.
+            acquire()
+        }
+    }
+
+    private fun releaseServerWakeLock() {
+        serverWakeLock?.takeIf { it.isHeld }?.release()
+        serverWakeLock = null
     }
 
     private fun startForegroundCompat() {
@@ -237,11 +262,18 @@ class LanServerService : Service() {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val stopIntent = PendingIntent.getService(
+            this,
+            3,
+            Intent(this, LanServerService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher_2)
             .setContentTitle(getString(R.string.lan_server_notification_title))
             .setContentText(contentText)
             .setContentIntent(pendingIntent)
+            .addAction(0, getString(R.string.lan_server_stop), stopIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

@@ -6,6 +6,10 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
@@ -408,7 +412,18 @@ class LanHttpServer(
                 var streamedText = ""
                 var streamedToolCallCount = 0
                 val response = runBlocking(Dispatchers.IO) {
-                    controller.sendExternalChatAndAwait(
+                    // Prefill/thinking can take a while before there is visible text.
+                    val heartbeat = launch {
+                        while (isActive) {
+                            delay(15_000L)
+                            synchronized(writer) {
+                                writer.write(": keep-alive\n\n")
+                                writer.flush()
+                            }
+                        }
+                    }
+                    try {
+                        controller.sendExternalChatAndAwait(
                         history = history,
                         systemInstruction = request.systemInstruction,
                         outputTokenReserve = request.outputTokenReserve,
@@ -447,7 +462,10 @@ class LanHttpServer(
                                 streamedToolCallCount = partial.toolCalls.size
                             }
                         }
-                    )
+                        )
+                    } finally {
+                        heartbeat.cancelAndJoin()
+                    }
                 }
                 validateToolChoice(request, response)
                 val finalDelta = textDelta(streamedText, response.text)
@@ -696,7 +714,7 @@ class LanHttpServer(
         created: Long,
         delta: JSONObject,
         finishReason: String?
-    ) {
+    ) = synchronized(writer) {
         val choice = JSONObject()
             .put("index", 0)
             .put("delta", delta)

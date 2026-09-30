@@ -96,14 +96,15 @@ data class CustomLiteRtSpec(
     val modelAssetName: String,
     val fileBytes: Long,
     val modelId: String,
-    val modelDisplayName: String
+    val modelDisplayName: String,
+    val detectedInputs: CustomModelCapabilities? = null
 ) : ModelDescriptor(
     id = modelId,
     displayName = modelDisplayName,
     supportsThinking = false,
     backendLabel = "LiteRT (local beta)",
     sizeLabel = "%.2f GB".format(java.util.Locale.US, fileBytes.toDouble() / (1024.0 * 1024.0 * 1024.0)),
-    deviceRecommendation = "Text chat only. Compatibility and stability are not guaranteed.",
+    deviceRecommendation = "${detectedInputs?.let { "Detected inputs: ${it.inputSummary()}." } ?: "Input capabilities unknown; text chat will be attempted."} Native image/audio availability depends on this device. Beta compatibility is not guaranteed.",
     approxDownloadBytes = fileBytes,
     downloadFiles = listOf(ModelDownloadFile(modelAssetName, "", fileBytes))
 )

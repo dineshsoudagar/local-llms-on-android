@@ -41,6 +41,7 @@ class PromptBudgetingTest {
         }.exceptionOrNull()
 
         assertNotNull(error)
+        assertTrue(error is PromptBudgetExceededException)
         assertTrue(error!!.message.orEmpty().contains("513"))
     }
 
@@ -77,7 +78,7 @@ class PromptBudgetingTest {
         )
 
         assertEquals(384, backend.requirePromptFits(exact))
-        assertNotNull(runCatching { backend.requirePromptFits(over) }.exceptionOrNull())
+        assertTrue(runCatching { backend.requirePromptFits(over) }.exceptionOrNull() is PromptBudgetExceededException)
     }
 
     @Test
@@ -92,7 +93,40 @@ class PromptBudgetingTest {
         }.exceptionOrNull()
 
         assertNotNull(error)
+        assertTrue(error is PromptBudgetExceededException)
         assertTrue(error!!.message.orEmpty().contains("system instruction", ignoreCase = true))
+    }
+
+    @Test
+    fun oversizedLatestMessageRequestsFreshChatRecoveryEvenWithoutHistory() {
+        val backend = ExactFakeBackend(serializer)
+        val request = InferenceRequest(
+            history = listOf(ChatTurn(role = ChatRole.USER, text = "u".repeat(508))),
+            thinkingEnabled = false,
+            modelInstruction = ""
+        )
+
+        assertTrue(runCatching { backend.fitHistoryWithinContext(request) }
+            .exceptionOrNull() is PromptBudgetExceededException)
+        assertTrue(runCatching {
+            serializer.serializeWithinLimit(request.history, "", 512, allowHistoryTruncation = true)
+        }.exceptionOrNull() is PromptBudgetExceededException)
+    }
+
+    @Test
+    fun invalidOutputReserveIsNotTreatedAsPromptOverflow() {
+        val backend = ExactFakeBackend(serializer)
+        val error = runCatching {
+            backend.requirePromptFits(InferenceRequest(
+                history = listOf(ChatTurn(role = ChatRole.USER, text = "hi")),
+                thinkingEnabled = false,
+                modelInstruction = "",
+                outputTokenReserve = -1
+            ))
+        }.exceptionOrNull()
+
+        assertTrue(error is IllegalArgumentException)
+        assertTrue(error !is PromptBudgetExceededException)
     }
 
     @Test

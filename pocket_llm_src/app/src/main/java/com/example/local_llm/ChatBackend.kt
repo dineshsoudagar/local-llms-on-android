@@ -1,5 +1,11 @@
 package com.example.local_llm
 
+class PromptBudgetExceededException(message: String) : IllegalArgumentException(message)
+
+internal inline fun requirePromptBudget(fits: Boolean, message: () -> String) {
+    if (!fits) throw PromptBudgetExceededException(message())
+}
+
 interface ChatBackend : AutoCloseable {
     val capabilities: BackendCapabilities
 
@@ -49,7 +55,7 @@ interface ChatBackend : AutoCloseable {
 
     fun fitHistoryWithinContext(request: InferenceRequest): List<ChatTurn> {
         val limit = promptTokenLimit(request)
-        require(limit > 0) { "The requested output reserve leaves no room for an input prompt." }
+        requirePromptBudget(limit > 0) { "The requested output reserve leaves no room for an input prompt." }
         if (estimateSerializedPromptTokens(request) <= limit) {
             return request.history
         }
@@ -77,7 +83,7 @@ interface ChatBackend : AutoCloseable {
             val candidateRequest = request.copy(history = candidate)
             if (estimateSerializedPromptTokens(candidateRequest) > limit) {
                 if (retained.isEmpty()) {
-                    throw IllegalArgumentException(
+                    throw PromptBudgetExceededException(
                         "The current user message exceeds the ${limit}-token prompt budget."
                     )
                 }
@@ -90,9 +96,9 @@ interface ChatBackend : AutoCloseable {
 
     fun requirePromptFits(request: InferenceRequest): Int {
         val limit = promptTokenLimit(request)
-        require(limit > 0) { "The requested output reserve leaves no room for an input prompt." }
+        requirePromptBudget(limit > 0) { "The requested output reserve leaves no room for an input prompt." }
         val actual = estimateSerializedPromptTokens(request)
-        require(actual <= limit) {
+        requirePromptBudget(actual <= limit) {
             "The complete prompt needs $actual tokens, but this model allows $limit after reserving " +
                 "${request.outputTokenReserve} tokens for the response. Shorten the system instruction, chat history, or request."
         }

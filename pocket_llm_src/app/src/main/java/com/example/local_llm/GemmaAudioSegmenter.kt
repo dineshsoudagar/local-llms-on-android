@@ -16,21 +16,26 @@ data class GemmaAudioSegmentPlan(val windows: List<LongRange>) {
     val inferencePasses: Int get() = if (segmentCount <= 1) 1 else segmentCount + 1
 }
 
-class GemmaAudioSegmenter private constructor(private val cacheDirectory: File) {
-    constructor(context: Context) : this(File(context.cacheDir, "gemma_audio_segments"))
+class GemmaAudioSegmenter private constructor(
+    private val cacheDirectory: File,
+    private val maxSegmentMillis: Long = AttachmentLimits.GEMMA_MAX_AUDIO_INPUT_MILLIS
+) {
+    constructor(context: Context, maxSegmentMillis: Long = AttachmentLimits.GEMMA_MAX_AUDIO_INPUT_MILLIS) :
+        this(File(context.cacheDir, "gemma_audio_segments"), maxSegmentMillis)
 
     internal constructor(cacheRoot: File, useDirectDirectory: Boolean) : this(
         if (useDirectDirectory) cacheRoot else File(cacheRoot, "gemma_audio_segments")
     )
 
     fun plan(descriptor: AttachmentDescriptor): GemmaAudioSegmentPlan = planDuration(
-        descriptor.durationMillis ?: throw IllegalArgumentException("Audio duration is unavailable.")
+        descriptor.durationMillis ?: throw IllegalArgumentException("Audio duration is unavailable."),
+        maxSegmentMillis
     )
 
     suspend fun segment(descriptor: AttachmentDescriptor): SegmentedNativeAudio {
         val duration = descriptor.durationMillis ?: throw IllegalArgumentException("Audio duration is unavailable.")
-        val plan = planDuration(duration)
-        if (duration <= AttachmentLimits.GEMMA_MAX_AUDIO_INPUT_MILLIS) {
+        val plan = planDuration(duration, maxSegmentMillis)
+        if (duration <= maxSegmentMillis) {
             return SegmentedNativeAudio(
                 inputs = listOf(NativeAudioInput(descriptor.sourcePath, 0L, duration)),
                 temporaryFiles = emptyList()
@@ -102,15 +107,19 @@ class GemmaAudioSegmenter private constructor(private val cacheDirectory: File) 
         writeShort(java.lang.Short.reverseBytes(value.toShort()).toInt())
 
     companion object {
-        fun planDuration(durationMillis: Long): GemmaAudioSegmentPlan {
+        fun planDuration(
+            durationMillis: Long,
+            maxSegmentMillis: Long = AttachmentLimits.GEMMA_MAX_AUDIO_INPUT_MILLIS
+        ): GemmaAudioSegmentPlan {
             require(durationMillis in 1..AttachmentLimits.MAX_AUDIO_DURATION_MILLIS)
-            if (durationMillis <= AttachmentLimits.GEMMA_MAX_AUDIO_INPUT_MILLIS) {
+            require(maxSegmentMillis > AttachmentLimits.AUDIO_SEGMENT_OVERLAP_MILLIS)
+            if (durationMillis <= maxSegmentMillis) {
                 return GemmaAudioSegmentPlan(listOf(0L..durationMillis))
             }
             val windows = mutableListOf<LongRange>()
             var startMillis = 0L
             while (startMillis < durationMillis) {
-                val endMillis = minOf(startMillis + AttachmentLimits.AUDIO_SEGMENT_MILLIS, durationMillis)
+                val endMillis = minOf(startMillis + minOf(AttachmentLimits.AUDIO_SEGMENT_MILLIS, maxSegmentMillis), durationMillis)
                 windows += startMillis..endMillis
                 if (endMillis >= durationMillis) break
                 startMillis = endMillis - AttachmentLimits.AUDIO_SEGMENT_OVERLAP_MILLIS

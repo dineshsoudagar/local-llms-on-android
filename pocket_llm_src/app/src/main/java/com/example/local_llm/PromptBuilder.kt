@@ -74,20 +74,20 @@ internal class QwenChatPromptSerializer(
         val blocks = promptBlocks(messages, systemPrompt)
         val systemBlock = blocks.first()
         val assistantStart = roleTokenIds.assistantStart
-        require(systemBlock.size + assistantStart.size <= maxTokens) {
+        requirePromptBudget(systemBlock.size + assistantStart.size <= maxTokens) {
             "The system instruction exceeds the ONNX prompt budget. Shorten it before sending."
         }
         val turnBlocks = blocks.drop(1)
         val completeSize = systemBlock.size + turnBlocks.sumOf(List<Int>::size) + assistantStart.size
         if (!allowHistoryTruncation) {
-            require(completeSize <= maxTokens) {
+            requirePromptBudget(completeSize <= maxTokens) {
                 "The complete serialized prompt needs $completeSize tokens, but the ONNX prompt limit is $maxTokens."
             }
             return serializeAll(messages, systemPrompt)
         }
 
         val turnBudget = maxTokens - systemBlock.size - assistantStart.size
-        require((turnBlocks.lastOrNull()?.size ?: 0) <= turnBudget) {
+        requirePromptBudget((turnBlocks.lastOrNull()?.size ?: 0) <= turnBudget) {
             "The current user message exceeds the ONNX prompt budget. Shorten the request or attachment context."
         }
         val retainedReversed = mutableListOf<List<Int>>()

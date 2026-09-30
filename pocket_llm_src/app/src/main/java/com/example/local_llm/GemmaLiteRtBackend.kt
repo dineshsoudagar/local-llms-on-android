@@ -12,14 +12,16 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
 
+/** Shared LiteRT multimodal engine; custom models use no Gemma-specific thinking or tool directives. */
 class GemmaLiteRtBackend(
     private val context: Context,
-    private val spec: GemmaLiteRtSpec,
+    private val spec: ModelDescriptor,
     private val modelFileResolver: ModelFileResolver,
     private val runtimeSettings: ModelRuntimeSettings = ModelRuntimeSettings(
         ModelRuntimeSettingsLimits.LITERT_DEFAULT_CONTEXT_LENGTH
@@ -39,22 +41,33 @@ class GemmaLiteRtBackend(
     private var conversation: Conversation? = null
     private var directImageInputInitialized = false
     private var directAudioInputInitialized = false
+    private var importedInputs: CustomModelCapabilities? = (spec as? CustomLiteRtSpec)?.detectedInputs
+    private val imageInputRequested: Boolean
+        get() = if (spec is CustomLiteRtSpec) importedInputs?.vision == true else spec.directImageInputAvailable
+    private val audioInputRequested: Boolean
+        get() = if (spec is CustomLiteRtSpec) importedInputs?.audio == true else spec.directAudioInputAvailable
 
     override val capabilities: BackendCapabilities
         get() = BackendCapabilities(
             supportsNativeImage = directImageInputInitialized,
             supportsNativeAudio = directAudioInputInitialized,
-            supportsNativeToolCalling = true,
+            supportsNativeToolCalling = spec is GemmaLiteRtSpec,
             contextWindowTokens = runtimeSettings.contextLengthTokens
         )
 
     override suspend fun initialize() = withContext(Dispatchers.IO) {
         val modelFile = modelFileResolver.resolveModelFile(spec)
         val modelPath = modelFile.absolutePath
+        if (spec is CustomLiteRtSpec) {
+            // Reinspect on load, including old imports with no saved input metadata.
+            importedInputs = inspectCustomModel(modelFile)
+            require(importedInputs?.text != false) { "This model does not declare text input support." }
+            if (importedInputs == null) Log.w(TAG, "Could not inspect ${spec.displayName}; attempting text only.")
+        }
 
         directImageInputInitialized = false
         directAudioInputInitialized = false
-        val audioModelSha256 = if (spec.directAudioInputAvailable) {
+        val audioModelSha256 = if (audioInputRequested) {
             GemmaNativeAudioCompatibility.modelSha256(modelFile)
         } else {
             null
@@ -84,16 +97,16 @@ class GemmaLiteRtBackend(
                     continue
                 }
                 directAudioInputInitialized = attempt.audioBackend != null
-                if (!directImageInputInitialized && spec.directImageInputAvailable) {
+                if (!directImageInputInitialized && imageInputRequested) {
                     Log.w(
                         TAG,
-                        "Gemma initialized in text-only mode. Direct image input is disabled on this device/backend."
+                        "${spec.displayName} initialized without vision. Direct image input is disabled on this device/backend."
                     )
                 }
-                if (!directAudioInputInitialized && spec.directAudioInputAvailable) {
+                if (!directAudioInputInitialized && audioInputRequested) {
                     Log.w(
                         TAG,
-                        "Gemma initialized without an audio backend. Native audio is disabled; Whisper fallback is forbidden."
+                        "${spec.displayName} initialized without an audio backend. Native audio is disabled."
                     )
                 }
                 return@withContext
@@ -104,7 +117,7 @@ class GemmaLiteRtBackend(
             failures += EngineInitFailure(attempt.label, error)
             Log.w(
                 TAG,
-                "Gemma LiteRT-LM initialization failed for ${attempt.label}: ${error.shortDescription()}",
+                "LiteRT-LM initialization failed for ${attempt.label}: ${error.shortDescription()}",
                 error
             )
         }
@@ -112,7 +125,7 @@ class GemmaLiteRtBackend(
         directImageInputInitialized = false
         directAudioInputInitialized = false
         throw IllegalStateException(
-            "Failed to initialize Gemma LiteRT-LM. ${formatInitFailures(failures)}",
+            "Failed to initialize ${spec.displayName}. ${formatInitFailures(failures)}",
             failures.lastOrNull()?.error
         )
     }
@@ -137,20 +150,21 @@ class GemmaLiteRtBackend(
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse = withContext(Dispatchers.IO) {
         require(request.imageFilePaths.isEmpty() || supportsDirectImageInput) {
-            "Direct Gemma image input is not available on this device/backend. Switch image input to OCR."
+            "Direct image input is not available on this device/backend. Switch image input to OCR."
         }
         require(request.nativeAudioInputs.isEmpty() || supportsNativeAudioInput) {
-            "Native Gemma audio is not initialized on this device/backend."
+            "Native audio is not initialized on this device/backend."
         }
         require(request.imageFilePaths.isEmpty() || request.nativeAudioInputs.isEmpty()) {
             "Image and document/audio attachments cannot be mixed in the same send."
         }
+        require(request.imageFilePaths.size <= DEFAULT_MAX_NUM_IMAGES) { "Send one image at a time with native image input." }
         val boundedHistory = fitHistoryWithinContext(request)
         require(
             boundedHistory.isNotEmpty() &&
                 (boundedHistory.last().role == ChatRole.USER || boundedHistory.last().isToolResult)
         ) {
-            "Gemma backend expects the final history turn to be a user or tool message."
+            "LiteRT backend expects the final history turn to be a user or tool message."
         }
 
         val initialHistory = boundedHistory.dropLast(1)
@@ -214,9 +228,8 @@ class GemmaLiteRtBackend(
         modelPath: String,
         attempt: EngineInitAttempt
     ): Result<Engine> {
-        var candidate: Engine? = null
-        return runCatching {
-            candidate = Engine(
+        return createUsableLiteRtRuntime(
+            create = { Engine(
                 EngineConfig(
                     modelPath = modelPath,
                     backend = attempt.backend,
@@ -226,23 +239,23 @@ class GemmaLiteRtBackend(
                     maxNumImages = if (attempt.visionBackend != null) DEFAULT_MAX_NUM_IMAGES else null,
                     cacheDir = context.cacheDir.absolutePath
                 )
-            )
-            candidate!!.initialize()
-            candidate!!
-        }.onFailure {
-            candidate?.let { failedEngine ->
-                runCatching {
-                    failedEngine.close()
-                }
+            ) },
+            initializeAndValidate = { candidate ->
+                candidate.initialize()
+                // Vision executors can compile lazily during conversation creation. Keep this
+                // inside the attempt so unsupported GPU ops reach the CPU vision fallback.
+                candidate.createConversation(
+                    ConversationConfig(channels = emptyList(), automaticToolCalling = false)
+                ).use { }
             }
-        }
+        )
     }
 
     private suspend fun verifyNativeAudioCompatibility(
         attempt: EngineInitAttempt,
         modelSha256: String
     ): Boolean {
-        if (!spec.directAudioInputAvailable) return false
+        if (!audioInputRequested) return false
         val preferences = context.getSharedPreferences(AUDIO_COMPATIBILITY_PREFS, Context.MODE_PRIVATE)
         val cache = GemmaNativeAudioCompatibilityCache(
             SharedPreferencesGemmaNativeAudioCompatibilityStore(preferences)
@@ -251,7 +264,7 @@ class GemmaLiteRtBackend(
             modelSha256 = modelSha256,
             backendAttempt = attempt.runtimeIdentity,
             liteRtLmVersion = GemmaNativeAudioCompatibility.LITERT_LM_RUNTIME_VERSION,
-            smokeTestContractVersion = GemmaNativeAudioCompatibility.SMOKE_TEST_CONTRACT_VERSION,
+            smokeTestContractVersion = if (spec is CustomLiteRtSpec) "custom-native-audio-v1" else GemmaNativeAudioCompatibility.SMOKE_TEST_CONTRACT_VERSION,
             buildFingerprint = Build.FINGERPRINT
         )
         if (cache.isAuthorized(runtimeIdentity)) return true
@@ -262,7 +275,8 @@ class GemmaLiteRtBackend(
             val smokeConversation = engine.createConversation(
                 ConversationConfig(
                     systemInstruction = Contents.of("Audio compatibility test."),
-                    channels = emptyList()
+                    channels = emptyList(),
+                    maxOutputToken = 16
                 )
             )
             try {
@@ -282,16 +296,18 @@ class GemmaLiteRtBackend(
             cache.recordSuccess(runtimeIdentity)
             Log.i(
                 TAG,
-                "Native Gemma audio compatibility smoke test passed for ${spec.displayName} " +
+                "Native audio compatibility smoke test passed for ${spec.displayName} " +
                     "with ${attempt.runtimeIdentity}."
             )
             true
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Throwable) {
             cache.recordFailure(runtimeIdentity)
             Log.e(
                 TAG,
-                "Native Gemma audio compatibility smoke test failed for ${attempt.runtimeIdentity}. " +
-                    "Audio remains disabled and will not use Whisper.",
+                "Native audio compatibility smoke test failed for ${attempt.runtimeIdentity}. " +
+                    "Audio remains disabled.",
                 error
             )
             false
@@ -347,15 +363,15 @@ class GemmaLiteRtBackend(
                 initialMessages = history.map { turn ->
                     turn.toLiteRtMessage()
                 },
-                tools = externalToolProviders(tools),
+                tools = externalToolProviders(if (capabilities.supportsNativeToolCalling) tools else emptyList()),
                 automaticToolCalling = false,
-                channels = if (thinkingEnabled) null else emptyList()
+                channels = if (spec is GemmaLiteRtSpec && thinkingEnabled) null else emptyList()
             )
         )
     }
 
     private fun buildSystemInstruction(thinkingEnabled: Boolean, modelInstruction: String): String {
-        return if (thinkingEnabled) {
+        return if (spec is GemmaLiteRtSpec && thinkingEnabled) {
             "<|think|>\n$modelInstruction"
         } else {
             modelInstruction
@@ -402,19 +418,19 @@ class GemmaLiteRtBackend(
     private fun buildEngineInitAttempts(): List<EngineInitAttempt> {
         val attempts = mutableListOf<EngineInitAttempt>()
         val cpuBackend = Backend.CPU(numOfThreads = CPU_THREAD_COUNT)
-        if (spec.directImageInputAvailable || spec.directAudioInputAvailable) {
+        if (imageInputRequested || audioInputRequested) {
             attempts += EngineInitAttempt(
                 "GPU text + GPU multimodal",
                 Backend.GPU(),
-                Backend.GPU().takeIf { spec.directImageInputAvailable },
-                Backend.GPU().takeIf { spec.directAudioInputAvailable },
+                Backend.GPU().takeIf { imageInputRequested },
+                Backend.GPU().takeIf { audioInputRequested },
                 runtimeIdentity(
                     text = "gpu",
-                    vision = "gpu".takeIf { spec.directImageInputAvailable },
-                    audio = "gpu".takeIf { spec.directAudioInputAvailable }
+                    vision = "gpu".takeIf { imageInputRequested },
+                    audio = "gpu".takeIf { audioInputRequested }
                 )
             )
-            if (spec.directAudioInputAvailable) {
+            if (audioInputRequested) {
                 // Gemma 4 E2B declares a CPU-only audio encoder. Keep text and vision on the
                 // GPU, which has already initialized successfully on the device, and move only
                 // the constrained audio encoder to CPU. This is required even when broader CPU
@@ -422,11 +438,11 @@ class GemmaLiteRtBackend(
                 attempts += EngineInitAttempt(
                     "GPU text + GPU vision + CPU audio",
                     Backend.GPU(),
-                    Backend.GPU().takeIf { spec.directImageInputAvailable },
+                    Backend.GPU().takeIf { imageInputRequested },
                     cpuBackend,
                     runtimeIdentity(
                         text = "gpu",
-                        vision = "gpu".takeIf { spec.directImageInputAvailable },
+                        vision = "gpu".takeIf { imageInputRequested },
                         audio = "cpu-$CPU_THREAD_COUNT"
                     )
                 )
@@ -435,28 +451,28 @@ class GemmaLiteRtBackend(
                 attempts += EngineInitAttempt(
                     "GPU text + CPU multimodal",
                     Backend.GPU(),
-                    cpuBackend.takeIf { spec.directImageInputAvailable },
-                    cpuBackend.takeIf { spec.directAudioInputAvailable },
+                    cpuBackend.takeIf { imageInputRequested },
+                    cpuBackend.takeIf { audioInputRequested },
                     runtimeIdentity(
                         text = "gpu",
-                        vision = "cpu-$CPU_THREAD_COUNT".takeIf { spec.directImageInputAvailable },
-                        audio = "cpu-$CPU_THREAD_COUNT".takeIf { spec.directAudioInputAvailable }
+                        vision = "cpu-$CPU_THREAD_COUNT".takeIf { imageInputRequested },
+                        audio = "cpu-$CPU_THREAD_COUNT".takeIf { audioInputRequested }
                     )
                 )
                 attempts += EngineInitAttempt(
                     "CPU text + CPU multimodal",
                     cpuBackend,
-                    cpuBackend.takeIf { spec.directImageInputAvailable },
-                    cpuBackend.takeIf { spec.directAudioInputAvailable },
+                    cpuBackend.takeIf { imageInputRequested },
+                    cpuBackend.takeIf { audioInputRequested },
                     runtimeIdentity(
                         text = "cpu-$CPU_THREAD_COUNT",
-                        vision = "cpu-$CPU_THREAD_COUNT".takeIf { spec.directImageInputAvailable },
-                        audio = "cpu-$CPU_THREAD_COUNT".takeIf { spec.directAudioInputAvailable }
+                        vision = "cpu-$CPU_THREAD_COUNT".takeIf { imageInputRequested },
+                        audio = "cpu-$CPU_THREAD_COUNT".takeIf { audioInputRequested }
                     )
                 )
             }
         }
-        if (spec.directImageInputAvailable) {
+        if (imageInputRequested) {
             attempts += EngineInitAttempt(
                 "GPU text + GPU vision",
                 Backend.GPU(),
@@ -465,7 +481,15 @@ class GemmaLiteRtBackend(
                 runtimeIdentity("gpu", "gpu", null)
             )
         }
-        if (spec.directAudioInputAvailable) {
+        if (audioInputRequested) {
+            // Audio may be CPU-only even when vision cannot initialize on this device.
+            attempts += EngineInitAttempt(
+                "GPU text + CPU audio",
+                Backend.GPU(),
+                null,
+                cpuBackend,
+                runtimeIdentity("gpu", null, "cpu-$CPU_THREAD_COUNT")
+            )
             attempts += EngineInitAttempt(
                 "GPU text + GPU audio",
                 Backend.GPU(),

@@ -1099,21 +1099,23 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun isGemmaDirectImageInputAvailable(): Boolean {
-        if ((currentModel as? GemmaLiteRtSpec)?.directImageInputAvailable != true) {
-            return false
-        }
-
-        val state = chatController?.state?.value ?: return true
+        val descriptor = currentModel ?: return false
+        val state = chatController?.state?.value ?: return descriptor.directImageInputAvailable
         return when {
             state.isReady -> state.supportsDirectImageInput
-            state.isLoading -> true
+            state.isLoading -> descriptor.directImageInputAvailable
             else -> false
         }
     }
 
     private fun isGemmaDirectImageInputSupportedBySelectedModel(): Boolean {
-        return (currentModel as? GemmaLiteRtSpec)?.directImageInputAvailable == true
+        return currentModel?.directImageInputAvailable == true ||
+            chatController?.state?.value?.let { it.isReady && it.supportsDirectImageInput } == true
     }
+
+    private fun usesNativeAudioForSelectedModel(): Boolean =
+        currentModel?.directAudioInputAvailable == true ||
+            chatController?.state?.value?.let { it.isReady && it.supportsNativeAudioInput } == true
 
     private fun ensureImageInputModeAllowedForCurrentModel() {
         if (currentImageInputMode == ImageInputMode.GEMMA_DIRECT && !isGemmaDirectImageInputAvailable()) {
@@ -1122,7 +1124,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun ensureImageInputModeAllowedForModel(descriptor: ModelDescriptor) {
-        if (descriptor !is GemmaLiteRtSpec || !descriptor.directImageInputAvailable) {
+        if (!descriptor.directImageInputAvailable) {
             selectOcrImageInputMode(resetGemmaDirectInputs = true)
         }
     }
@@ -2016,17 +2018,17 @@ open class PocketChatActivity : AppCompatActivity() {
             }
 
             AttachmentKind.AUDIO -> {
-                if (currentModel is GemmaLiteRtSpec) {
+                if (usesNativeAudioForSelectedModel()) {
                     if (!controller.state.value.supportsNativeAudioInput) {
                         showTransientMessage(getString(R.string.gemma_audio_unavailable))
                         return null
                     }
-                    val segmenter = GemmaAudioSegmenter(this)
+                    val segmenter = GemmaAudioSegmenter(this, currentModel!!.nativeAudioSegmentMillis)
                     val plan = runCatching { segmenter.plan(descriptor) }.getOrElse { error ->
                         showTransientMessage(error.message ?: "Audio duration is unavailable.")
                         return null
                     }
-                    val confirmationKey = "${descriptor.id}:${userPrompt.hashCode()}:gemma-audio"
+                    val confirmationKey = "${descriptor.id}:${userPrompt.hashCode()}:${currentModel?.id}:native-audio"
                     if (
                         plan.segmentCount > 1 &&
                         confirmedAttachmentOperationKey != confirmationKey
@@ -2034,7 +2036,7 @@ open class PocketChatActivity : AppCompatActivity() {
                         MaterialAlertDialogBuilder(this)
                             .setTitle("Process the full audio?")
                             .setMessage(
-                                "Gemma will analyze ${plan.segmentCount} overlapping native-audio segments " +
+                                "The selected model will analyze ${plan.segmentCount} overlapping native-audio segments " +
                                     "in ${plan.inferencePasses} inference passes and then combine them. " +
                                     "It may take several minutes."
                             )
@@ -2214,7 +2216,7 @@ open class PocketChatActivity : AppCompatActivity() {
                 }
                 val contextLabel = when (input.contextSource) {
                     ImageInputContextSource.OCR -> "OCR text"
-                    ImageInputContextSource.GEMMA_DIRECT -> "Gemma direct image"
+                    ImageInputContextSource.GEMMA_DIRECT -> "Native image"
                 }
                 append("\n\n[Image ")
                 append(index + 1)
@@ -2486,7 +2488,7 @@ open class PocketChatActivity : AppCompatActivity() {
                 sessionId = sessionId,
                 uri = uri,
                 kind = requestedKind,
-                gemmaAudio = currentModel is GemmaLiteRtSpec
+                gemmaAudio = usesNativeAudioForSelectedModel()
             )
         }.getOrElse { error ->
             attachmentImportInProgress = false
@@ -2516,7 +2518,7 @@ open class PocketChatActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this)
             .setTitle("Download multilingual transcription model?")
             .setMessage(
-                "This non-Gemma model uses sherpa-onnx Whisper tiny int8 (${WhisperModelStore.DOWNLOAD_SIZE_LABEL}). " +
+                "This model uses sherpa-onnx Whisper tiny int8 (${WhisperModelStore.DOWNLOAD_SIZE_LABEL}) for transcription. " +
                     "It downloads only after your confirmation and stays on this device."
             )
             .setPositiveButton("Download") { _, _ -> downloadWhisperAndPrepare(descriptor) }
@@ -2765,7 +2767,7 @@ open class PocketChatActivity : AppCompatActivity() {
         } else if (
             descriptor?.kind == AttachmentKind.AUDIO &&
             descriptor.status == AttachmentStatus.READY &&
-            currentModel !is GemmaLiteRtSpec &&
+            !usesNativeAudioForSelectedModel() &&
             record.operation == AttachmentWorkOperation.IMPORT
         ) {
             offerWhisperPreparation(descriptor)
@@ -2802,11 +2804,12 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun prepareGemmaAudioAfterConfirmation(descriptor: AttachmentDescriptor) {
+        val segmentMillis = currentModel?.nativeAudioSegmentMillis ?: return
         if (audioPreparationJob?.isActive == true) return
         audioPreparationJob = lifecycleScope.launch {
             try {
                 val segmented = withContext(Dispatchers.IO) {
-                    GemmaAudioSegmenter(applicationContext).segment(descriptor)
+                    GemmaAudioSegmenter(applicationContext, segmentMillis).segment(descriptor)
                 }
                 preparedGemmaAudio = segmented
                 preparedGemmaAudioAttachmentId = descriptor.id
@@ -3016,6 +3019,13 @@ open class PocketChatActivity : AppCompatActivity() {
         attempt: ModelLoadRecord? = null
     ) {
         controllerStateJob?.cancel()
+        if (currentModel?.id != descriptor.id && activeChatSnapshot == null) {
+            inputEditText.text.clear()
+            clearSpeechInputState()
+            clearPendingImageInputs()
+            activeAttachment = null
+            renderActiveAttachment()
+        }
         chatController?.close()
         chatController = controller
         LanServerControllerRegistry.register(descriptor.id, controller)
@@ -3521,7 +3531,11 @@ open class PocketChatActivity : AppCompatActivity() {
             .setTitle(getString(R.string.model_recovery_title))
             .setMessage(
                 getString(
-                    R.string.model_recovery_message,
+                    if (record.failureReason?.contains("Some ops are not accelerated", ignoreCase = true) == true) {
+                        R.string.model_recovery_accelerator_message
+                    } else {
+                        R.string.model_recovery_message
+                    },
                     descriptor.displayName,
                     record.failureReason ?: getString(R.string.model_load_failed_generic)
                 )
@@ -3880,6 +3894,8 @@ open class PocketChatActivity : AppCompatActivity() {
             endpointView.text = state.endpoint ?: "—"
             apiEndpointView.text = state.endpoint?.let(::lanApiBaseUrl) ?: "—"
             val modelReady = chatController?.state?.value?.isReady == true
+            closeButton.isEnabled = state.isActive
+            closeButton.alpha = if (state.isActive) 1f else 0.4f
             startButton.isEnabled = !state.isActive && modelReady &&
                 LanServerStateStore.hasPassword(this) &&
                 passwordInput.text.toString() == savedPassword.orEmpty()
@@ -4246,10 +4262,8 @@ open class PocketChatActivity : AppCompatActivity() {
                 return
             }
             ensureImageInputModeAllowedForModel(descriptor)
-            val activeChatSnapshot = chatController?.snapshotActiveChat()
-                ?: retainedState.pendingModelLoadSnapshot
             modelDialogViews?.dialog?.dismiss()
-            requestModelLoad(descriptor, activeChatSnapshot)
+            requestModelLoad(descriptor, activeChatSnapshot = null)
             return
         }
 

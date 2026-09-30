@@ -61,7 +61,7 @@ class ChatController(
                 modelFileResolver,
                 modelRuntimeSettings
             )
-            is CustomLiteRtSpec -> QwenLiteRtBackend(appContext, modelDescriptor, modelFileResolver, modelRuntimeSettings)
+            is CustomLiteRtSpec -> GemmaLiteRtBackend(appContext, modelDescriptor, modelFileResolver, modelRuntimeSettings)
         }
     }
 
@@ -258,7 +258,8 @@ class ChatController(
         _state.value = ChatUiState(
             title = _state.value.title,
             transcript = buildTranscript(),
-            statusMessage = statusMessage,
+            statusMessage = if (isReady && modelDescriptor is CustomLiteRtSpec && statusMessage == MODEL_READY_STATUS_MESSAGE)
+                backend.capabilities.customReadyStatus() else statusMessage,
             isLoading = isLoading,
             isReady = isReady,
             isGenerating = isGenerating,

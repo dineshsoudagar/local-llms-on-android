@@ -106,7 +106,7 @@ class PersistentChatController(
                 modelRuntimeSettings,
                 initializationPolicy
             )
-            is CustomLiteRtSpec -> QwenLiteRtBackend(
+            is CustomLiteRtSpec -> GemmaLiteRtBackend(
                 appContext,
                 modelDescriptor,
                 modelFileResolver,
@@ -615,10 +615,36 @@ class PersistentChatController(
                 streamingAssistantTurn = null
                 resetLiveMarkdownState()
                 resetGenerationTimer()
-                publishState(
-                    statusMessage = "Error: ${e.message ?: "Unknown error."}",
-                    isGenerating = false
-                )
+                if (persistResult && e is PromptBudgetExceededException) {
+                    // Keep the failed request in saved history, but never retry it automatically.
+                    persistCurrentSession()
+                    clearActiveChatState()
+                    publishState(isReady = false, isLoading = true, isGenerating = false)
+                    try {
+                        withContext(Dispatchers.IO) {
+                            backend.resetConversation(emptyList(), thinkingEnabled, currentModelInstruction())
+                        }
+                        publishState(
+                            statusMessage = "Started a new chat because the prompt was too large. " +
+                                "Shorten the message, attachment, or system instruction before sending again.",
+                            isReady = true,
+                            isLoading = false
+                        )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (resetError: Exception) {
+                        publishState(
+                            statusMessage = "Error: could not start a new chat. ${resetError.message.orEmpty()}",
+                            isReady = false,
+                            isLoading = false
+                        )
+                    }
+                } else {
+                    publishState(
+                        statusMessage = "Error: ${e.message ?: "Unknown error."}",
+                        isGenerating = false
+                    )
+                }
                 generationResult.completeExceptionally(e)
             } finally {
                 deleteTransientImageFiles(currentGenerationImageFilePaths)
@@ -669,13 +695,13 @@ class PersistentChatController(
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse {
         require(backend.supportsNativeAudioInput) {
-            "Gemma native audio is unavailable on this device. Audio was not sent to Whisper."
+            "Native audio is unavailable on this device."
         }
         val originalPrompt = request.history.lastOrNull { it.role == ChatRole.USER }?.text.orEmpty()
         if (request.nativeAudioInputs.size == 1) {
             val input = request.nativeAudioInputs.single()
-            require((input.endMillis ?: 0L) - input.startMillis <= AttachmentLimits.GEMMA_MAX_AUDIO_INPUT_MILLIS) {
-                "A Gemma native-audio segment may not exceed 30 seconds."
+            require((input.endMillis ?: 0L) - input.startMillis <= modelDescriptor.nativeAudioSegmentMillis) {
+                "A native-audio segment may not exceed ${modelDescriptor.nativeAudioSegmentMillis / 1000} seconds."
             }
             return streamReplyWithinBudget(request, onPartial)
         }
@@ -814,20 +840,25 @@ class PersistentChatController(
     fun supportsNativeToolCalling(): Boolean = backend.capabilities.supportsNativeToolCalling
 
     fun startNewChat() {
-        if (generationJob != null) {
+        if (generationJob != null || !_state.value.isReady) {
             return
         }
 
         clearActiveChatState()
+        publishState(isLoading = true, isReady = false)
 
         scope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     backend.resetConversation(emptyList(), thinkingEnabled, currentModelInstruction())
                 }
-                publishState(statusMessage = "Started a new chat.")
+                publishState(statusMessage = "Started a new chat.", isLoading = false, isReady = true)
             } catch (e: Exception) {
-                publishState(statusMessage = "Error: ${e.message ?: "Unknown error."}")
+                publishState(
+                    statusMessage = "Error: ${e.message ?: "Unknown error."}",
+                    isLoading = false,
+                    isReady = false
+                )
             }
         }
     }
@@ -1107,7 +1138,8 @@ class PersistentChatController(
         _state.value = ChatUiState(
             title = "Pocket LLM - ${modelDescriptor.displayName}",
             transcript = buildTranscript(),
-            statusMessage = statusMessage,
+            statusMessage = if (isReady && modelDescriptor is CustomLiteRtSpec && statusMessage == MODEL_READY_STATUS_MESSAGE)
+                backend.capabilities.customReadyStatus() else statusMessage,
             isLoading = isLoading,
             isReady = isReady,
             isGenerating = isGenerating,
