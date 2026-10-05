@@ -13,6 +13,7 @@ class ContextMemoryGuard(context: Context) {
     companion object {
         private const val PREFS_NAME = "context_memory_guard"
         private const val LEARNED_LIMIT_SUFFIX = "_learned_context_limit"
+        private const val CAP_NOTICE_SUFFIX = "_context_cap_notice"
         private const val KEY_RUN_MODEL_ID = "run_model_id"
         private const val KEY_RUN_CONTEXT = "run_context"
         private const val KEY_RUN_PROCESS = "run_process"
@@ -45,6 +46,15 @@ class ContextMemoryGuard(context: Context) {
     /** The user chose a new context explicitly, so earlier crash history no longer applies. */
     fun clearLearnedLimit(modelId: String) {
         prefs.edit().remove(modelId + LEARNED_LIMIT_SUFFIX).apply()
+    }
+
+    /** Returns true the first time a given cap is seen for [modelId], so the notice is not repeated on every load. */
+    fun markCapNoticeShown(modelId: String, decision: ContextDecision): Boolean {
+        val key = modelId + CAP_NOTICE_SUFFIX
+        val signature = "${decision.requestedTokens}->${decision.effectiveTokens}"
+        if (prefs.getString(key, null) == signature) return false
+        prefs.edit().putString(key, signature).apply()
+        return true
     }
 
     fun beginRun(modelId: String, contextTokens: Int) {

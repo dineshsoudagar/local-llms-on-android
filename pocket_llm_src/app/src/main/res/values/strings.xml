@@ -156,6 +156,9 @@
     <string name="model_context_length_warning_message">You are saving a %2$d-token context. Values above %1$d tokens can use substantially more RAM and graphics memory, slow the device, fail to load, or crash the native runtime. The safe limit depends on this device and model. Save this value anyway?</string>
     <string name="model_context_length_warning_continue">Save anyway</string>
     <string name="model_context_length_device_limit">Estimated limit for this model on this device: %1$d tokens. Larger values load at that size.</string>
+    <string name="model_context_capped_title">Context reduced for this device</string>
+    <string name="model_context_length_loaded_with">Currently loaded with %1$d tokens.</string>
+    <string name="model_context_length_over_device_limit_message">This device can safely hold about %1$d tokens for this model. If you save %2$d, the model will still load with %1$d tokens to avoid a crash.</string>
     <string name="model_context_capped_device">Loaded with a %1$d-token context. %2$d tokens is more than this device is expected to hold for this model.</string>
     <string name="model_context_capped_after_crash">Loaded with a %1$d-token context instead of %2$d because a larger context stopped the app earlier.</string>
     <string name="model_context_length_saved">Model settings saved. Reloading the model…</string>

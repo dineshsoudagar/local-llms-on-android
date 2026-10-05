@@ -3181,7 +3181,7 @@ open class PocketChatActivity : AppCompatActivity() {
                     persistModelLoadRecord()
                 }
                 retainedState.pendingModelLoadSnapshot = null
-                chatController?.contextDecision?.let(::showContextCapNoticeIfNeeded)
+                chatController?.contextDecision?.let { showContextCapNoticeIfNeeded(descriptor, it) }
             },
             onFailure = { error ->
                 val reason = usefulModelLoadError(descriptor, error)
@@ -3251,19 +3251,24 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
-    private fun showContextCapNoticeIfNeeded(decision: ContextDecision) {
-        if (!decision.isCapped) return
-        showTransientMessage(
-            getString(
-                if (decision.cappedByCrashHistory) {
-                    R.string.model_context_capped_after_crash
-                } else {
-                    R.string.model_context_capped_device
-                },
-                decision.effectiveTokens,
-                decision.requestedTokens
+    private fun showContextCapNoticeIfNeeded(descriptor: ModelDescriptor, decision: ContextDecision) {
+        if (!decision.isCapped || isFinishing || isDestroyed) return
+        if (!ContextMemoryGuard(this).markCapNoticeShown(descriptor.id, decision)) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.model_context_capped_title)
+            .setMessage(
+                getString(
+                    if (decision.cappedByCrashHistory) {
+                        R.string.model_context_capped_after_crash
+                    } else {
+                        R.string.model_context_capped_device
+                    },
+                    decision.effectiveTokens,
+                    decision.requestedTokens
+                )
             )
-        )
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun persistModelLoadRecord() {
@@ -4676,13 +4681,21 @@ open class PocketChatActivity : AppCompatActivity() {
             minContextLength,
             maxContextLength
         )
+        val deviceContextLimit = minOf(
+            contextDecision.deviceLimitTokens,
+            contextDecision.learnedLimitTokens ?: Int.MAX_VALUE,
+            maxContextLength
+        )
+        // Saving a new value clears the crash-learned limit, so warn against the estimate alone.
+        val estimatedDeviceLimit = minOf(contextDecision.deviceLimitTokens, maxContextLength)
         if (descriptor !is OnnxQwenSpec) {
-            val deviceLimit = minOf(
-                contextDecision.deviceLimitTokens,
-                contextDecision.learnedLimitTokens ?: Int.MAX_VALUE,
-                maxContextLength
-            )
-            contextLengthHelp.append(" " + getString(R.string.model_context_length_device_limit, deviceLimit))
+            contextLengthHelp.append(" " + getString(R.string.model_context_length_device_limit, deviceContextLimit))
+            val loadedDecision = chatController?.contextDecision?.takeIf { editingActiveModel }
+            if (loadedDecision != null && loadedDecision.isCapped) {
+                contextLengthHelp.append(
+                    " " + getString(R.string.model_context_length_loaded_with, loadedDecision.effectiveTokens)
+                )
+            }
         }
         val presets = InstructionPreset.entries.toList()
         val presetLabels = presets.map { it.label }
@@ -4856,11 +4869,19 @@ open class PocketChatActivity : AppCompatActivity() {
                 val warningDialog = MaterialAlertDialogBuilder(this)
                     .setTitle(R.string.model_context_length_warning_title)
                     .setMessage(
-                        getString(
-                            R.string.model_context_length_warning_message,
-                            ModelRuntimeSettingsLimits.HIGH_CONTEXT_WARNING_THRESHOLD,
-                            requestedContextLength
-                        )
+                        if (descriptor !is OnnxQwenSpec && requestedContextLength > estimatedDeviceLimit) {
+                            getString(
+                                R.string.model_context_length_over_device_limit_message,
+                                estimatedDeviceLimit,
+                                requestedContextLength
+                            )
+                        } else {
+                            getString(
+                                R.string.model_context_length_warning_message,
+                                ModelRuntimeSettingsLimits.HIGH_CONTEXT_WARNING_THRESHOLD,
+                                requestedContextLength
+                            )
+                        }
                     )
                     .setNegativeButton(android.R.string.cancel, null)
                     .setPositiveButton(R.string.model_context_length_warning_continue) { _, _ ->
