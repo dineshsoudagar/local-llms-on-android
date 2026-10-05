@@ -35,6 +35,7 @@ import android.text.util.Linkify
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.WindowManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -378,16 +379,7 @@ open class PocketChatActivity : AppCompatActivity() {
         contextUsageIndicator.setOnClickListener {
             val state = chatController?.state?.value ?: return@setOnClickListener
             if (state.contextWindowTokens <= 0) return@setOnClickListener
-            val message = if (currentModel is OnnxQwenSpec) {
-                R.string.context_usage_message_trimmed
-            } else {
-                R.string.context_usage_message
-            }
-            MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.context_usage_description)
-                .setMessage(getString(message, state.contextUsedTokens, state.contextWindowTokens, contextUsagePercent(state)))
-                .setPositiveButton(android.R.string.ok, null)
-                .show()
+            showContextUsageDialog(state)
         }
         stopButton = findViewById(R.id.stopButton)
         micInputButton = findViewById(R.id.micInputButton)
@@ -540,6 +532,20 @@ open class PocketChatActivity : AppCompatActivity() {
                 reopenSettingsDialogOnStart = false
                 showSettingsDialog()
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateKeepScreenOn()
+    }
+
+    /** Keeps the screen on while the context test or the LAN server runs, so the phone doesn't lock mid-way. */
+    private fun updateKeepScreenOn() {
+        if (contextProbeRunner != null || LanServerService.isRunning()) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 
@@ -3358,6 +3364,7 @@ open class PocketChatActivity : AppCompatActivity() {
             },
             onFinished = { result ->
                 contextProbeRunner = null
+                updateKeepScreenOn()
                 progressDialog.dismiss()
                 if (!isFinishing && !isDestroyed) {
                     showContextProbeResult(descriptor, result) {
@@ -3367,6 +3374,7 @@ open class PocketChatActivity : AppCompatActivity() {
             },
             startTokens = ContextMemoryGuard(this).measuredLargest(descriptor.id)
         ).also { it.start() }
+        updateKeepScreenOn()
     }
 
     private fun formatContextProbeProgress(size: Int, steps: List<ContextProbeStep>, stage: String): String {
@@ -3511,6 +3519,81 @@ open class PocketChatActivity : AppCompatActivity() {
         wasGenerating = state.isGenerating
         if (generationFinished) {
             refreshDrawerSessions()
+        }
+    }
+
+    private fun showContextUsageDialog(state: ChatUiState) {
+        val view = layoutInflater.inflate(R.layout.dialog_context_usage, null)
+        val window = state.contextWindowTokens
+        val used = state.contextUsedTokens.coerceIn(0, window)
+        view.findViewById<TextView>(R.id.contextUsageUsed).text = getString(R.string.context_usage_tokens, used)
+        view.findViewById<TextView>(R.id.contextUsageTotal).text = getString(R.string.context_usage_total, window)
+        view.findViewById<TextView>(R.id.contextUsagePercent).text =
+            getString(R.string.context_usage_percent, contextUsagePercent(state))
+        view.findViewById<TextView>(R.id.contextUsageNote).setText(
+            if (currentModel is OnnxQwenSpec) R.string.context_usage_note_trimmed else R.string.context_usage_note
+        )
+
+        val breakdown = state.contextBreakdown
+        val parts = listOf(
+            Triple(R.string.context_usage_instruction, breakdown.instructionTokens, resolveThemeColor(R.attr.colorSendFill)),
+            Triple(R.string.context_usage_summary, breakdown.summaryTokens, ContextCompat.getColor(this, R.color.context_summary)),
+            Triple(R.string.context_usage_documents, breakdown.documentTokens, ContextCompat.getColor(this, R.color.context_documents)),
+            Triple(R.string.context_usage_conversation, breakdown.conversationTokens, ContextCompat.getColor(this, R.color.context_conversation))
+        )
+        val bar = view.findViewById<LinearLayout>(R.id.contextUsageBar)
+        bar.clipToOutline = true
+        parts.filter { it.second > 0 }.forEach { (_, tokens, color) ->
+            bar.addView(View(this).apply {
+                setBackgroundColor(color)
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, tokens.toFloat())
+            })
+        }
+        val free = window - used
+        if (free > 0) {
+            bar.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, free.toFloat())
+            })
+        }
+
+        val rows = view.findViewById<LinearLayout>(R.id.contextUsageRows)
+        parts.filter { it.second > 0 || it.first == R.string.context_usage_conversation }
+            .forEach { (label, tokens, color) -> rows.addView(contextUsageRow(label, tokens, color)) }
+        rows.addView(contextUsageRow(R.string.context_usage_free, free, resolveThemeColor(R.attr.colorPocketRaised)))
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.context_usage_description)
+            .setView(view)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun contextUsageRow(label: Int, tokens: Int, color: Int): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(6), 0, dp(6))
+            addView(View(this@PocketChatActivity).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(color)
+                }
+                layoutParams = LinearLayout.LayoutParams(dp(10), dp(10))
+            })
+            addView(TextView(this@PocketChatActivity).apply {
+                text = getString(label)
+                setTextColor(resolveThemeColor(R.attr.colorAssistantText))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = dp(12)
+                }
+            })
+            addView(TextView(this@PocketChatActivity).apply {
+                text = getString(R.string.context_usage_tokens, tokens)
+                setTextColor(resolveThemeColor(R.attr.colorStatusText))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                fontFeatureSettings = "tnum"
+            })
         }
     }
 
@@ -4143,6 +4226,7 @@ open class PocketChatActivity : AppCompatActivity() {
                 LanServerStateStore.markStopped(this)
             }
             val state = LanServerStateStore.read(this)
+            updateKeepScreenOn()
             statusView.text = when (state.status) {
                 LanServerStatus.STOPPED -> getString(R.string.lan_server_status_stopped)
                 LanServerStatus.STARTING -> getString(R.string.lan_server_status_starting)
@@ -4275,6 +4359,7 @@ open class PocketChatActivity : AppCompatActivity() {
         closeButton.setOnClickListener {
             if (LanServerStateStore.read(this).isActive) {
                 LanServerService.stop(this)
+                window.decorView.postDelayed({ updateKeepScreenOn() }, 1500)
             }
             dialog.dismiss()
         }

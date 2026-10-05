@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.net.wifi.WifiManager
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -60,6 +61,7 @@ class LanServerService : Service() {
     private var preserveFailureState = false
     private var stopRequested = false
     private var serverWakeLock: PowerManager.WakeLock? = null
+    private var serverWifiLock: WifiManager.WifiLock? = null
     private lateinit var notificationManager: NotificationManager
 
     override fun onCreate() {
@@ -226,11 +228,26 @@ class LanServerService : Service() {
             // awake until Stop, startup failure, or service destruction; never the display.
             acquire()
         }
+        if (serverWifiLock?.isHeld != true) {
+            // Keeps Wi-Fi from dozing while the screen is off, so browsers on the network can still reach the server.
+            @Suppress("DEPRECATION")
+            val mode = WifiManager.WIFI_MODE_FULL_HIGH_PERF
+            serverWifiLock = runCatching {
+                applicationContext.getSystemService(WifiManager::class.java)
+                    ?.createWifiLock(mode, "$packageName:LanServer")
+                    ?.apply {
+                        setReferenceCounted(false)
+                        acquire()
+                    }
+            }.getOrNull()
+        }
     }
 
     private fun releaseServerWakeLock() {
         serverWakeLock?.takeIf { it.isHeld }?.release()
         serverWakeLock = null
+        serverWifiLock?.takeIf { it.isHeld }?.release()
+        serverWifiLock = null
     }
 
     private fun startForegroundCompat() {

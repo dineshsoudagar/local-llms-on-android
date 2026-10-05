@@ -322,6 +322,14 @@
     <string name="record_audio_coming_soon">Audio recording could not start.</string>
     <string name="whisper_download_progress">Downloading transcription model: %1$d%%</string>
     <string name="context_usage_description">Context used by this chat</string>
-    <string name="context_usage_message">This chat uses about %1$,d of %2$,d tokens (%3$d%%). Above 75%%, older messages are summarized to make room.</string>
-    <string name="context_usage_message_trimmed">This chat uses about %1$,d of %2$,d tokens (%3$d%%). When it is full, the oldest messages are left out.</string>
+    <string name="context_usage_total">of %1$,d tokens</string>
+    <string name="context_usage_percent">%1$d%%</string>
+    <string name="context_usage_instruction">Instruction</string>
+    <string name="context_usage_summary">Summary of earlier messages</string>
+    <string name="context_usage_documents">Document passages</string>
+    <string name="context_usage_conversation">Conversation</string>
+    <string name="context_usage_free">Free space</string>
+    <string name="context_usage_tokens">%1$,d</string>
+    <string name="context_usage_note">Above 75%%, older messages are summarized to make room.</string>
+    <string name="context_usage_note_trimmed">When it is full, the oldest messages are left out.</string>
 </resources>

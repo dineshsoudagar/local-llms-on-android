@@ -84,6 +84,7 @@ class PersistentChatController(
     private var thinkingEnabled = false
     private var contextUsageKey: List<Any?>? = null
     private var contextUsageTokens = 0
+    private var contextBreakdown = ContextBreakdown()
     private var liveMarkdownEnabled = false
     private var currentGenerationId: Long = 0L
     private var currentSessionId: String? = null
@@ -1131,10 +1132,50 @@ class PersistentChatController(
                     InferenceRequest(history = modelHistory(), thinkingEnabled = thinkingEnabled, modelInstruction = instruction)
                 )
             }.getOrDefault(0)
+            contextBreakdown = runCatching { contextBreakdown(instruction, contextUsageTokens) }
+                .getOrDefault(ContextBreakdown(conversationTokens = contextUsageTokens))
             contextUsageKey = key
         }
         return contextUsageTokens
     }
+
+    /**
+     * Splits the prompt estimate into the instruction, the summary of earlier messages, document
+     * passages added to user messages, and the conversation itself. The conversation takes the
+     * remainder so the parts always add up to [total].
+     */
+    private fun contextBreakdown(instruction: String, total: Int): ContextBreakdown {
+        if (total <= 0) return ContextBreakdown()
+        val baseInstruction = currentModelInstruction()
+        val instructionTokens = if (baseInstruction.isBlank()) 0 else estimateInstructionTokens(baseInstruction)
+        val withSummaryTokens = if (instruction == baseInstruction) {
+            instructionTokens
+        } else {
+            estimateInstructionTokens(instruction)
+        }
+        val fixedTokens = withSummaryTokens.coerceAtMost(total)
+        val originals = committedTurns.associateBy { it.id }
+        var documentTokens = 0
+        modelHistory().forEach { turn ->
+            val typed = originals[turn.id]?.displayText ?: return@forEach
+            if (turn.role == ChatRole.USER && typed.length < turn.text.length) {
+                documentTokens += (estimateTurnTokens(turn) - estimateTurnTokens(turn.copy(text = typed)))
+                    .coerceAtLeast(0)
+            }
+        }
+        documentTokens = documentTokens.coerceAtMost(total - fixedTokens)
+        return ContextBreakdown(
+            instructionTokens = instructionTokens.coerceAtMost(fixedTokens),
+            summaryTokens = (fixedTokens - instructionTokens).coerceAtLeast(0),
+            documentTokens = documentTokens,
+            conversationTokens = total - fixedTokens - documentTokens
+        )
+    }
+
+    private fun estimateInstructionTokens(instruction: String): Int =
+        backend.estimateSerializedPromptTokens(
+            InferenceRequest(history = emptyList(), thinkingEnabled = false, modelInstruction = instruction)
+        )
 
     private fun activeSummary(): String? =
         compaction?.takeIf { ChatCompactionPlanner.isActive(committedTurns.asModelMemoryTurns(), it) }?.summary
@@ -1306,7 +1347,8 @@ class PersistentChatController(
             supportsNativeAudioInput = backend.supportsNativeAudioInput,
             activeAttachmentId = activeAttachmentId,
             contextUsedTokens = if (isReady) contextUsage() else 0,
-            contextWindowTokens = if (isReady) backend.capabilities.contextWindowTokens else 0
+            contextWindowTokens = if (isReady) backend.capabilities.contextWindowTokens else 0,
+            contextBreakdown = if (isReady) contextBreakdown else ContextBreakdown()
         )
     }
 

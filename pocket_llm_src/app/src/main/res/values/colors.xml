@@ -121,5 +121,8 @@
     <color name="coral_tint_bubble">#402B2A</color>
     <color name="stop_soft_fill">#33F07A6E</color>
     <color name="delete_red">#FF4D4D</color>
+    <color name="context_summary">#F2B35B</color>
+    <color name="context_documents">#5FD39A</color>
+    <color name="context_conversation">#7FB2FF</color>
     <color name="white">#FFFFFFFF</color>
 </resources>
