@@ -13,7 +13,8 @@ enum class AppAccentOption(
     val lightStyleRes: Int,
     @field:StringRes val labelResId: Int
 ) {
-    OCEAN(R.style.Theme_local_llm, R.style.Theme_local_llm_Light, R.string.accent_blue),
+    POCKET(R.style.Theme_local_llm, R.style.Theme_local_llm_Light, R.string.accent_pocket),
+    OCEAN(R.style.Theme_local_llm_Ocean, R.style.Theme_local_llm_Ocean_Light, R.string.accent_blue),
     MIDNIGHT(R.style.Theme_local_llm_Midnight, R.style.Theme_local_llm_Midnight_Light, R.string.accent_indigo),
     FOREST(R.style.Theme_local_llm_Forest, R.style.Theme_local_llm_Forest_Light, R.string.accent_green),
     VIOLET(R.style.Theme_local_llm_Violet, R.style.Theme_local_llm_Violet_Light, R.string.accent_violet),
@@ -31,14 +32,14 @@ enum class AppAccentOption(
         fun fromStoredName(name: String?): AppAccentOption {
             return when (name) {
                 "TEAL" -> AMBER
-                else -> entries.firstOrNull { it.name == name } ?: OCEAN
+                else -> entries.firstOrNull { it.name == name } ?: POCKET
             }
         }
     }
 }
 
 data class AppSettings(
-    val accent: AppAccentOption = AppAccentOption.OCEAN,
+    val accent: AppAccentOption = AppAccentOption.POCKET,
     val appearance: AppAppearanceMode = AppAppearanceMode.DARK,
     val chatFontSizeSp: Float = 16f
 )
@@ -56,7 +57,7 @@ class AppSettingsStore(context: Context) {
 
     fun load(): AppSettings {
         val accent = AppAccentOption.fromStoredName(
-            prefs.getString(KEY_ACCENT, AppAccentOption.OCEAN.name)
+            prefs.getString(KEY_ACCENT, AppAccentOption.POCKET.name)
         )
         val appearance = runCatching {
             AppAppearanceMode.valueOf(prefs.getString(KEY_APPEARANCE, AppAppearanceMode.DARK.name)!!)

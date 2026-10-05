@@ -80,6 +80,7 @@
     <string name="response_copied">Response copied.</string>
     <string name="enable_thinking_mode">Thinking Mode</string>
     <string name="new_chat">New Chat</string>
+    <string name="empty_state_tagline">Private AI that runs on this phone.</string>
     <string name="previous_chats">Previous Chats</string>
     <string name="saved_chats_subtitle">Pick a conversation to reopen and continue from the same history.</string>
     <string name="saved_chat_fallback_preview">Tap to reopen this conversation.</string>
@@ -190,6 +191,7 @@
     <string name="appearance_dark">Dark</string>
     <string name="appearance_light">Light</string>
     <string name="accent_color_label">Accent Color</string>
+    <string name="accent_pocket">Pocket purple</string>
     <string name="accent_blue">Blue</string>
     <string name="accent_indigo">Indigo</string>
     <string name="accent_green">Green</string>

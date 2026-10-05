@@ -216,6 +216,8 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var newChatButton: View
     private lateinit var sendButton: Button
     private lateinit var contextUsageIndicator: CircularProgressIndicator
+    private lateinit var emptyStateView: View
+    private lateinit var toolbarLogoView: View
     private lateinit var stopButton: Button
     private lateinit var micInputButton: MaterialButton
     private lateinit var attachmentButton: MaterialButton
@@ -370,6 +372,8 @@ open class PocketChatActivity : AppCompatActivity() {
         inputEditText = findViewById(R.id.userInput)
         sendButton = findViewById(R.id.sendButton)
         contextUsageIndicator = findViewById(R.id.contextUsageIndicator)
+        emptyStateView = findViewById(R.id.emptyStateView)
+        toolbarLogoView = findViewById(R.id.toolbarLogo)
         contextUsageIndicator.setOnClickListener {
             val state = chatController?.state?.value ?: return@setOnClickListener
             if (state.contextWindowTokens <= 0) return@setOnClickListener
@@ -440,6 +444,7 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         newChatButton.setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
             startNewChatFromUi()
         }
 
@@ -2879,7 +2884,7 @@ open class PocketChatActivity : AppCompatActivity() {
             if (compactReadyAudio) R.drawable.bg_active_audio_attachment else R.drawable.bg_image_input_chip
         )
         activeAttachmentText.setTextColor(
-            if (compactReadyAudio) ContextCompat.getColor(this, R.color.white) else resolveThemeColor(R.attr.colorInputText)
+            if (compactReadyAudio) ContextCompat.getColor(this, R.color.on_accent) else resolveThemeColor(R.attr.colorInputText)
         )
         activeAttachmentContainer.visibility = if (attachmentImportInProgress || descriptor != null) {
             View.VISIBLE
@@ -3464,10 +3469,16 @@ open class PocketChatActivity : AppCompatActivity() {
         applyStatusBackground(effectiveStatus)
 
         chatAdapter.submitTurns(state.transcript)
+        updateEmptyState(state.transcript.isEmpty())
         wasGenerating = state.isGenerating
         if (generationFinished) {
             refreshDrawerSessions()
         }
+    }
+
+    private fun updateEmptyState(isEmpty: Boolean) {
+        emptyStateView.visibility = if (isEmpty) View.VISIBLE else View.GONE
+        toolbarLogoView.visibility = if (isEmpty) View.INVISIBLE else View.VISIBLE
     }
 
     private fun contextUsagePercent(state: ChatUiState): Int =
@@ -3493,6 +3504,7 @@ open class PocketChatActivity : AppCompatActivity() {
         if (!preserveTranscript) {
             chatAdapter.submitTurns(emptyList())
         }
+        updateEmptyState(!preserveTranscript || chatAdapter.itemCount == 0)
         autoScrollDuringGeneration = false
         autoScrollPendingFinalUpdate = false
         wasGenerating = false
@@ -3619,14 +3631,15 @@ open class PocketChatActivity : AppCompatActivity() {
         toolbarModelSelector.getLocationOnScreen(anchorLocation)
         val visibleFrame = Rect()
         window.decorView.getWindowVisibleDisplayFrame(visibleFrame)
-        val spaceAbove = (anchorLocation[1] - visibleFrame.top - dp(12)).coerceAtLeast(dp(120))
+        val anchorBottom = anchorLocation[1] + toolbarModelSelector.height
+        val spaceBelow = (visibleFrame.bottom - anchorBottom - dp(12)).coerceAtLeast(dp(120))
         val optionsWidth = panelWidth - dp(20)
         options.measure(
             View.MeasureSpec.makeMeasureSpec(optionsWidth, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         )
         scroll.layoutParams = scroll.layoutParams.apply {
-            height = minOf(options.measuredHeight, (spaceAbove - dp(64)).coerceAtLeast(dp(56)))
+            height = minOf(options.measuredHeight, (spaceBelow - dp(64)).coerceAtLeast(dp(56)))
         }
         content.measure(
             View.MeasureSpec.makeMeasureSpec(panelWidth, View.MeasureSpec.EXACTLY),
@@ -3635,7 +3648,7 @@ open class PocketChatActivity : AppCompatActivity() {
         popup.height = content.measuredHeight
         val x = (anchorLocation[0] + toolbarModelSelector.width - panelWidth)
             .coerceIn(dp(12), (resources.displayMetrics.widthPixels - panelWidth - dp(12)).coerceAtLeast(dp(12)))
-        val y = (anchorLocation[1] - popup.height - dp(6)).coerceAtLeast(visibleFrame.top + dp(4))
+        val y = anchorBottom + dp(6)
         popup.showAtLocation(toolbarModelSelector, Gravity.TOP or Gravity.START, x, y)
     }
 
@@ -5214,6 +5227,13 @@ open class PocketChatActivity : AppCompatActivity() {
             else -> R.drawable.bg_status_chip
         }
         statusView.setBackgroundResource(backgroundRes)
+        statusView.setTextColor(
+            if (backgroundRes == R.drawable.bg_status_chip) {
+                resolveThemeColor(R.attr.colorAssistantText)
+            } else {
+                ContextCompat.getColor(this, R.color.on_accent)
+            }
+        )
     }
 
     private fun updateMicRecordingState(active: Boolean) {

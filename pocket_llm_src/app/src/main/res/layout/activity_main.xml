@@ -19,7 +19,7 @@
             android:id="@+id/topToolbar"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_chat_surface"
+            android:background="?attr/colorAppBackground"
             android:minHeight="56dp"
             app:contentInsetEnd="0dp"
             app:contentInsetLeft="0dp"
@@ -36,32 +36,43 @@
                 android:layout_height="match_parent"
                 android:layout_gravity="fill"
                 android:minHeight="56dp"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp">
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="4dp">
 
                 <ImageButton
                     android:id="@+id/toolbarMenuButton"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="@string/open_navigation_menu"
-                    android:padding="8dp"
+                    android:padding="10dp"
                     android:src="@drawable/ic_drawer_menu_24"
                     app:tint="?attr/colorAssistantText"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent" />
 
+                <ImageView
+                    android:id="@+id/toolbarLogo"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="4dp"
+                    android:alpha="0.88"
+                    android:background="@drawable/bg_toolbar_logo_white"
+                    android:clipToOutline="true"
+                    android:contentDescription="@string/toolbar_app_title"
+                    android:scaleType="centerInside"
+                    android:src="@drawable/toolbar_logo_small"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toEndOf="@id/toolbarMenuButton"
+                    app:layout_constraintTop_toTopOf="parent" />
+
                 <LinearLayout
                     android:id="@+id/toolbarBranding"
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:gravity="center"
                     android:orientation="vertical"
-                    android:paddingHorizontal="52dp"
-                    app:layout_constraintBottom_toBottomOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintHorizontal_bias="0.5"
+                    android:visibility="gone"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent">
 
@@ -69,44 +80,75 @@
                         android:id="@+id/toolbarTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text="@string/toolbar_app_title"
-                        android:textAlignment="center"
-                        android:textColor="?attr/colorAssistantText"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                        android:text="@string/toolbar_app_title" />
 
                     <TextView
                         android:id="@+id/toolbarSubtitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:gravity="center"
-                        android:includeFontPadding="false"
-                        android:maxLines="1"
-                        android:maxWidth="180dp"
-                        android:textAlignment="center"
-                        android:textColor="?attr/colorStatusText"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
                         tools:text="Qwen3 0.6B LiteRT" />
                 </LinearLayout>
 
-                <ImageView
-                    android:id="@+id/toolbarLogo"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:adjustViewBounds="true"
-                    android:background="@drawable/bg_toolbar_logo_white"
-                    android:clipToOutline="true"
-                    android:contentDescription="@string/toolbar_app_title"
-                    android:padding="0dp"
-                    android:scaleType="centerInside"
-                    android:src="@drawable/toolbar_logo_white"
-                    tools:ignore="ContentDescription"
+                <LinearLayout
+                    android:id="@+id/modelSelector"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:layout_marginHorizontal="8dp"
+                    android:background="@drawable/bg_model_chip"
+                    android:clickable="true"
+                    android:contentDescription="@string/change_model_hint"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackgroundBorderless"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="10dp"
+                    app:layout_constrainedWidth="true"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toStartOf="@id/contextUsageIndicator"
+                    app:layout_constraintHorizontal_bias="1"
+                    app:layout_constraintStart_toEndOf="@id/toolbarLogo"
+                    app:layout_constraintTop_toTopOf="parent">
+
+                    <TextView
+                        android:id="@+id/selectedModelLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:text="@string/model_picker_empty_subtitle"
+                        android:textColor="?attr/colorAssistantText"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:includeFontPadding="false"
+                        android:text="@string/dropdown_arrow"
+                        android:textColor="?attr/colorStatusText"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <com.google.android.material.progressindicator.CircularProgressIndicator
+                    android:id="@+id/contextUsageIndicator"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/context_usage_description"
+                    android:max="100"
+                    android:padding="8dp"
+                    android:visibility="gone"
+                    app:indicatorColor="?attr/colorSendFill"
+                    app:indicatorSize="26dp"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="parent" />
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:trackColor="?attr/colorPocketOutline"
+                    app:trackCornerRadius="2dp"
+                    app:trackThickness="3dp" />
             </androidx.constraintlayout.widget.ConstraintLayout>
         </com.google.android.material.appbar.MaterialToolbar>
 
@@ -114,8 +156,7 @@
             android:id="@+id/chatFrame"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/bg_chat_surface"
+            android:background="?attr/colorAppBackground"
             app:layout_constraintBottom_toTopOf="@id/chatControlsRow"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -127,18 +168,52 @@
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
                 android:overScrollMode="always"
-                android:padding="10dp" />
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="8dp" />
+
+            <LinearLayout
+                android:id="@+id/emptyStateView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingHorizontal="24dp"
+                android:paddingBottom="48dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/emptyStateLogo"
+                    android:layout_width="120dp"
+                    android:layout_height="120dp"
+                    android:alpha="0.8"
+                    android:background="@drawable/bg_hero_logo"
+                    android:clipToOutline="true"
+                    android:contentDescription="@string/toolbar_app_title"
+                    android:scaleType="centerInside"
+                    android:src="@drawable/logo_hero" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:gravity="center"
+                    android:text="@string/empty_state_tagline"
+                    android:textColor="?attr/colorStatusText"
+                    android:textSize="15sp" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/statusView"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_marginBottom="16dp"
                 android:gravity="center"
-                android:paddingHorizontal="20dp"
+                android:paddingHorizontal="18dp"
                 android:paddingVertical="8dp"
-                android:textColor="@color/white"
-                android:textSize="16sp"
+                android:textColor="@color/on_accent"
+                android:textSize="14sp"
                 android:textStyle="bold"
                 android:visibility="gone"
                 tools:text="Model is ready" />
@@ -154,7 +229,7 @@
                 android:maxWidth="260dp"
                 android:paddingHorizontal="18dp"
                 android:paddingVertical="8dp"
-                android:textColor="?attr/colorStatusText"
+                android:textColor="?attr/colorAssistantText"
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:visibility="gone"
@@ -165,102 +240,27 @@
             android:id="@+id/chatControlsRow"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="1dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingHorizontal="2dp"
-            android:paddingVertical="1dp"
+            android:paddingHorizontal="12dp"
+            app:layout_constraintBottom_toTopOf="@id/inputRow"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/chatFrame">
 
             <LinearLayout
-                android:id="@+id/newChatButton"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_marginHorizontal="2dp"
-                android:layout_weight="1"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:contentDescription="@string/new_chat"
-                android:focusable="true"
-                android:gravity="center"
-                android:orientation="horizontal"
-                android:paddingHorizontal="4dp">
-
-                <TextView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
-                    android:background="@drawable/bg_new_chat_plus"
-                    android:gravity="center"
-                    android:includeFontPadding="false"
-                    android:text="+"
-                    android:textColor="@color/white"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:ellipsize="end"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:text="@string/new_chat"
-                    android:textColor="?attr/colorStatusText"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/modelSelector"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_marginHorizontal="2dp"
-                android:layout_weight="1"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:contentDescription="@string/change_model_hint"
-                android:focusable="true"
-                android:gravity="center"
-                android:orientation="horizontal"
-                android:paddingHorizontal="4dp">
-
-                <TextView
-                    android:id="@+id/selectedModelLabel"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:text="@string/model_picker_empty_subtitle"
-                    android:textColor="?attr/colorStatusText"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:includeFontPadding="false"
-                    android:text="@string/dropdown_arrow"
-                    android:textColor="?attr/colorStatusText"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <LinearLayout
                 android:id="@+id/thinkingToggleContainer"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_marginHorizontal="2dp"
-                android:layout_weight="1"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_model_chip"
                 android:clickable="true"
                 android:focusable="true"
+                android:foreground="?attr/selectableItemBackgroundBorderless"
                 android:gravity="center"
                 android:orientation="horizontal"
-                android:paddingHorizontal="4dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="14dp"
                 android:visibility="gone">
 
                 <CheckBox
@@ -278,13 +278,13 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
+                    android:layout_marginStart="6dp"
                     android:ellipsize="end"
                     android:includeFontPadding="false"
                     android:maxLines="1"
                     android:text="@string/enable_thinking_mode"
                     android:textColor="?attr/colorStatusText"
-                    android:textSize="14sp"
+                    android:textSize="13sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
@@ -293,45 +293,22 @@
             android:id="@+id/inputRow"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:layout_marginBottom="4dp"
             android:background="@drawable/bg_input_panel"
-            android:gravity="center_vertical"
             android:orientation="vertical"
-            android:paddingHorizontal="8dp"
-            android:paddingVertical="7dp"
+            android:paddingHorizontal="12dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="12dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/chatControlsRow">
+            app:layout_constraintStart_toStartOf="parent">
 
             <LinearLayout
                 android:id="@+id/inputComposer"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/rounded_edittext"
+                android:background="@drawable/bg_composer_pill"
                 android:orientation="vertical"
-                android:paddingHorizontal="8dp"
-                android:paddingTop="8dp"
-                android:paddingBottom="6dp">
-
-                <EditText
-                    android:id="@+id/userInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@android:color/transparent"
-                    android:gravity="top|start"
-                    android:hint="@string/enter_your_prompt"
-                    android:imeOptions="actionSend"
-                    android:inputType="textMultiLine"
-                    android:maxLines="8"
-                    android:minLines="2"
-                    android:paddingHorizontal="0dp"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp"
-                    android:textColor="?attr/colorInputText"
-                    android:textColorHint="?attr/colorInputHint"
-                    android:textSize="16sp" />
+                android:padding="6dp">
 
                 <HorizontalScrollView
                     android:id="@+id/pendingImageInputsScroll"
@@ -420,151 +397,120 @@
                     android:id="@+id/inputActionRow"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
                     android:gravity="bottom"
                     android:orientation="horizontal">
 
-                    <LinearLayout
-                        android:id="@+id/inputToolsRow"
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/attachmentButton"
+                        style="@style/InputToolButton"
+                        android:layout_width="36dp"
+                        android:layout_height="40dp"
+                        android:contentDescription="@string/add_attachment"
+                        android:insetLeft="0dp"
+                        android:insetTop="0dp"
+                        android:insetRight="0dp"
+                        android:insetBottom="0dp"
+                        android:text=""
+                        app:icon="@drawable/ic_attach_file_24"
+                        app:iconGravity="textStart"
+                        app:iconPadding="0dp"
+                        app:iconSize="20dp" />
+
+                    <EditText
+                        android:id="@+id/userInput"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:gravity="start|bottom"
-                        android:orientation="horizontal">
+                        android:background="@android:color/transparent"
+                        android:gravity="center_vertical|start"
+                        android:hint="@string/enter_your_prompt"
+                        android:imeOptions="actionSend"
+                        android:inputType="textMultiLine|textCapSentences"
+                        android:maxLines="6"
+                        android:minHeight="40dp"
+                        android:minLines="1"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="8dp"
+                        android:textColor="?attr/colorInputText"
+                        android:textColorHint="?attr/colorInputHint"
+                        android:textSize="16sp" />
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/attachmentButton"
-                            style="@style/InputToolButton"
-                            android:layout_width="34dp"
-                            android:layout_height="34dp"
-                            android:layout_gravity="bottom"
-                            android:contentDescription="@string/add_attachment"
-                            android:insetLeft="0dp"
-                            android:insetTop="0dp"
-                            android:insetRight="0dp"
-                            android:insetBottom="0dp"
-                            android:text=""
-                            app:icon="@drawable/ic_attach_file_24"
-                            app:iconGravity="textStart"
-                            app:iconPadding="0dp"
-                            app:iconSize="18dp"
-                            app:iconTint="?attr/colorSendFill" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/micInputButton"
+                        style="@style/InputToolButton"
+                        android:layout_width="36dp"
+                        android:layout_height="40dp"
+                        android:contentDescription="@string/voice_input"
+                        android:insetLeft="0dp"
+                        android:insetTop="0dp"
+                        android:insetRight="0dp"
+                        android:insetBottom="0dp"
+                        android:text=""
+                        app:icon="@drawable/ic_mic_24"
+                        app:iconGravity="textStart"
+                        app:iconPadding="0dp"
+                        app:iconSize="20dp" />
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/micInputButton"
-                            style="@style/InputToolButton"
-                            android:layout_width="34dp"
-                            android:layout_height="34dp"
-                            android:layout_gravity="bottom"
-                            android:layout_marginStart="5dp"
-                            android:contentDescription="@string/voice_input"
-                            android:insetLeft="0dp"
-                            android:insetTop="0dp"
-                            android:insetRight="0dp"
-                            android:insetBottom="0dp"
-                            android:text=""
-                            app:icon="@drawable/ic_mic_24"
-                            app:iconGravity="textStart"
-                            app:iconPadding="0dp"
-                            app:iconSize="18dp" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/galleryOcrButton"
+                        style="@style/InputToolButton"
+                        android:layout_width="36dp"
+                        android:layout_height="40dp"
+                        android:contentDescription="@string/gallery_ocr_input"
+                        android:insetLeft="0dp"
+                        android:insetTop="0dp"
+                        android:insetRight="0dp"
+                        android:insetBottom="0dp"
+                        android:text=""
+                        app:icon="@drawable/ic_image_24"
+                        app:iconGravity="textStart"
+                        app:iconPadding="0dp"
+                        app:iconSize="20dp" />
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/galleryOcrButton"
-                            style="@style/InputToolButton"
-                            android:layout_width="34dp"
-                            android:layout_height="34dp"
-                            android:layout_gravity="bottom"
-                            android:layout_marginStart="5dp"
-                            android:contentDescription="@string/gallery_ocr_input"
-                            android:insetLeft="0dp"
-                            android:insetTop="0dp"
-                            android:insetRight="0dp"
-                            android:insetBottom="0dp"
-                            android:text=""
-                            app:icon="@drawable/ic_image_24"
-                            app:iconGravity="textStart"
-                            app:iconPadding="0dp"
-                            app:iconSize="18dp" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/cameraOcrButton"
-                            style="@style/InputToolButton"
-                            android:layout_width="34dp"
-                            android:layout_height="34dp"
-                            android:layout_gravity="bottom"
-                            android:layout_marginStart="5dp"
-                            android:contentDescription="@string/camera_ocr_input"
-                            android:insetLeft="0dp"
-                            android:insetTop="0dp"
-                            android:insetRight="0dp"
-                            android:insetBottom="0dp"
-                            android:text=""
-                            app:icon="@drawable/ic_camera_24"
-                            app:iconGravity="textStart"
-                            app:iconPadding="0dp"
-                            app:iconSize="18dp" />
-                    </LinearLayout>
-
-                    <com.google.android.material.progressindicator.CircularProgressIndicator
-                        android:id="@+id/contextUsageIndicator"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="center_vertical"
-                        android:layout_marginEnd="10dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="@string/context_usage_description"
-                        android:max="100"
-                        android:padding="6dp"
-                        android:visibility="gone"
-                        app:indicatorColor="?attr/colorSendFill"
-                        app:indicatorSize="22dp"
-                        app:trackColor="#33888888"
-                        app:trackThickness="3dp" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/cameraOcrButton"
+                        style="@style/InputToolButton"
+                        android:layout_width="36dp"
+                        android:layout_height="40dp"
+                        android:contentDescription="@string/camera_ocr_input"
+                        android:insetLeft="0dp"
+                        android:insetTop="0dp"
+                        android:insetRight="0dp"
+                        android:insetBottom="0dp"
+                        android:text=""
+                        app:icon="@drawable/ic_camera_24"
+                        app:iconGravity="textStart"
+                        app:iconPadding="0dp"
+                        app:iconSize="20dp" />
 
                     <FrameLayout
                         android:id="@+id/sendStopSwitcher"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_gravity="bottom">
+                        android:layout_marginStart="4dp">
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/sendButton"
                             style="@style/SendButton"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:contentDescription="@string/send"
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"
                             android:insetRight="0dp"
                             android:insetBottom="0dp"
-                            android:minWidth="0dp"
-                            android:minHeight="0dp"
-                            android:padding="12dp"
-                            android:text=""
-                            app:icon="@drawable/ic_send_24"
-                            app:iconGravity="textStart"
-                            app:iconPadding="0dp"
-                            app:iconTint="@color/white" />
+                            android:text="@string/send" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/stopButton"
                             style="@style/StopButton"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:contentDescription="@string/stop"
+                            android:layout_width="wrap_content"
+                            android:layout_height="40dp"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"
                             android:insetRight="0dp"
                             android:insetBottom="0dp"
-                            android:minWidth="0dp"
-                            android:minHeight="0dp"
-                            android:padding="12dp"
-                            android:text=""
-                            android:visibility="gone"
-                            app:icon="@drawable/ic_stop_24"
-                            app:iconGravity="textStart"
-                            app:iconPadding="0dp"
-                            app:iconTint="@color/white" />
+                            android:text="@string/stop"
+                            android:visibility="gone" />
                     </FrameLayout>
                 </LinearLayout>
             </LinearLayout>
@@ -576,23 +522,74 @@
         android:layout_width="304dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        android:background="?attr/colorFrameBackground"
+        android:background="?attr/colorAppBackground"
         android:elevation="16dp"
         android:fitsSystemWindows="true"
         android:orientation="vertical"
-        android:paddingTop="20dp"
+        android:paddingTop="16dp"
         android:paddingBottom="12dp">
 
-        <TextView
-            android:id="@+id/drawerTitle"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="18dp">
+
+            <ImageView
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:alpha="0.88"
+                android:background="@drawable/bg_logo_tile"
+                android:clipToOutline="true"
+                android:contentDescription="@null"
+                android:scaleType="centerInside"
+                android:src="@drawable/logo_drawer" />
+
+            <TextView
+                android:id="@+id/drawerTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:text="@string/toolbar_app_title"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/newChatButton"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_accent_pill"
+            android:clickable="true"
+            android:contentDescription="@string/new_chat"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
             android:gravity="center"
-            android:paddingHorizontal="20dp"
-            android:text="@string/toolbar_app_title"
-            android:textColor="?attr/colorAssistantText"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:includeFontPadding="false"
+                android:text="+"
+                android:textColor="@color/on_accent"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:includeFontPadding="false"
+                android:text="@string/new_chat"
+                android:textColor="@color/on_accent"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"

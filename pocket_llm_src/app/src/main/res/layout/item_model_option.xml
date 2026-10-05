@@ -68,10 +68,10 @@
                 style="@style/ModelItemActionButton"
                 android:layout_width="64dp"
                 android:layout_height="40dp"
-                android:textColor="@color/white"
+                android:textColor="@color/on_accent"
                 app:backgroundTint="?attr/colorSendFill"
                 app:rippleColor="?attr/colorSendStroke"
-                app:strokeColor="?attr/colorSendStroke"
+                app:strokeColor="?attr/colorSendFill"
                 app:strokeWidth="1dp" />
 
             <ImageButton

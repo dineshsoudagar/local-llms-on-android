@@ -4,17 +4,19 @@
         <item name="colorPrimaryVariant">@color/app_background</item>
         <item name="colorOnPrimary">@color/white</item>
         <item name="colorOnBackground">@color/assistant_text</item>
-        <item name="colorSurface">@color/frame_layout_background</item>
+        <item name="colorSurface">@color/pocket_surface</item>
         <item name="colorOnSurface">@color/assistant_text</item>
         <item name="android:windowBackground">?attr/colorAppBackground</item>
         <item name="colorAppBackground">@color/app_background</item>
-        <item name="colorFrameBackground">@color/frame_layout_background</item>
+        <item name="colorFrameBackground">@color/pocket_surface</item>
+        <item name="colorPocketRaised">@color/pocket_raised</item>
+        <item name="colorPocketOutline">@color/pocket_line</item>
         <item name="colorUserBubble">@color/user_bubble</item>
         <item name="colorAssistantBubble">@color/bot_bubble</item>
         <item name="colorUserText">@color/user_text</item>
         <item name="colorAssistantText">@color/assistant_text</item>
-        <item name="colorInputBackground">@color/app_background</item>
-        <item name="colorInputText">@color/assistant_text</item>
+        <item name="colorInputBackground">@color/input_background</item>
+        <item name="colorInputText">@color/input_text</item>
         <item name="colorInputHint">@color/input_hint</item>
         <item name="colorStatusText">@color/status_text</item>
         <item name="colorSendFill">@color/send_button_fill</item>
@@ -25,6 +27,9 @@
         <item name="colorAssistantGradientEnd">@color/bot_bubble</item>
         <item name="colorAccentGradientStart">@color/send_button_fill</item>
         <item name="colorAccentGradientEnd">@color/send_button_fill</item>
+        <item name="colorControlActivated">?attr/colorSendFill</item>
+        <item name="android:colorControlActivated">?attr/colorSendFill</item>
+        <item name="android:statusBarColor">?attr/colorAppBackground</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">?attr/colorAppBackground</item>
     </style>
@@ -34,160 +39,123 @@
         <item name="colorPrimaryVariant">@color/light_app_background</item>
         <item name="colorOnPrimary">@color/light_assistant_text</item>
         <item name="colorOnBackground">@color/light_assistant_text</item>
-        <item name="colorSurface">@color/light_frame_background</item>
+        <item name="colorSurface">@color/light_surface</item>
         <item name="colorOnSurface">@color/light_assistant_text</item>
         <item name="android:windowBackground">?attr/colorAppBackground</item>
         <item name="colorAppBackground">@color/light_app_background</item>
-        <item name="colorFrameBackground">@color/light_frame_background</item>
-        <item name="colorUserBubble">@color/light_assistant_bubble</item>
-        <item name="colorAssistantBubble">@color/light_user_bubble</item>
+        <item name="colorFrameBackground">@color/light_surface</item>
+        <item name="colorPocketRaised">@color/light_frame_background</item>
+        <item name="colorPocketOutline">@color/light_control_stroke</item>
+        <item name="colorUserBubble">@color/light_pocket_user_bubble</item>
+        <item name="colorAssistantBubble">@color/light_surface</item>
         <item name="colorUserText">@color/light_user_text</item>
         <item name="colorAssistantText">@color/light_assistant_text</item>
-        <item name="colorInputBackground">@color/light_input_background</item>
+        <item name="colorInputBackground">@color/light_surface</item>
         <item name="colorInputText">@color/light_input_text</item>
         <item name="colorInputHint">@color/light_input_hint</item>
         <item name="colorStatusText">@color/light_status_text</item>
+        <item name="colorSendFill">@color/light_pocket_send_fill</item>
         <item name="colorSendStroke">@color/light_control_stroke</item>
         <item name="colorStopStroke">@color/light_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_user_bubble</item>
-        <item name="colorAccentGradientStart">@color/send_button_fill</item>
-        <item name="colorAccentGradientEnd">@color/send_button_fill</item>
+        <item name="colorAssistantGradientStart">@color/light_surface</item>
+        <item name="colorAssistantGradientEnd">@color/light_surface</item>
+        <item name="colorAccentGradientStart">@color/light_pocket_send_fill</item>
+        <item name="colorAccentGradientEnd">@color/light_pocket_send_fill</item>
         <item name="colorControlActivated">?attr/colorSendFill</item>
         <item name="colorControlNormal">?attr/colorSendStroke</item>
         <item name="android:colorControlActivated">?attr/colorSendFill</item>
         <item name="android:colorControlNormal">?attr/colorSendStroke</item>
+        <item name="android:statusBarColor">?attr/colorAppBackground</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">?attr/colorAppBackground</item>
     </style>
 
+    <style name="Theme.local_llm.Ocean" parent="Theme.local_llm">
+        <item name="colorUserBubble">@color/ocean_user_bubble</item>
+        <item name="colorSendFill">@color/ocean_send_fill</item>
+        <item name="colorSendStroke">@color/ocean_send_stroke</item>
+        <item name="colorAccentGradientStart">@color/ocean_send_fill</item>
+        <item name="colorAccentGradientEnd">@color/ocean_send_fill</item>
+    </style>
+
+    <style name="Theme.local_llm.Ocean.Light" parent="Theme.local_llm.Light">
+        <item name="colorUserBubble">@color/light_user_bubble</item>
+        <item name="colorSendFill">@color/ocean_send_fill</item>
+        <item name="colorAccentGradientStart">@color/ocean_send_fill</item>
+        <item name="colorAccentGradientEnd">@color/ocean_send_fill</item>
+    </style>
+
     <style name="Theme.local_llm.Midnight" parent="Theme.local_llm">
-        <item name="colorUserBubble">@color/midnight_user_bubble</item>
-        <item name="colorAssistantBubble">@color/midnight_assistant_bubble</item>
-        <item name="colorUserText">@color/midnight_user_text</item>
-        <item name="colorStatusText">@color/midnight_status_text</item>
+        <item name="colorUserBubble">@color/midnight_tint_bubble</item>
         <item name="colorSendFill">@color/midnight_send_fill</item>
         <item name="colorSendStroke">@color/midnight_send_stroke</item>
-        <item name="colorStopFill">@color/midnight_stop_fill</item>
-        <item name="colorStopStroke">@color/midnight_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/midnight_assistant_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/midnight_assistant_bubble</item>
         <item name="colorAccentGradientStart">@color/midnight_send_fill</item>
         <item name="colorAccentGradientEnd">@color/midnight_send_fill</item>
     </style>
 
     <style name="Theme.local_llm.Midnight.Light" parent="Theme.local_llm.Light">
-        <item name="colorAssistantBubble">@color/light_midnight_user_bubble</item>
+        <item name="colorUserBubble">@color/light_midnight_user_bubble</item>
         <item name="colorSendFill">@color/midnight_send_fill</item>
-        <item name="colorSendStroke">@color/midnight_send_stroke</item>
-        <item name="colorStopFill">@color/midnight_stop_fill</item>
-        <item name="colorStopStroke">@color/midnight_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_midnight_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_midnight_user_bubble</item>
         <item name="colorAccentGradientStart">@color/midnight_send_fill</item>
         <item name="colorAccentGradientEnd">@color/midnight_send_fill</item>
     </style>
 
     <style name="Theme.local_llm.Forest" parent="Theme.local_llm">
-        <item name="colorUserBubble">@color/forest_user_bubble</item>
-        <item name="colorAssistantBubble">@color/forest_assistant_bubble</item>
-        <item name="colorUserText">@color/forest_user_text</item>
-        <item name="colorStatusText">@color/forest_status_text</item>
+        <item name="colorUserBubble">@color/forest_tint_bubble</item>
         <item name="colorSendFill">@color/forest_send_fill</item>
         <item name="colorSendStroke">@color/forest_send_stroke</item>
-        <item name="colorStopFill">@color/forest_stop_fill</item>
-        <item name="colorStopStroke">@color/forest_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/forest_assistant_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/forest_assistant_bubble</item>
         <item name="colorAccentGradientStart">@color/forest_send_fill</item>
         <item name="colorAccentGradientEnd">@color/forest_send_fill</item>
     </style>
 
     <style name="Theme.local_llm.Forest.Light" parent="Theme.local_llm.Light">
-        <item name="colorAssistantBubble">@color/light_forest_user_bubble</item>
+        <item name="colorUserBubble">@color/light_forest_user_bubble</item>
         <item name="colorSendFill">@color/forest_send_fill</item>
-        <item name="colorSendStroke">@color/forest_send_stroke</item>
-        <item name="colorStopFill">@color/forest_stop_fill</item>
-        <item name="colorStopStroke">@color/forest_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_forest_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_forest_user_bubble</item>
         <item name="colorAccentGradientStart">@color/forest_send_fill</item>
         <item name="colorAccentGradientEnd">@color/forest_send_fill</item>
     </style>
 
     <style name="Theme.local_llm.Violet" parent="Theme.local_llm">
-        <item name="colorUserBubble">@color/violet_user_bubble</item>
-        <item name="colorAssistantBubble">@color/violet_assistant_bubble</item>
-        <item name="colorUserText">@color/violet_user_text</item>
-        <item name="colorStatusText">@color/violet_status_text</item>
+        <item name="colorUserBubble">@color/violet_tint_bubble</item>
         <item name="colorSendFill">@color/violet_send_fill</item>
         <item name="colorSendStroke">@color/violet_send_stroke</item>
-        <item name="colorStopFill">@color/violet_stop_fill</item>
-        <item name="colorStopStroke">@color/violet_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/violet_assistant_gradient_start</item>
-        <item name="colorAssistantGradientEnd">@color/violet_assistant_gradient_end</item>
         <item name="colorAccentGradientStart">@color/violet_accent_gradient_start</item>
         <item name="colorAccentGradientEnd">@color/violet_accent_gradient_end</item>
     </style>
 
     <style name="Theme.local_llm.Violet.Light" parent="Theme.local_llm.Light">
-        <item name="colorAssistantBubble">@color/light_violet_user_bubble</item>
+        <item name="colorUserBubble">@color/light_violet_user_bubble</item>
         <item name="colorSendFill">@color/violet_send_fill</item>
-        <item name="colorSendStroke">@color/violet_send_stroke</item>
-        <item name="colorStopFill">@color/violet_stop_fill</item>
-        <item name="colorStopStroke">@color/violet_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_violet_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_violet_user_bubble</item>
         <item name="colorAccentGradientStart">@color/violet_accent_gradient_start</item>
         <item name="colorAccentGradientEnd">@color/violet_accent_gradient_end</item>
     </style>
 
     <style name="Theme.local_llm.Amber" parent="Theme.local_llm">
-        <item name="colorAssistantBubble">@color/amber_assistant_bubble</item>
-        <item name="colorStatusText">@color/amber_status_text</item>
+        <item name="colorUserBubble">@color/amber_tint_bubble</item>
         <item name="colorSendFill">@color/amber_send_fill</item>
         <item name="colorSendStroke">@color/amber_send_stroke</item>
-        <item name="colorStopFill">@color/amber_stop_fill</item>
-        <item name="colorStopStroke">@color/amber_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/amber_assistant_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/amber_assistant_bubble</item>
         <item name="colorAccentGradientStart">@color/amber_send_fill</item>
         <item name="colorAccentGradientEnd">@color/amber_send_fill</item>
     </style>
 
     <style name="Theme.local_llm.Amber.Light" parent="Theme.local_llm.Light">
-        <item name="colorAssistantBubble">@color/light_amber_user_bubble</item>
+        <item name="colorUserBubble">@color/light_amber_user_bubble</item>
         <item name="colorSendFill">@color/amber_send_fill</item>
-        <item name="colorSendStroke">@color/amber_send_stroke</item>
-        <item name="colorStopFill">@color/amber_stop_fill</item>
-        <item name="colorStopStroke">@color/amber_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_amber_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_amber_user_bubble</item>
         <item name="colorAccentGradientStart">@color/amber_send_fill</item>
         <item name="colorAccentGradientEnd">@color/amber_send_fill</item>
     </style>
 
     <style name="Theme.local_llm.Coral" parent="Theme.local_llm">
-        <item name="colorAssistantBubble">@color/coral_assistant_bubble</item>
-        <item name="colorStatusText">@color/coral_status_text</item>
+        <item name="colorUserBubble">@color/coral_tint_bubble</item>
         <item name="colorSendFill">@color/coral_send_fill</item>
         <item name="colorSendStroke">@color/coral_send_stroke</item>
-        <item name="colorStopFill">@color/coral_stop_fill</item>
-        <item name="colorStopStroke">@color/coral_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/coral_assistant_gradient_start</item>
-        <item name="colorAssistantGradientEnd">@color/coral_assistant_gradient_end</item>
         <item name="colorAccentGradientStart">@color/coral_accent_gradient_start</item>
         <item name="colorAccentGradientEnd">@color/coral_accent_gradient_end</item>
     </style>
 
     <style name="Theme.local_llm.Coral.Light" parent="Theme.local_llm.Light">
-        <item name="colorAssistantBubble">@color/light_coral_user_bubble</item>
+        <item name="colorUserBubble">@color/light_coral_user_bubble</item>
         <item name="colorSendFill">@color/coral_send_fill</item>
-        <item name="colorSendStroke">@color/coral_send_stroke</item>
-        <item name="colorStopFill">@color/coral_stop_fill</item>
-        <item name="colorStopStroke">@color/coral_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_coral_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_coral_user_bubble</item>
         <item name="colorAccentGradientStart">@color/coral_accent_gradient_start</item>
         <item name="colorAccentGradientEnd">@color/coral_accent_gradient_end</item>
     </style>

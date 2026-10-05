@@ -18,4 +18,6 @@
     <attr name="colorAssistantGradientEnd" format="color" />
     <attr name="colorAccentGradientStart" format="color" />
     <attr name="colorAccentGradientEnd" format="color" />
+    <attr name="colorPocketOutline" format="color" />
+    <attr name="colorPocketRaised" format="color" />
 </resources>
