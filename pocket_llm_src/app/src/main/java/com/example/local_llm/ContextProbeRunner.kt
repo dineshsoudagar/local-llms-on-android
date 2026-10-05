@@ -45,6 +45,7 @@ class ContextProbeRunner(
     private val steps = mutableListOf<ContextProbeStep>()
     private val maxTokens = ModelRuntimeSettingsLimits.maxFor(descriptor)
     private var currentSize: Int? = null
+    private var retriedFirstStep = false
     private var bound = false
     private var finished = false
 
@@ -127,6 +128,10 @@ class ContextProbeRunner(
         }
         currentSize = size
         onStepStarted(size, steps.toList())
+        bindForCurrentStep()
+    }
+
+    private fun bindForCurrentStep() {
         handler.postDelayed(timeout, STEP_TIMEOUT_MILLIS)
         bound = appContext.bindService(
             Intent(appContext, ContextProbeService::class.java),
@@ -138,7 +143,23 @@ class ContextProbeRunner(
 
     private fun failCurrent(message: String) {
         val size = currentSize ?: return
+        if (message == CRASH_MESSAGE && steps.isEmpty() && !retriedFirstStep) {
+            // The first load of a model on a device also builds caches and runs one-time checks,
+            // which can need more memory than later loads. Give the first size a second try.
+            retriedFirstStep = true
+            currentSize = null
+            cleanUpStep()
+            handler.postDelayed({ retryStep(size) }, BETWEEN_STEPS_MILLIS)
+            return
+        }
         completeStep(ContextProbeStep(size, passed = false, filledTokens = null, error = message))
+    }
+
+    private fun retryStep(size: Int) {
+        if (finished) return
+        currentSize = size
+        onStepStarted(size, steps.toList())
+        bindForCurrentStep()
     }
 
     private fun completeStep(step: ContextProbeStep) {

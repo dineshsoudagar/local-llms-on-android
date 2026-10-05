@@ -3288,6 +3288,10 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun startContextProbe(descriptor: ModelDescriptor) {
         if (contextProbeRunner != null) return
+        if (modelPreparationJob?.isActive == true || chatController?.state?.value?.isLoading == true) {
+            showTransientMessage(getString(R.string.context_probe_wait_for_load))
+            return
+        }
         // The chat model's GPU memory must be free, or the test would measure what is left over.
         val modelToReload = currentModel
         cancelCurrentInitializationMarker()
@@ -5071,6 +5075,12 @@ open class PocketChatActivity : AppCompatActivity() {
             }
             if (chatController?.state?.value?.isGenerating == true) {
                 showTransientMessage(getString(R.string.model_settings_generation_blocked))
+                return@setOnClickListener
+            }
+            // Closing a model while its engine is still being created natively can crash the app
+            // or leave GPU memory held, so the test waits for any load to finish.
+            if (modelPreparationJob?.isActive == true || chatController?.state?.value?.isLoading == true) {
+                showTransientMessage(getString(R.string.context_probe_wait_for_load))
                 return@setOnClickListener
             }
             dialog.dismiss()
