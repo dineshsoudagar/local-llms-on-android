@@ -224,6 +224,8 @@ The app warns above 8K. A native LiteRT-LM crash was observed with Gemma 4 E2B a
 
 The app also caps the context at load time. It estimates how much context the device can hold for the selected model from total RAM and model size (never below 8K), and loads at that size if the saved value is larger. If the app stops while loading a model or answering a large prompt above 8K, the next load of that model uses a smaller context. Saving a new context length in the model settings clears that learned limit.
 
+When a LiteRT chat grows past about three quarters of the context, the app asks the model to summarize the oldest messages instead of silently dropping them. The summary is kept with the chat and sent with the system instruction, and the most recent messages stay word for word, so long conversations keep going within a phone-sized context.
+
 ## 🧠 Backend Support
 
 This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 models**.

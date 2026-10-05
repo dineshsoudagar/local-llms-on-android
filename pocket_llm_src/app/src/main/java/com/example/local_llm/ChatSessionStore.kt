@@ -17,7 +17,8 @@ data class PersistedChatSession(
     val createdAtMillis: Long,
     val updatedAtMillis: Long,
     val turns: List<ChatTurn>,
-    val activeAttachmentId: String? = null
+    val activeAttachmentId: String? = null,
+    val compaction: ChatCompaction? = null
 )
 
 data class ChatSessionSummary(
@@ -100,6 +101,14 @@ class ChatSessionStore(context: Context) {
             put("createdAtMillis", session.createdAtMillis)
             put("updatedAtMillis", session.updatedAtMillis)
             session.activeAttachmentId?.let { put("activeAttachmentId", it) }
+            session.compaction?.let { compaction ->
+                put(
+                    "compaction",
+                    JSONObject()
+                        .put("summary", compaction.summary)
+                        .put("throughTurnId", compaction.throughTurnId)
+                )
+            }
             put(
                 "turns",
                 JSONArray().apply {
@@ -176,7 +185,12 @@ class ChatSessionStore(context: Context) {
             createdAtMillis = json.optLong("createdAtMillis"),
             updatedAtMillis = json.optLong("updatedAtMillis"),
             turns = turns,
-            activeAttachmentId = json.optString("activeAttachmentId").takeIf { it.isNotBlank() }
+            activeAttachmentId = json.optString("activeAttachmentId").takeIf { it.isNotBlank() },
+            compaction = json.optJSONObject("compaction")?.let { compactionJson ->
+                val summary = compactionJson.optString("summary")
+                val throughTurnId = compactionJson.optString("throughTurnId")
+                if (summary.isBlank() || throughTurnId.isBlank()) null else ChatCompaction(summary, throughTurnId)
+            }
         )
     }
 

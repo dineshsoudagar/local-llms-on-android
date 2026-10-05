@@ -2,6 +2,7 @@ package com.example.local_llm
 
 import android.content.Context
 import android.os.SystemClock
+import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -21,7 +22,8 @@ data class ActiveChatSnapshot(
     val sessionId: String?,
     val createdAtMillis: Long,
     val turns: List<ChatTurn>,
-    val activeAttachmentId: String? = null
+    val activeAttachmentId: String? = null,
+    val compaction: ChatCompaction? = null
 )
 
 class PersistentChatController(
@@ -39,6 +41,8 @@ class PersistentChatController(
         private const val MATH_MARKDOWN_UPDATE_CHAR_STEP = 180
         private const val MATH_MARKDOWN_UPDATE_MIN_INTERVAL_MS = 650L
         private const val MAX_SYNTHESIS_ROUNDS = 8
+        private const val TAG = "PersistentChatController"
+        private const val COMPACTING_STATUS_TEXT = "Summarizing earlier messages to stay within the context…"
         private val TABLE_SEPARATOR_REGEX = Regex("^\\|?(?:\\s*:?-{3,}:?\\s*\\|)+\\s*:?-{3,}:?\\s*\\|?$")
         private val LATEX_DELIMITER_REGEX = Regex(
             """\\\[|\\\]|\\\(|\\\)|\${'$'}\${'$'}|(?<!\\)\${'$'}(?=\S*[A-Za-z\\_^{}=+\-*/<>])"""
@@ -60,6 +64,7 @@ class PersistentChatController(
         savedRuntimeSettings.copy(contextLengthTokens = contextDecision.effectiveTokens)
     private val backend: ChatBackend
     private val committedTurns = mutableListOf<ChatTurn>()
+    private var compaction: ChatCompaction? = null
     private val _state = MutableStateFlow(
         ChatUiState(
             title = "Pocket LLM - ${modelDescriptor.displayName}",
@@ -140,9 +145,9 @@ class PersistentChatController(
                     initializeBackendTracked()
                     if (snapshotToRestore != null) {
                         backend.resetConversation(
-                            snapshotToRestore.turns.asModelMemoryTurns(),
+                            modelHistory(),
                             thinkingEnabled,
-                            currentModelInstruction()
+                            modelInstruction()
                         )
                     } else {
                         resetConversationForFreshSession()
@@ -194,7 +199,8 @@ class PersistentChatController(
             sessionId = currentSessionId,
             createdAtMillis = currentSessionCreatedAtMillis,
             turns = committedTurns.toList(),
-            activeAttachmentId = activeAttachmentId
+            activeAttachmentId = activeAttachmentId,
+            compaction = compaction
         )
     }
 
@@ -222,8 +228,8 @@ class PersistentChatController(
         userPrompt: String
     ): AttachmentContext {
         val outputReserve = attachmentOutputReserve()
-        val baseHistory = committedTurns.asModelMemoryTurns()
-        val modelInstruction = currentModelInstruction()
+        val baseHistory = modelHistory()
+        val modelInstruction = modelInstruction()
         val promptFits: (String) -> Boolean = { prompt ->
             runCatching {
                 backend.requirePromptFits(
@@ -291,9 +297,9 @@ class PersistentChatController(
                 withContext(Dispatchers.IO) {
                     initializeBackendTracked()
                     backend.resetConversation(
-                        committedTurns.asModelMemoryTurns(),
+                        modelHistory(),
                         thinkingEnabled,
-                        currentModelInstruction()
+                        modelInstruction()
                     )
                 }
                 publishState(
@@ -520,12 +526,15 @@ class PersistentChatController(
 
         generationJob = scope.launch {
             try {
+                if (historyOverride == null && persistResult && attachmentContext == null) {
+                    compactHistoryIfNeeded()
+                }
                 val response = withContext(Dispatchers.IO) {
                     executeInferenceRequest(
                         request = InferenceRequest(
-                            history = historyOverride ?: committedTurns.asModelMemoryTurns(),
+                            history = historyOverride ?: modelHistory(),
                             thinkingEnabled = thinkingEnabled,
-                            modelInstruction = modelInstructionOverride ?: currentModelInstruction(),
+                            modelInstruction = modelInstructionOverride ?: modelInstruction(),
                             imageFilePaths = currentGenerationImageFilePaths,
                             nativeAudioInputs = currentNativeAudioInputs,
                             attachmentContext = currentAttachmentContext,
@@ -918,6 +927,7 @@ class PersistentChatController(
             activeAttachmentId = session.activeAttachmentId
             committedTurns.clear()
             committedTurns += session.turns
+            compaction = session.compaction
             streamingAssistantTurn = null
             currentGenerationId = 0L
             preparedPromptUserTurnId = null
@@ -928,9 +938,9 @@ class PersistentChatController(
             try {
                 withContext(Dispatchers.IO) {
                     backend.resetConversation(
-                        committedTurns.asModelMemoryTurns(),
+                        modelHistory(),
                         thinkingEnabled,
-                        currentModelInstruction()
+                        modelInstruction()
                     )
                 }
                 publishState(statusMessage = "Loaded ${session.title}.")
@@ -958,6 +968,7 @@ class PersistentChatController(
         activeAttachmentId = snapshot.activeAttachmentId
         committedTurns.clear()
         committedTurns += snapshot.turns
+        compaction = snapshot.compaction
         streamingAssistantTurn = null
         currentGenerationId = 0L
         preparedPromptUserTurnId = null
@@ -972,6 +983,7 @@ class PersistentChatController(
 
     private fun clearActiveChatState() {
         committedTurns.clear()
+        compaction = null
         streamingAssistantTurn = null
         currentGenerationId = 0L
         preparedPromptUserTurnId = null
@@ -1006,7 +1018,8 @@ class PersistentChatController(
             createdAtMillis = currentSessionCreatedAtMillis.takeIf { it > 0 } ?: System.currentTimeMillis(),
             updatedAtMillis = System.currentTimeMillis(),
             turns = committedTurns.toList(),
-            activeAttachmentId = activeAttachmentId
+            activeAttachmentId = activeAttachmentId,
+            compaction = compaction
         )
         sessionStore.save(session)
     }
@@ -1065,6 +1078,76 @@ class PersistentChatController(
 
     private fun currentModelInstruction(): String {
         return modelInstructionStore.loadInstruction(modelDescriptor)
+    }
+
+    /** Chat turns sent verbatim; turns already folded into the summary are left out. */
+    private fun modelHistory(): List<ChatTurn> =
+        ChatCompactionPlanner.visibleTurns(committedTurns.asModelMemoryTurns(), compaction)
+
+    private fun activeSummary(): String? =
+        compaction?.takeIf { ChatCompactionPlanner.isActive(committedTurns.asModelMemoryTurns(), it) }?.summary
+
+    private fun modelInstruction(): String =
+        ChatCompactionPlanner.instructionWithSummary(currentModelInstruction(), activeSummary())
+
+    private fun estimateTurnTokens(turn: ChatTurn): Int {
+        // Matches the byte-based upper bound LiteRT prompt budgeting uses.
+        val toolBytes = turn.toolCalls.sumOf { it.name.length + it.argumentsJson.toByteArray(Charsets.UTF_8).size }
+        return turn.text.toByteArray(Charsets.UTF_8).size + toolBytes + 16
+    }
+
+    /**
+     * Summarizes the oldest turns once the chat nears the context limit, so they are condensed
+     * rather than silently dropped. Any failure leaves the chat as it was; the regular history
+     * trimming still applies.
+     */
+    private suspend fun compactHistoryIfNeeded() {
+        if (modelDescriptor is OnnxQwenSpec) return
+        val contextTokens = backend.capabilities.contextWindowTokens
+        val visible = modelHistory()
+        val probe = InferenceRequest(
+            history = visible,
+            thinkingEnabled = thinkingEnabled,
+            modelInstruction = modelInstruction()
+        )
+        if (!ChatCompactionPlanner.shouldCompact(backend.estimateSerializedPromptTokens(probe), contextTokens)) return
+        val tailStart = ChatCompactionPlanner.tailStart(visible, contextTokens, ::estimateTurnTokens)
+        if (tailStart <= 0) return
+        val toSummarize = visible.subList(0, tailStart).toList()
+
+        streamingAssistantTurn = streamingAssistantTurn?.copy(preResponseStatusText = COMPACTING_STATUS_TEXT)
+        publishState(isGenerating = true)
+        try {
+            val batchBudget = ChatCompactionPlanner.batchBudget(contextTokens)
+            val charLimit = ChatCompactionPlanner.summaryCharLimit(contextTokens)
+            val maxWords = ChatCompactionPlanner.summaryWordTarget(contextTokens)
+            var summary = activeSummary()
+            for (batch in ChatCompactionPlanner.batches(toSummarize, batchBudget, ::estimateTurnTokens)) {
+                val prompt = ChatCompactionPlanner.summaryPrompt(summary, batch, maxWords, batchBudget)
+                val response = withContext(Dispatchers.IO) {
+                    streamReplyWithinBudget(
+                        InferenceRequest(
+                            history = listOf(ChatTurn(role = ChatRole.USER, text = prompt)),
+                            thinkingEnabled = false,
+                            modelInstruction = ChatCompactionPlanner.SUMMARY_INSTRUCTION,
+                            outputTokenReserve = contextTokens * ChatCompactionPlanner.SUMMARY_OUTPUT_RESERVE_PERCENT / 100
+                        ),
+                        onPartial = {}
+                    )
+                }
+                summary = ChatCompactionPlanner.cleanSummary(response.text, charLimit)
+                    .ifBlank { return }
+            }
+            compaction = ChatCompaction(requireNotNull(summary), toSummarize.last().id)
+            persistCurrentSession()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Log.w(TAG, "Chat compaction failed; falling back to history trimming.", error)
+        } finally {
+            streamingAssistantTurn = streamingAssistantTurn?.copy(preResponseStatusText = null)
+            publishState(isGenerating = true)
+        }
     }
 
     private fun normalizeDisplayPrompt(
