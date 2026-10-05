@@ -19,11 +19,13 @@ class ContextProbeService : Service() {
     companion object {
         const val MSG_PROBE = 1
         const val MSG_RESULT = 2
+        const val MSG_PROGRESS = 3
         const val KEY_MODEL_ID = "model_id"
         const val KEY_CONTEXT = "context"
         const val KEY_PASSED = "passed"
         const val KEY_FILLED = "filled"
         const val KEY_ERROR = "error"
+        const val KEY_TARGET = "target"
         const val PROCESS_SUFFIX = ":context_probe"
         private const val REPLY_FLUSH_MILLIS = 300L
     }
@@ -39,6 +41,15 @@ class ContextProbeService : Service() {
     })
 
     override fun onBind(intent: Intent): IBinder = messenger.binder
+
+    private fun sendProgress(replyTo: Messenger?, contextTokens: Int, filled: Int, target: Int) {
+        val data = Bundle().apply {
+            putInt(KEY_CONTEXT, contextTokens)
+            putInt(KEY_FILLED, filled)
+            putInt(KEY_TARGET, target)
+        }
+        runCatching { replyTo?.send(Message.obtain(null, MSG_PROGRESS).apply { this.data = data }) }
+    }
 
     private fun runProbe(request: Bundle, replyTo: Messenger?) {
         val contextTokens = request.getInt(KEY_CONTEXT)
@@ -56,10 +67,14 @@ class ContextProbeService : Service() {
                 is QwenLiteRtSpec -> QwenLiteRtBackend(this, descriptor, resolver, settings, policy)
                 is OnnxQwenSpec -> throw IllegalArgumentException("ONNX models use a fixed context.")
             }
+            val target = ContextProbePlanner.fillTarget(contextTokens)
             backend.use {
                 runBlocking { it.initialize() }
-                val filler = ContextProbePlanner.fillerText(ContextProbePlanner.fillTarget(contextTokens))
-                result.putInt(KEY_FILLED, it.probeContextFill(filler))
+                sendProgress(replyTo, contextTokens, filled = 0, target = target)
+                val filled = it.probeContextFill(ContextProbePlanner.fillerChunks(target)) { tokens ->
+                    sendProgress(replyTo, contextTokens, tokens, target)
+                }
+                result.putInt(KEY_FILLED, filled)
                 result.putBoolean(KEY_PASSED, true)
             }
         } catch (error: Throwable) {

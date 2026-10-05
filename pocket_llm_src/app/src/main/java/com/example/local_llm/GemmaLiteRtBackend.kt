@@ -351,12 +351,20 @@ class GemmaLiteRtBackend(
         }
     }
 
-    override fun probeContextFill(fillerText: String): Int {
+    override fun probeContextFill(fillerParts: List<String>, onFilled: (Int) -> Unit): Int {
         closeConversation()
         return engine.createConversation(
             ConversationConfig(channels = emptyList(), automaticToolCalling = false)
         ).use { probe ->
-            probe.sendMessage(Message.user(fillerText), maxOutputToken = CONTEXT_PROBE_OUTPUT_TOKENS)
+            fillerParts.forEachIndexed { index, part ->
+                val outputTokens = if (index == fillerParts.lastIndex) {
+                    CONTEXT_PROBE_OUTPUT_TOKENS
+                } else {
+                    CONTEXT_PROBE_PART_OUTPUT_TOKENS
+                }
+                probe.sendMessage(Message.user(part), maxOutputToken = outputTokens)
+                onFilled(probe.getTokenCount())
+            }
             probe.getTokenCount()
         }
     }

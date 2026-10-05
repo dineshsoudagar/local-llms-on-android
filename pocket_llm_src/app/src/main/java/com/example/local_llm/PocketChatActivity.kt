@@ -76,6 +76,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.CircularProgressIndicator
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -3275,7 +3276,11 @@ open class PocketChatActivity : AppCompatActivity() {
     private fun confirmContextProbe(descriptor: ModelDescriptor) {
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.context_probe_title)
-            .setMessage(getString(R.string.context_probe_intro, descriptor.displayName))
+            .setMessage(
+                getString(R.string.context_probe_intro, descriptor.displayName) +
+                    ContextMemoryGuard(this).measuredLargest(descriptor.id)
+                        ?.let { getString(R.string.context_probe_retest, it) }.orEmpty()
+            )
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(R.string.context_probe_start) { _, _ -> startContextProbe(descriptor) }
             .show()
@@ -3297,9 +3302,23 @@ open class PocketChatActivity : AppCompatActivity() {
         }
         renderNoControllerState(getString(R.string.context_probe_model_unloaded), preserveTranscript = true)
 
+        val padding = (20 * resources.displayMetrics.density).toInt()
+        val progressText = TextView(this).apply { text = getString(R.string.context_probe_preparing) }
+        val progressBar = LinearProgressIndicator(this).apply {
+            isIndeterminate = true
+            max = 100
+            setPadding(0, padding / 2, 0, 0)
+        }
+        val progressView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padding + padding / 4, padding / 2, padding + padding / 4, 0)
+            addView(progressText)
+            addView(progressBar)
+        }
+        var completedSteps = emptyList<ContextProbeStep>()
         val progressDialog = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.context_probe_title)
-            .setMessage(getString(R.string.context_probe_preparing))
+            .setView(progressView)
             .setCancelable(false)
             .setNegativeButton(R.string.context_probe_stop, null)
             .create()
@@ -3314,7 +3333,17 @@ open class PocketChatActivity : AppCompatActivity() {
             this,
             descriptor,
             onStepStarted = { size, steps ->
-                progressDialog.setMessage(formatContextProbeProgress(size, steps))
+                completedSteps = steps
+                progressText.text = formatContextProbeProgress(size, steps, getString(R.string.context_probe_loading))
+                progressBar.isIndeterminate = true
+            },
+            onFilling = { size, filled, target ->
+                progressText.text = formatContextProbeProgress(
+                    size,
+                    completedSteps,
+                    getString(R.string.context_probe_filling, filled, target)
+                )
+                progressBar.setProgressCompat((filled.toLong() * 100 / target.coerceAtLeast(1)).toInt().coerceIn(0, 100), true)
             },
             onFinished = { result ->
                 contextProbeRunner = null
@@ -3324,15 +3353,16 @@ open class PocketChatActivity : AppCompatActivity() {
                         modelToReload?.let { requestModelLoad(it, snapshot) }
                     }
                 }
-            }
+            },
+            startTokens = ContextMemoryGuard(this).measuredLargest(descriptor.id)
         ).also { it.start() }
     }
 
-    private fun formatContextProbeProgress(size: Int, steps: List<ContextProbeStep>): String {
+    private fun formatContextProbeProgress(size: Int, steps: List<ContextProbeStep>, stage: String): String {
         val worked = steps.filter { it.passed }.joinToString { "%,d".format(it.contextTokens) }
         val failed = steps.filterNot { it.passed }.joinToString { "%,d".format(it.contextTokens) }
         return buildString {
-            append(getString(R.string.context_probe_testing, size))
+            append(getString(R.string.context_probe_testing, size)).append("\n").append(stage)
             if (worked.isNotEmpty()) append("\n").append(getString(R.string.context_probe_worked, worked))
             if (failed.isNotEmpty()) append("\n").append(getString(R.string.context_probe_failed, failed))
         }
@@ -3357,14 +3387,14 @@ open class PocketChatActivity : AppCompatActivity() {
                 builder.setMessage(
                     getString(
                         R.string.context_probe_result_none,
-                        result.steps.firstOrNull()?.contextTokens ?: 0,
+                        result.steps.minOfOrNull { it.contextTokens } ?: 0,
                         firstError
                     )
                 ).setPositiveButton(android.R.string.ok) { _, _ -> reload() }
             }
             else -> {
                 val largest = checkNotNull(result.largestPassedTokens)
-                ContextMemoryGuard(this).saveMeasuredLimit(descriptor.id, recommended)
+                ContextMemoryGuard(this).saveMeasuredLimit(descriptor.id, recommended, largest)
                 builder.setMessage(getString(R.string.context_probe_result_message, largest, recommended))
                     .setPositiveButton(getString(R.string.context_probe_use, recommended)) { _, _ ->
                         modelRuntimeSettingsStore.save(descriptor, ModelRuntimeSettings(recommended))

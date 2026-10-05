@@ -15,6 +15,7 @@ class ContextMemoryGuard(context: Context) {
         private const val LEARNED_LIMIT_SUFFIX = "_learned_context_limit"
         private const val CAP_NOTICE_SUFFIX = "_context_cap_notice"
         private const val MEASURED_LIMIT_SUFFIX = "_measured_context_limit"
+        private const val MEASURED_LARGEST_SUFFIX = "_measured_context_largest"
         private const val KEY_RUN_MODEL_ID = "run_model_id"
         private const val KEY_RUN_CONTEXT = "run_context"
         private const val KEY_RUN_PROCESS = "run_process"
@@ -48,10 +49,15 @@ class ContextMemoryGuard(context: Context) {
     fun measuredLimit(modelId: String): Int? =
         prefs.getInt(modelId + MEASURED_LIMIT_SUFFIX, 0).takeIf { it > 0 }
 
+    /** Largest size the last context test ran, so a retest can start there. */
+    fun measuredLargest(modelId: String): Int? =
+        prefs.getInt(modelId + MEASURED_LARGEST_SUFFIX, 0).takeIf { it > 0 }
+
     /** Stores the context test's recommendation; it supersedes the estimate and earlier crash history. */
-    fun saveMeasuredLimit(modelId: String, tokens: Int) {
+    fun saveMeasuredLimit(modelId: String, tokens: Int, largestTokens: Int) {
         prefs.edit()
             .putInt(modelId + MEASURED_LIMIT_SUFFIX, tokens)
+            .putInt(modelId + MEASURED_LARGEST_SUFFIX, largestTokens)
             .remove(modelId + LEARNED_LIMIT_SUFFIX)
             .commit()
     }

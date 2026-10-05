@@ -29,7 +29,9 @@ class ContextProbeRunner(
     context: Context,
     private val descriptor: ModelDescriptor,
     private val onStepStarted: (contextTokens: Int, steps: List<ContextProbeStep>) -> Unit,
-    private val onFinished: (ContextProbeResult) -> Unit
+    private val onFilling: (contextTokens: Int, filledTokens: Int, targetTokens: Int) -> Unit,
+    private val onFinished: (ContextProbeResult) -> Unit,
+    private val startTokens: Int? = null
 ) {
     private companion object {
         const val STEP_TIMEOUT_MILLIS = 5L * 60L * 1000L
@@ -47,7 +49,14 @@ class ContextProbeRunner(
     private var finished = false
 
     private val replyMessenger = Messenger(Handler(Looper.getMainLooper()) { message ->
-        if (message.what == ContextProbeService.MSG_RESULT) {
+        if (message.what == ContextProbeService.MSG_PROGRESS) {
+            val data = message.data
+            val size = data.getInt(ContextProbeService.KEY_CONTEXT)
+            if (size == currentSize) {
+                onFilling(size, data.getInt(ContextProbeService.KEY_FILLED), data.getInt(ContextProbeService.KEY_TARGET))
+            }
+            true
+        } else if (message.what == ContextProbeService.MSG_RESULT) {
             val data = message.data
             val size = data.getInt(ContextProbeService.KEY_CONTEXT)
             if (size == currentSize) {
@@ -109,7 +118,8 @@ class ContextProbeRunner(
         val size = ContextProbePlanner.nextSize(
             passed = steps.filter { it.passed }.map { it.contextTokens },
             failed = steps.filterNot { it.passed }.map { it.contextTokens },
-            maxTokens = maxTokens
+            maxTokens = maxTokens,
+            startTokens = startTokens
         )
         if (size == null) {
             finish(cancelled = false)
