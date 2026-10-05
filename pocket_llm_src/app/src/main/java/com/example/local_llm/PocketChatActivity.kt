@@ -3181,6 +3181,7 @@ open class PocketChatActivity : AppCompatActivity() {
                     persistModelLoadRecord()
                 }
                 retainedState.pendingModelLoadSnapshot = null
+                chatController?.contextDecision?.let(::showContextCapNoticeIfNeeded)
             },
             onFailure = { error ->
                 val reason = usefulModelLoadError(descriptor, error)
@@ -3248,6 +3249,21 @@ open class PocketChatActivity : AppCompatActivity() {
         if (modelLoadCoordinator.cancel(record.modelId, record.attemptId)) {
             persistModelLoadRecord()
         }
+    }
+
+    private fun showContextCapNoticeIfNeeded(decision: ContextDecision) {
+        if (!decision.isCapped) return
+        showTransientMessage(
+            getString(
+                if (decision.cappedByCrashHistory) {
+                    R.string.model_context_capped_after_crash
+                } else {
+                    R.string.model_context_capped_device
+                },
+                decision.effectiveTokens,
+                decision.requestedTokens
+            )
+        )
     }
 
     private fun persistModelLoadRecord() {
@@ -4653,11 +4669,21 @@ open class PocketChatActivity : AppCompatActivity() {
         val maxContextLength = ModelRuntimeSettingsLimits.maxFor(descriptor)
         contextLengthInput.setText(runtimeSettings.contextLengthTokens.toString())
         contextLengthInput.setSelection(contextLengthInput.text.length)
+        val contextMemoryGuard = ContextMemoryGuard(this)
+        val contextDecision = contextMemoryGuard.decide(descriptor, runtimeSettings.contextLengthTokens)
         contextLengthHelp.text = getString(
             R.string.model_context_length_help,
             minContextLength,
             maxContextLength
         )
+        if (descriptor !is OnnxQwenSpec) {
+            val deviceLimit = minOf(
+                contextDecision.deviceLimitTokens,
+                contextDecision.learnedLimitTokens ?: Int.MAX_VALUE,
+                maxContextLength
+            )
+            contextLengthHelp.append(" " + getString(R.string.model_context_length_device_limit, deviceLimit))
+        }
         val presets = InstructionPreset.entries.toList()
         val presetLabels = presets.map { it.label }
         val presetAdapter = ArrayAdapter(
@@ -4776,6 +4802,8 @@ open class PocketChatActivity : AppCompatActivity() {
             )
             val runtimeSettingsChanged =
                 updatedRuntimeSettings.contextLengthTokens != runtimeSettings.contextLengthTokens
+            // A new explicit choice replaces the limit learned from an earlier crash.
+            if (runtimeSettingsChanged) contextMemoryGuard.clearLearnedLimit(descriptor.id)
             dialog.dismiss()
             if (runtimeSettingsChanged) {
                 if (editingActiveModel) {

@@ -52,7 +52,12 @@ class PersistentChatController(
     private val appContext = context.applicationContext
     private val sessionStore = ChatSessionStore(appContext)
     private val modelInstructionStore = ModelInstructionStore(appContext)
-    private val modelRuntimeSettings = ModelRuntimeSettingsStore(appContext).load(modelDescriptor)
+    private val contextGuard = ContextMemoryGuard(appContext)
+    private val savedRuntimeSettings = ModelRuntimeSettingsStore(appContext).load(modelDescriptor)
+    val contextDecision: ContextDecision =
+        contextGuard.decide(modelDescriptor, savedRuntimeSettings.contextLengthTokens)
+    private val modelRuntimeSettings =
+        savedRuntimeSettings.copy(contextLengthTokens = contextDecision.effectiveTokens)
     private val backend: ChatBackend
     private val committedTurns = mutableListOf<ChatTurn>()
     private val _state = MutableStateFlow(
@@ -132,7 +137,7 @@ class PersistentChatController(
         return scope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    backend.initialize()
+                    initializeBackendTracked()
                     if (snapshotToRestore != null) {
                         backend.resetConversation(
                             snapshotToRestore.turns.asModelMemoryTurns(),
@@ -284,7 +289,7 @@ class PersistentChatController(
         } finally {
             try {
                 withContext(Dispatchers.IO) {
-                    backend.initialize()
+                    initializeBackendTracked()
                     backend.resetConversation(
                         committedTurns.asModelMemoryTurns(),
                         thinkingEnabled,
@@ -813,7 +818,24 @@ class PersistentChatController(
         onPartial: (BackendResponse) -> Unit
     ): BackendResponse {
         if (request.outputTokenReserve > 0) backend.requirePromptFits(request)
-        return backend.streamReply(request, onPartial)
+        val contextTokens = modelRuntimeSettings.contextLengthTokens
+        val promptTokens = backend.estimateSerializedPromptTokens(request)
+        if (modelDescriptor is OnnxQwenSpec || !ContextMemoryBudget.isHighContextRun(contextTokens, promptTokens)) {
+            return backend.streamReply(request, onPartial)
+        }
+        return contextGuard.tracked(modelDescriptor.id, contextTokens) {
+            backend.streamReply(request, onPartial)
+        }
+    }
+
+    private suspend fun initializeBackendTracked() {
+        if (modelDescriptor is OnnxQwenSpec) {
+            backend.initialize()
+            return
+        }
+        contextGuard.tracked(modelDescriptor.id, modelRuntimeSettings.contextLengthTokens) {
+            backend.initialize()
+        }
     }
 
     private fun InferenceRequest.withUserPrompt(prompt: String?): InferenceRequest {

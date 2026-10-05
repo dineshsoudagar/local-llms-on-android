@@ -222,6 +222,8 @@ LiteRT models expose a context-length field in the Android app's model settings.
 
 The app warns above 8K. A native LiteRT-LM crash was observed with Gemma 4 E2B at 20K on a tested device, consistent with high-context memory pressure. Keep the context near 8K unless you have tested the selected model on your own device.
 
+The app also caps the context at load time. It estimates how much context the device can hold for the selected model from total RAM and model size (never below 8K), and loads at that size if the saved value is larger. If the app stops while loading a model or answering a large prompt above 8K, the next load of that model uses a smaller context. Saving a new context length in the model settings clears that learned limit.
+
 ## 🧠 Backend Support
 
 This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma 4 models**.
