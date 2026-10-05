@@ -21,6 +21,8 @@ object ChatCompactionPlanner {
     /** Hard ceiling on the stored summary, as a share of the context. */
     private const val SUMMARY_PERCENT = 12
     const val SUMMARY_OUTPUT_RESERVE_PERCENT = 15
+    /** Share of the context that chat history may take when an attachment is sent. */
+    const val ATTACHMENT_HISTORY_PERCENT = 25
 
     private val THINK_BLOCK = Regex("(?s)<think>.*?</think>")
 
@@ -64,6 +66,21 @@ object ChatCompactionPlanner {
             bestStart = turns.indexOfLast { it.isPlainUser }.coerceAtLeast(0)
         }
         return bestStart
+    }
+
+    /**
+     * Latest turns that fit [budgetTokens], starting at a plain user turn. Empty when not even
+     * the latest exchange fits, so a long chat never crowds out an attachment.
+     */
+    fun recentTurns(turns: List<ChatTurn>, budgetTokens: Int, estimateTurn: (ChatTurn) -> Int): List<ChatTurn> {
+        var used = 0L
+        var bestStart = turns.size
+        for (index in turns.indices.reversed()) {
+            used += estimateTurn(turns[index])
+            if (used > budgetTokens) break
+            if (turns[index].isPlainUser) bestStart = index
+        }
+        return turns.subList(bestStart, turns.size).toList()
     }
 
     /** Splits [turns] into consecutive groups that each fit [budgetTokens]. */

@@ -13,5 +13,8 @@ data class ChatUiState(
     val supportsThinking: Boolean = false,
     val supportsDirectImageInput: Boolean = false,
     val supportsNativeAudioInput: Boolean = false,
-    val activeAttachmentId: String? = null
+    val activeAttachmentId: String? = null,
+    /** Estimated tokens the chat already takes in the context window; 0 when unknown. */
+    val contextUsedTokens: Int = 0,
+    val contextWindowTokens: Int = 0
 )

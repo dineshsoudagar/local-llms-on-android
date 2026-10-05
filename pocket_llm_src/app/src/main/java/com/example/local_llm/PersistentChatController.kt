@@ -81,6 +81,8 @@ class PersistentChatController(
     private var initializationJob: Job? = null
     private var streamingAssistantTurn: ChatTurn? = null
     private var thinkingEnabled = false
+    private var contextUsageKey: List<Any?>? = null
+    private var contextUsageTokens = 0
     private var liveMarkdownEnabled = false
     private var currentGenerationId: Long = 0L
     private var currentSessionId: String? = null
@@ -228,7 +230,7 @@ class PersistentChatController(
         userPrompt: String
     ): AttachmentContext {
         val outputReserve = attachmentOutputReserve()
-        val baseHistory = modelHistory()
+        val baseHistory = attachmentPriorHistory(modelHistory())
         val modelInstruction = modelInstruction()
         val promptFits: (String) -> Boolean = { prompt ->
             runCatching {
@@ -532,7 +534,8 @@ class PersistentChatController(
                 val response = withContext(Dispatchers.IO) {
                     executeInferenceRequest(
                         request = InferenceRequest(
-                            history = historyOverride ?: modelHistory(),
+                            history = historyOverride
+                                ?: if (currentAttachmentContext != null) attachmentRequestHistory() else modelHistory(),
                             thinkingEnabled = thinkingEnabled,
                             modelInstruction = modelInstructionOverride ?: modelInstruction(),
                             imageFilePaths = currentGenerationImageFilePaths,
@@ -1084,6 +1087,35 @@ class PersistentChatController(
     private fun modelHistory(): List<ChatTurn> =
         ChatCompactionPlanner.visibleTurns(committedTurns.asModelMemoryTurns(), compaction)
 
+    /** Earlier chat kept with an attachment; the attachment gets the rest of the context. */
+    private fun attachmentPriorHistory(turns: List<ChatTurn>): List<ChatTurn> {
+        val budget = backend.capabilities.contextWindowTokens * ChatCompactionPlanner.ATTACHMENT_HISTORY_PERCENT / 100
+        return ChatCompactionPlanner.recentTurns(turns, budget, ::estimateTurnTokens)
+    }
+
+    /** Same history the attachment was planned with, plus the turn that carries it. */
+    private fun attachmentRequestHistory(): List<ChatTurn> {
+        val turns = modelHistory()
+        val lastUser = turns.indexOfLast { it.role == ChatRole.USER }
+        if (lastUser < 0) return turns
+        return attachmentPriorHistory(turns.subList(0, lastUser)) + turns.subList(lastUser, turns.size)
+    }
+
+    /** Estimated tokens the next prompt starts with; cached because state is published per streamed token. */
+    private fun contextUsage(): Int {
+        val instruction = modelInstruction()
+        val key = listOf(committedTurns.size, committedTurns.lastOrNull()?.id, compaction, instruction, thinkingEnabled)
+        if (key != contextUsageKey) {
+            contextUsageTokens = runCatching {
+                backend.estimateSerializedPromptTokens(
+                    InferenceRequest(history = modelHistory(), thinkingEnabled = thinkingEnabled, modelInstruction = instruction)
+                )
+            }.getOrDefault(0)
+            contextUsageKey = key
+        }
+        return contextUsageTokens
+    }
+
     private fun activeSummary(): String? =
         compaction?.takeIf { ChatCompactionPlanner.isActive(committedTurns.asModelMemoryTurns(), it) }?.summary
 
@@ -1252,7 +1284,9 @@ class PersistentChatController(
             supportsThinking = modelDescriptor.supportsThinking,
             supportsDirectImageInput = backend.supportsDirectImageInput,
             supportsNativeAudioInput = backend.supportsNativeAudioInput,
-            activeAttachmentId = activeAttachmentId
+            activeAttachmentId = activeAttachmentId,
+            contextUsedTokens = if (isReady) contextUsage() else 0,
+            contextWindowTokens = if (isReady) backend.capabilities.contextWindowTokens else 0
         )
     }
 

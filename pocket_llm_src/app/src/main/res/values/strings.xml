@@ -306,4 +306,7 @@
     <string name="non_gemma_audio_download_required">This model needs the multilingual Whisper tiny transcription download before audio can be used.</string>
     <string name="record_audio_coming_soon">Audio recording could not start.</string>
     <string name="whisper_download_progress">Downloading transcription model: %1$d%%</string>
+    <string name="context_usage_description">Context used by this chat</string>
+    <string name="context_usage_message">This chat uses about %1$,d of %2$,d tokens (%3$d%%). Above 75%%, older messages are summarized to make room.</string>
+    <string name="context_usage_message_trimmed">This chat uses about %1$,d of %2$,d tokens (%3$d%%). When it is full, the oldest messages are left out.</string>
 </resources>

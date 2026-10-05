@@ -505,6 +505,22 @@
                             app:iconSize="18dp" />
                     </LinearLayout>
 
+                    <com.google.android.material.progressindicator.CircularProgressIndicator
+                        android:id="@+id/contextUsageIndicator"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginEnd="10dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="@string/context_usage_description"
+                        android:max="100"
+                        android:padding="6dp"
+                        android:visibility="gone"
+                        app:indicatorColor="?attr/colorSendFill"
+                        app:indicatorSize="22dp"
+                        app:trackColor="#33888888"
+                        app:trackThickness="3dp" />
+
                     <FrameLayout
                         android:id="@+id/sendStopSwitcher"
                         android:layout_width="wrap_content"

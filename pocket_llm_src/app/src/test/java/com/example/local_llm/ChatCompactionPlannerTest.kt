@@ -87,4 +87,19 @@ class ChatCompactionPlannerTest {
         assertTrue(prompt.contains("User: uuu"))
         assertTrue(prompt.contains("Assistant: aaa"))
     }
+
+    @Test
+    fun attachmentHistoryKeepsOnlyRecentExchangesWithinBudget() {
+        val history = (0 until 10).flatMap { listOf(user("u$it"), assistant("a$it")) }
+        val recent = ChatCompactionPlanner.recentTurns(history, budgetTokens = 450, estimateTurn = estimate)
+
+        assertEquals(listOf("u8", "a8", "u9", "a9"), recent.map { it.id })
+    }
+
+    @Test
+    fun attachmentHistoryIsEmptyWhenTheLatestExchangeIsTooLarge() {
+        val history = listOf(user("u0"), assistant("a0", 5_000))
+
+        assertTrue(ChatCompactionPlanner.recentTurns(history, budgetTokens = 450, estimateTurn = estimate).isEmpty())
+    }
 }

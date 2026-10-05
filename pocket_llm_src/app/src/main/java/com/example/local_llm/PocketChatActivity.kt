@@ -75,6 +75,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -214,6 +215,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var thinkingToggle: CheckBox
     private lateinit var newChatButton: View
     private lateinit var sendButton: Button
+    private lateinit var contextUsageIndicator: CircularProgressIndicator
     private lateinit var stopButton: Button
     private lateinit var micInputButton: MaterialButton
     private lateinit var attachmentButton: MaterialButton
@@ -367,6 +369,21 @@ open class PocketChatActivity : AppCompatActivity() {
         newChatButton = findViewById(R.id.newChatButton)
         inputEditText = findViewById(R.id.userInput)
         sendButton = findViewById(R.id.sendButton)
+        contextUsageIndicator = findViewById(R.id.contextUsageIndicator)
+        contextUsageIndicator.setOnClickListener {
+            val state = chatController?.state?.value ?: return@setOnClickListener
+            if (state.contextWindowTokens <= 0) return@setOnClickListener
+            val message = if (currentModel is OnnxQwenSpec) {
+                R.string.context_usage_message_trimmed
+            } else {
+                R.string.context_usage_message
+            }
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.context_usage_description)
+                .setMessage(getString(message, state.contextUsedTokens, state.contextWindowTokens, contextUsagePercent(state)))
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
         stopButton = findViewById(R.id.stopButton)
         micInputButton = findViewById(R.id.micInputButton)
         attachmentButton = findViewById(R.id.attachmentButton)
@@ -3428,6 +3445,12 @@ open class PocketChatActivity : AppCompatActivity() {
         attachmentButton.isEnabled = state.isReady && !state.isGenerating &&
             !attachmentImportInProgress && audioPreparationJob?.isActive != true
         stopButton.isEnabled = state.isGenerating
+        if (state.contextWindowTokens > 0) {
+            contextUsageIndicator.visibility = View.VISIBLE
+            contextUsageIndicator.setProgressCompat(contextUsagePercent(state), true)
+        } else {
+            contextUsageIndicator.visibility = View.GONE
+        }
 
         val effectiveStatus = if (state.isReady) {
             state.statusMessage
@@ -3447,6 +3470,9 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun contextUsagePercent(state: ChatUiState): Int =
+        (state.contextUsedTokens.toLong() * 100 / state.contextWindowTokens.coerceAtLeast(1)).toInt().coerceIn(0, 100)
+
     private fun renderNoControllerState(
         message: String,
         preserveTranscript: Boolean
@@ -3460,6 +3486,7 @@ open class PocketChatActivity : AppCompatActivity() {
         stopButton.visibility = View.GONE
         sendButton.isEnabled = false
         stopButton.isEnabled = false
+        contextUsageIndicator.visibility = View.GONE
         statusView.text = message
         statusView.visibility = if (message.isBlank()) View.GONE else View.VISIBLE
         applyStatusBackground(message)
