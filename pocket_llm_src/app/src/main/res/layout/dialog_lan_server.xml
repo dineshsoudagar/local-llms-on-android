@@ -6,123 +6,222 @@
     android:layout_height="wrap_content"
     android:background="@drawable/bg_dialog_panel"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:paddingHorizontal="16dp"
+    android:paddingTop="20dp"
+    android:paddingBottom="16dp">
+
+    <TextView
+        android:id="@+id/lanServerDialogTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="4dp"
+        android:text="@string/lan_server_title"
+        android:textColor="?attr/colorAssistantText"
+        android:textSize="22sp"
+        android:textStyle="bold" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_card"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:padding="18dp">
 
-        <TextView
-            android:id="@+id/lanServerDialogTitle"
+        <View
+            android:id="@+id/lanServerStatusDot"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:background="@drawable/bg_status_dot"
+            android:backgroundTint="?attr/colorStatusText" />
+
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="14dp"
             android:layout_weight="1"
-            android:text="@string/lan_server_title"
-            android:textColor="?attr/colorAssistantText"
-            android:textSize="18sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
 
+            <TextView
+                android:id="@+id/lanServerStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                tools:text="Running on Wi-Fi" />
+
+            <TextView
+                android:id="@+id/lanServerStatusDetail"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="13sp"
+                tools:text="Use the browser address for chat." />
+        </LinearLayout>
     </LinearLayout>
 
     <TextView
-        android:id="@+id/lanServerStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:textColor="?attr/colorStatusText"
-        android:textSize="15sp"
-        android:textStyle="bold"
-        tools:text="Stopped" />
-
-    <TextView
-        android:id="@+id/lanServerEndpointLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/lan_server_endpoint_label"
-        android:textColor="?attr/colorAssistantText"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/lanServerEndpoint"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:textColor="?attr/colorInputText"
-        android:textIsSelectable="true"
-        android:textSize="14sp"
-        tools:text="http://192.168.1.20:8080" />
-
-    <TextView
-        android:id="@+id/lanServerApiEndpointLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="@string/lan_server_api_endpoint_label"
-        android:textColor="?attr/colorAssistantText"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/lanServerApiEndpoint"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:textColor="?attr/colorInputText"
-        android:textIsSelectable="true"
-        android:textSize="14sp"
-        tools:text="http://192.168.1.20:8080/v1" />
-
-    <TextView
-        android:id="@+id/lanServerCopyApiUrlLink"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="?android:attr/selectableItemBackgroundBorderless"
-        android:clickable="true"
-        android:focusable="true"
-        android:gravity="center"
-        android:padding="6dp"
-        android:text="@string/lan_server_copy_api_url"
-        android:textColor="?attr/colorSendFill"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/lanServerPasswordLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:text="@string/lan_server_password_label"
-        android:textColor="?attr/colorAssistantText"
-        android:textStyle="bold" />
+        android:paddingHorizontal="4dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp"
+        android:text="@string/lan_server_section_open"
+        android:textColor="@color/pocket_faint"
+        android:textSize="13sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:background="@drawable/bg_card"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingVertical="12dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp">
 
-        <EditText
-            android:id="@+id/lanServerPasswordInput"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:autofillHints="password"
-            android:hint="@string/lan_server_password_hint"
-            android:inputType="textPassword"
-            android:maxLines="1"
-            android:textColor="?attr/colorInputText"
-            android:textColorHint="?attr/colorStatusText" />
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/lanServerEndpointLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/lan_server_endpoint_label"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="12.5sp" />
+
+            <TextView
+                android:id="@+id/lanServerEndpoint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textColor="?attr/colorAssistantText"
+                android:textIsSelectable="true"
+                android:textSize="13.5sp"
+                tools:text="http://192.168.1.20:8080/ui" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/lanServerCopyUrlLink"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_round_raised"
+            android:contentDescription="@string/lan_server_copy_url"
+            android:padding="10dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_copy_20"
+            app:tint="?attr/colorAssistantText" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_card"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="12dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/lanServerApiEndpointLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/lan_server_api_endpoint_label"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="12.5sp" />
+
+            <TextView
+                android:id="@+id/lanServerApiEndpoint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textColor="?attr/colorAssistantText"
+                android:textIsSelectable="true"
+                android:textSize="13.5sp"
+                tools:text="http://192.168.1.20:8080/v1" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/lanServerCopyApiUrlLink"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_round_raised"
+            android:contentDescription="@string/lan_server_copy_api_url"
+            android:padding="10dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_copy_20"
+            app:tint="?attr/colorAssistantText" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_card"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="8dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/lanServerPasswordLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/lan_server_password_label"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="12.5sp" />
+
+            <EditText
+                android:id="@+id/lanServerPasswordInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:autofillHints="password"
+                android:background="@android:color/transparent"
+                android:fontFamily="monospace"
+                android:hint="@string/lan_server_password_hint"
+                android:inputType="textPassword"
+                android:maxLines="1"
+                android:minHeight="36dp"
+                android:paddingVertical="4dp"
+                android:textColor="?attr/colorAssistantText"
+                android:textColorHint="@color/pocket_faint"
+                android:textSize="13.5sp" />
+        </LinearLayout>
 
         <ImageButton
             android:id="@+id/lanServerPasswordVisibilityButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:layout_marginStart="8dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/bg_round_raised"
             android:contentDescription="@string/lan_server_show_password"
-            android:padding="12dp"
+            android:padding="10dp"
+            android:scaleType="centerInside"
             android:src="@drawable/ic_visibility"
             app:tint="?attr/colorAssistantText" />
     </LinearLayout>
@@ -132,60 +231,44 @@
         style="@style/DialogSecondaryButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="8dp"
         android:text="@string/lan_server_save_password"
         android:visibility="gone" />
 
-    <LinearLayout
-        android:id="@+id/lanServerWebActions"
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/lanServerCopyUrlLink"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center"
-            android:padding="6dp"
-            android:text="@string/lan_server_copy_url"
-            android:textColor="?attr/colorSendFill"
-            android:textStyle="bold" />
-    </LinearLayout>
+        android:layout_marginTop="10dp"
+        android:paddingHorizontal="4dp"
+        android:text="@string/lan_server_battery_note"
+        android:textColor="?attr/colorStatusText"
+        android:textSize="13sp" />
 
     <LinearLayout
         android:id="@+id/lanServerActions"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="18dp"
-        android:gravity="end"
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/lanServerStartButton"
             style="@style/DialogPrimaryButton"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_weight="1"
             android:text="@string/lan_server_start" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/lanServerCloseButton"
-            style="@style/DialogPrimaryButton"
+            style="@style/DangerSoftButton"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_marginStart="10dp"
             android:layout_weight="1"
             android:contentDescription="@string/lan_server_stop_close_description"
             android:enabled="false"
-            android:text="@string/lan_server_stop"
-            android:textColor="#FFFFFF"
-            app:backgroundTint="#B3261E" />
+            android:text="@string/lan_server_stop" />
     </LinearLayout>
 
 </LinearLayout>

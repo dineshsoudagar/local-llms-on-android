@@ -30,6 +30,9 @@
         <item name="colorControlActivated">?attr/colorSendFill</item>
         <item name="android:colorControlActivated">?attr/colorSendFill</item>
         <item name="android:statusBarColor">?attr/colorAppBackground</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Pocket.AlertDialog</item>
+        <item name="android:popupMenuStyle">@style/Pocket.PopupMenu</item>
+        <item name="popupMenuStyle">@style/Pocket.PopupMenu</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">?attr/colorAppBackground</item>
     </style>

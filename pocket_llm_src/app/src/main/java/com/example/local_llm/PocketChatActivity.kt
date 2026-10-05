@@ -11,9 +11,9 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
-import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
@@ -34,8 +34,6 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -54,7 +52,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.AppCompatSpinner
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Camera
 import androidx.camera.core.ImageCapture
@@ -74,6 +71,8 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import kotlinx.coroutines.CancellationException
@@ -3851,6 +3850,16 @@ open class PocketChatActivity : AppCompatActivity() {
             isAvailable -> true
             else -> activeDownloadModelId == null
         }
+        styleModelOption(
+            itemView,
+            actionButton,
+            when {
+                isDownloadingThisModel -> ModelOptionAction.STOP
+                isCurrentModel -> ModelOptionAction.CURRENT
+                isAvailable -> ModelOptionAction.USE
+                else -> ModelOptionAction.DOWNLOAD
+            }
+        )
         actionButton.setOnClickListener {
             if (isDownloadingThisModel) {
                 cancelModelDownload()
@@ -3872,6 +3881,35 @@ open class PocketChatActivity : AppCompatActivity() {
         itemProgressText.text = formatDownloadProgressText(activeDownloadBytes, activeDownloadTotalBytes)
 
         container.addView(itemView)
+    }
+
+    private enum class ModelOptionAction { CURRENT, USE, DOWNLOAD, STOP }
+
+    private fun styleModelOption(itemView: View, actionButton: Button, action: ModelOptionAction) {
+        val button = actionButton as? MaterialButton ?: return
+        val accent = resolveThemeColor(R.attr.colorSendFill)
+        val softAccent = resolveThemeColor(R.attr.colorUserBubble)
+        val text = resolveThemeColor(R.attr.colorAssistantText)
+        val outline = resolveThemeColor(R.attr.colorPocketOutline)
+        val transparent = Color.TRANSPARENT
+        val (fill, stroke, label) = when (action) {
+            ModelOptionAction.CURRENT -> Triple(accent, accent, ContextCompat.getColor(this, R.color.on_accent))
+            ModelOptionAction.USE -> Triple(transparent, outline, text)
+            ModelOptionAction.DOWNLOAD -> Triple(softAccent, softAccent, accent)
+            ModelOptionAction.STOP -> Triple(
+                ContextCompat.getColor(this, R.color.stop_soft_fill),
+                transparent,
+                ContextCompat.getColor(this, R.color.stop_button_fill)
+            )
+        }
+        button.backgroundTintList = ColorStateList.valueOf(fill)
+        button.strokeColor = ColorStateList.valueOf(stroke)
+        button.setTextColor(label)
+        itemView.backgroundTintList = if (action == ModelOptionAction.CURRENT) {
+            ColorStateList.valueOf(softAccent)
+        } else {
+            null
+        }
     }
 
     private fun addOcrImageModelOption(
@@ -3905,6 +3943,7 @@ open class PocketChatActivity : AppCompatActivity() {
             getString(R.string.model_action_use)
         }
         actionButton.isEnabled = !isCurrent
+        styleModelOption(itemView, actionButton, if (isCurrent) ModelOptionAction.CURRENT else ModelOptionAction.USE)
         actionButton.setOnClickListener {
             handleOcrImageModelSelection()
         }
@@ -3948,6 +3987,7 @@ open class PocketChatActivity : AppCompatActivity() {
             else -> getString(R.string.model_action_unavailable)
         }
         actionButton.isEnabled = isAvailable && !isCurrent
+        styleModelOption(itemView, actionButton, if (isCurrent) ModelOptionAction.CURRENT else ModelOptionAction.USE)
         actionButton.setOnClickListener {
             handleGemmaDirectImageModelSelection()
         }
@@ -4026,11 +4066,13 @@ open class PocketChatActivity : AppCompatActivity() {
         val statusView: TextView = dialogView.findViewById(R.id.lanServerStatus)
         val endpointView: TextView = dialogView.findViewById(R.id.lanServerEndpoint)
         val apiEndpointView: TextView = dialogView.findViewById(R.id.lanServerApiEndpoint)
-        val copyApiUrlLink: TextView = dialogView.findViewById(R.id.lanServerCopyApiUrlLink)
+        val statusDot: View = dialogView.findViewById(R.id.lanServerStatusDot)
+        val statusDetailView: TextView = dialogView.findViewById(R.id.lanServerStatusDetail)
+        val copyApiUrlLink: View = dialogView.findViewById(R.id.lanServerCopyApiUrlLink)
         val passwordInput: EditText = dialogView.findViewById(R.id.lanServerPasswordInput)
         val passwordVisibilityButton: ImageButton = dialogView.findViewById(R.id.lanServerPasswordVisibilityButton)
         val savePasswordButton: MaterialButton = dialogView.findViewById(R.id.lanServerSavePasswordButton)
-        val copyUrlLink: TextView = dialogView.findViewById(R.id.lanServerCopyUrlLink)
+        val copyUrlLink: View = dialogView.findViewById(R.id.lanServerCopyUrlLink)
         val startButton: MaterialButton = dialogView.findViewById(R.id.lanServerStartButton)
         val closeButton: MaterialButton = dialogView.findViewById(R.id.lanServerCloseButton)
         var savedPassword = LanServerStateStore.getPassword(this)
@@ -4041,8 +4083,6 @@ open class PocketChatActivity : AppCompatActivity() {
         } else {
             getString(R.string.lan_server_password_hint)
         }
-        copyUrlLink.paintFlags = copyUrlLink.paintFlags or Paint.UNDERLINE_TEXT_FLAG
-        copyApiUrlLink.paintFlags = copyApiUrlLink.paintFlags or Paint.UNDERLINE_TEXT_FLAG
         val dialog = dialogBuilder
             .setView(dialogView)
             .create()
@@ -4060,6 +4100,19 @@ open class PocketChatActivity : AppCompatActivity() {
                 LanServerStatus.FAILED -> getString(R.string.lan_server_status_failed) +
                     ": " + state.errorMessage.orEmpty()
             }
+            statusDetailView.text = when (state.status) {
+                LanServerStatus.RUNNING -> getString(R.string.lan_server_detail_running)
+                LanServerStatus.STARTING -> getString(R.string.lan_server_starting)
+                else -> getString(R.string.lan_server_detail_stopped)
+            }
+            statusDot.backgroundTintList = ColorStateList.valueOf(
+                when (state.status) {
+                    LanServerStatus.RUNNING -> ContextCompat.getColor(this, R.color.status_ready_background)
+                    LanServerStatus.STARTING -> ContextCompat.getColor(this, R.color.status_loading_background)
+                    LanServerStatus.FAILED -> ContextCompat.getColor(this, R.color.stop_button_fill)
+                    LanServerStatus.STOPPED -> resolveThemeColor(R.attr.colorStatusText)
+                }
+            )
             endpointView.text = state.endpoint ?: "—"
             apiEndpointView.text = state.endpoint?.let(::lanApiBaseUrl) ?: "—"
             val modelReady = chatController?.state?.value?.isReady == true
@@ -4071,6 +4124,8 @@ open class PocketChatActivity : AppCompatActivity() {
             val webUiAvailable = state.status == LanServerStatus.RUNNING && !state.endpoint.isNullOrBlank()
             copyUrlLink.isEnabled = webUiAvailable
             copyApiUrlLink.isEnabled = webUiAvailable
+            copyUrlLink.alpha = if (webUiAvailable) 1f else 0.4f
+            copyApiUrlLink.alpha = if (webUiAvailable) 1f else 0.4f
             passwordInput.isEnabled = !state.isActive
             savePasswordButton.visibility = if (!state.isActive &&
                 passwordInput.text.toString() != savedPassword.orEmpty()
@@ -4603,28 +4658,18 @@ open class PocketChatActivity : AppCompatActivity() {
         var draftSettings = previewState?.draftSettings ?: currentSettings
         val accentOptions = AppAccentOption.entries.toList()
         val appearanceModeGroup: RadioGroup = dialogView.findViewById(R.id.appearanceModeGroup)
-        val accentColorSpinner: AppCompatSpinner = dialogView.findViewById(R.id.accentColorSpinner)
+        val accentSwatchRow: LinearLayout = dialogView.findViewById(R.id.accentSwatchRow)
         val fontSizeValue: TextView = dialogView.findViewById(R.id.fontSizeValue)
         val fontSizePreview: TextView = dialogView.findViewById(R.id.fontSizePreview)
         val fontSizeSeekBar: SeekBar = dialogView.findViewById(R.id.fontSizeSeekBar)
         val cancelButton: Button = dialogView.findViewById(R.id.settingsCancelButton)
         val saveButton: Button = dialogView.findViewById(R.id.settingsSaveButton)
 
-        val accentAdapter = ArrayAdapter(
-            dialogContext,
-            R.layout.item_instruction_preset_spinner,
-            accentOptions.map { dialogContext.getString(it.labelResId) }
-        ).apply {
-            setDropDownViewResource(R.layout.item_instruction_preset_dropdown)
-        }
-        accentColorSpinner.adapter = accentAdapter
 
         when (draftSettings.appearance) {
             AppAppearanceMode.LIGHT -> appearanceModeGroup.check(R.id.appearanceLight)
             AppAppearanceMode.DARK -> appearanceModeGroup.check(R.id.appearanceDark)
         }
-        val initialAccentIndex = accentOptions.indexOf(draftSettings.accent).coerceAtLeast(0)
-        accentColorSpinner.setSelection(initialAccentIndex, false)
 
         val initialProgress = (draftSettings.chatFontSizeSp - 13f).toInt().coerceIn(0, 11)
         fontSizeSeekBar.progress = initialProgress
@@ -4642,29 +4687,32 @@ open class PocketChatActivity : AppCompatActivity() {
             previewSettingsFromDialog(originalSettings, draftSettings)
         }
 
-        var ignoreInitialAccentSelection = true
-        accentColorSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
-            ) {
-                if (ignoreInitialAccentSelection && position == initialAccentIndex) {
-                    ignoreInitialAccentSelection = false
-                    return
-                }
-                ignoreInitialAccentSelection = false
-                val selectedAccent = accentOptions.getOrNull(position) ?: return
-                if (draftSettings.accent == selectedAccent) {
-                    return
-                }
-                draftSettings = draftSettings.copy(accent = selectedAccent)
-                previewSettingsFromDialog(originalSettings, draftSettings)
+        fun renderAccentSwatches() {
+            accentSwatchRow.removeAllViews()
+            val ringColor = resolveThemeColor(R.attr.colorAssistantText)
+            accentOptions.forEachIndexed { index, accent ->
+                val selected = accent == draftSettings.accent
+                accentSwatchRow.addView(View(dialogContext).apply {
+                    layoutParams = LinearLayout.LayoutParams(dp(36), dp(36)).apply {
+                        if (index > 0) marginStart = dp(10)
+                    }
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(ContextCompat.getColor(dialogContext, accent.swatchColorRes))
+                        if (selected) setStroke(dp(3), ringColor)
+                    }
+                    contentDescription = dialogContext.getString(accent.labelResId)
+                    isSelected = selected
+                    setOnClickListener {
+                        if (draftSettings.accent == accent) return@setOnClickListener
+                        draftSettings = draftSettings.copy(accent = accent)
+                        renderAccentSwatches()
+                        previewSettingsFromDialog(originalSettings, draftSettings)
+                    }
+                })
             }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
+        renderAccentSwatches()
 
         fontSizeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
@@ -4694,11 +4742,7 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         saveButton.setOnClickListener {
-            val selectedAccent = accentOptions
-                .getOrNull(accentColorSpinner.selectedItemPosition)
-                ?: draftSettings.accent
             val updatedSettings = draftSettings.copy(
-                accent = selectedAccent,
                 chatFontSizeSp = 13f + fontSizeSeekBar.progress
             )
             val visualThemeChanged = updatedSettings.accent != currentSettings.accent ||
@@ -4811,7 +4855,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val modelNameView: TextView = dialogView.findViewById(R.id.modelSettingsModelName)
         val contextLengthInput: EditText = dialogView.findViewById(R.id.modelContextLengthInput)
         val contextLengthHelp: TextView = dialogView.findViewById(R.id.modelContextLengthHelp)
-        val presetSpinner: AppCompatSpinner = dialogView.findViewById(R.id.modelInstructionPresetSpinner)
+        val presetChipGroup: ChipGroup = dialogView.findViewById(R.id.modelInstructionPresetChips)
         val instructionInput: EditText = dialogView.findViewById(R.id.modelInstructionInput)
         val cancelButton: Button = dialogView.findViewById(R.id.modelSettingsCancelButton)
         val saveButton: Button = dialogView.findViewById(R.id.modelSettingsSaveButton)
@@ -4851,15 +4895,14 @@ open class PocketChatActivity : AppCompatActivity() {
             }
         }
         val presets = InstructionPreset.entries.toList()
-        val presetLabels = presets.map { it.label }
-        val presetAdapter = ArrayAdapter(
-            this,
-            R.layout.item_instruction_preset_spinner,
-            presetLabels
-        ).apply {
-            setDropDownViewResource(R.layout.item_instruction_preset_dropdown)
+        val presetChipInflater = LayoutInflater.from(dialogView.context)
+        val presetChipIds = presets.map { preset ->
+            val chip = presetChipInflater.inflate(R.layout.item_preset_chip, presetChipGroup, false) as Chip
+            chip.id = View.generateViewId()
+            chip.text = preset.label
+            presetChipGroup.addView(chip)
+            chip.id
         }
-        presetSpinner.adapter = presetAdapter
 
         var selectedPreset = modelInstructionStore.loadPreset(descriptor)
         var applyingPresetText = false
@@ -4872,43 +4915,32 @@ open class PocketChatActivity : AppCompatActivity() {
         } else {
             InstructionPreset.CUSTOM.instruction
         }
-        var ignoreInitialPresetSelection = true
-        presetSpinner.setSelection(selectedPresetIndex, false)
+        presetChipGroup.check(presetChipIds[selectedPresetIndex])
         applyingPresetText = true
         instructionInput.setText(currentInstruction)
         instructionInput.setSelection(currentInstruction.length)
         applyingPresetText = false
 
-        presetSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
-            ) {
-                val preset = presets.getOrNull(position) ?: return
-                if (ignoreInitialPresetSelection && position == selectedPresetIndex) {
-                    ignoreInitialPresetSelection = false
-                    return
-                }
-                ignoreInitialPresetSelection = false
-                selectedPreset = preset
-                if (switchingToCustomFromEdit) {
-                    return
-                }
-
-                applyingPresetText = true
-                val presetInstruction = if (preset == InstructionPreset.CUSTOM) {
-                    customInstructionText
-                } else {
-                    preset.instruction
-                }
-                instructionInput.setText(presetInstruction)
-                instructionInput.setSelection(instructionInput.text.length)
-                applyingPresetText = false
+        presetChipGroup.setOnCheckedStateChangeListener { _, checkedIds ->
+            val position = presetChipIds.indexOf(checkedIds.firstOrNull() ?: return@setOnCheckedStateChangeListener)
+            val preset = presets.getOrNull(position) ?: return@setOnCheckedStateChangeListener
+            if (preset == selectedPreset) {
+                return@setOnCheckedStateChangeListener
+            }
+            selectedPreset = preset
+            if (switchingToCustomFromEdit) {
+                return@setOnCheckedStateChangeListener
             }
 
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            applyingPresetText = true
+            val presetInstruction = if (preset == InstructionPreset.CUSTOM) {
+                customInstructionText
+            } else {
+                preset.instruction
+            }
+            instructionInput.setText(presetInstruction)
+            instructionInput.setSelection(instructionInput.text.length)
+            applyingPresetText = false
         }
 
         instructionInput.addTextChangedListener(object : TextWatcher {
@@ -4944,9 +4976,10 @@ open class PocketChatActivity : AppCompatActivity() {
                 customInstructionText = editedInstruction
                 selectedPreset = InstructionPreset.CUSTOM
                 val customPresetIndex = presets.indexOf(InstructionPreset.CUSTOM)
-                if (presetSpinner.selectedItemPosition != customPresetIndex) {
+                val customChipId = presetChipIds[customPresetIndex]
+                if (presetChipGroup.checkedChipId != customChipId) {
                     switchingToCustomFromEdit = true
-                    presetSpinner.setSelection(customPresetIndex)
+                    presetChipGroup.check(customChipId)
                     switchingToCustomFromEdit = false
                 }
             }
@@ -5182,6 +5215,9 @@ open class PocketChatActivity : AppCompatActivity() {
     ) {
         fontSizeValue.text = "${fontSizeSp.toInt()} sp"
         fontSizePreview.textSize = fontSizeSp
+        (fontSizePreview.parent as? View)
+            ?.findViewById<TextView>(R.id.fontSizePreviewReply)
+            ?.textSize = fontSizeSp
     }
 
     private fun updateProgressBar(

@@ -1,6 +1,7 @@
 package com.example.local_llm
 
 import android.content.Context
+import androidx.annotation.ColorRes
 import androidx.annotation.StringRes
 
 enum class AppAppearanceMode {
@@ -11,15 +12,16 @@ enum class AppAppearanceMode {
 enum class AppAccentOption(
     val darkStyleRes: Int,
     val lightStyleRes: Int,
-    @field:StringRes val labelResId: Int
+    @field:StringRes val labelResId: Int,
+    @field:ColorRes val swatchColorRes: Int
 ) {
-    POCKET(R.style.Theme_local_llm, R.style.Theme_local_llm_Light, R.string.accent_pocket),
-    OCEAN(R.style.Theme_local_llm_Ocean, R.style.Theme_local_llm_Ocean_Light, R.string.accent_blue),
-    MIDNIGHT(R.style.Theme_local_llm_Midnight, R.style.Theme_local_llm_Midnight_Light, R.string.accent_indigo),
-    FOREST(R.style.Theme_local_llm_Forest, R.style.Theme_local_llm_Forest_Light, R.string.accent_green),
-    VIOLET(R.style.Theme_local_llm_Violet, R.style.Theme_local_llm_Violet_Light, R.string.accent_violet),
-    AMBER(R.style.Theme_local_llm_Amber, R.style.Theme_local_llm_Amber_Light, R.string.accent_amber),
-    CORAL(R.style.Theme_local_llm_Coral, R.style.Theme_local_llm_Coral_Light, R.string.accent_coral);
+    POCKET(R.style.Theme_local_llm, R.style.Theme_local_llm_Light, R.string.accent_pocket, R.color.send_button_fill),
+    OCEAN(R.style.Theme_local_llm_Ocean, R.style.Theme_local_llm_Ocean_Light, R.string.accent_blue, R.color.ocean_send_fill),
+    MIDNIGHT(R.style.Theme_local_llm_Midnight, R.style.Theme_local_llm_Midnight_Light, R.string.accent_indigo, R.color.midnight_send_fill),
+    FOREST(R.style.Theme_local_llm_Forest, R.style.Theme_local_llm_Forest_Light, R.string.accent_green, R.color.forest_send_fill),
+    VIOLET(R.style.Theme_local_llm_Violet, R.style.Theme_local_llm_Violet_Light, R.string.accent_violet, R.color.violet_send_fill),
+    AMBER(R.style.Theme_local_llm_Amber, R.style.Theme_local_llm_Amber_Light, R.string.accent_amber, R.color.amber_send_fill),
+    CORAL(R.style.Theme_local_llm_Coral, R.style.Theme_local_llm_Coral_Light, R.string.accent_coral, R.color.coral_send_fill);
 
     fun styleFor(appearance: AppAppearanceMode): Int {
         return when (appearance) {

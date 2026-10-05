@@ -23,8 +23,7 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="?attr/colorAssistantText"
-        android:textSize="15sp"
-        android:textStyle="bold" />
+        android:textSize="15sp" />
 
     <ImageButton
         android:id="@+id/drawerSessionDeleteButton"
@@ -36,5 +35,5 @@
         android:padding="8dp"
         android:scaleType="centerInside"
         android:src="@drawable/ic_delete_20"
-        app:tint="@color/delete_red" />
+        app:tint="@color/pocket_faint" />
 </LinearLayout>

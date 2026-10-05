@@ -13,7 +13,7 @@
         android:layout_height="wrap_content"
         android:text="@string/images_section_title"
         android:textColor="?attr/colorAssistantText"
-        android:textSize="20sp"
+        android:textSize="22sp"
         android:textStyle="bold" />
 
     <TextView
@@ -67,15 +67,12 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/imageLibraryDeleteButton"
-            style="@style/DialogPrimaryButton"
+            style="@style/DangerSoftButton"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_weight="1"
             android:enabled="false"
-            android:text="@string/delete_selected_images"
-            app:backgroundTint="?attr/colorStopFill"
-            app:rippleColor="?attr/colorStopStroke"
-            app:strokeColor="?attr/colorStopStroke" />
+            android:text="@string/delete_selected_images" />
     </LinearLayout>
 
 </LinearLayout>

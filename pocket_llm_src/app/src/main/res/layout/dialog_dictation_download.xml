@@ -10,29 +10,31 @@
         android:id="@+id/dictationDownloadMessage"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="?attr/colorAssistantText"
+        android:lineSpacingExtra="2dp"
+        android:textColor="?attr/colorStatusText"
         android:textSize="15sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="28dp"
-        android:gravity="end"
+        android:layout_marginTop="24dp"
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/notNowDictationButton"
             style="@style/DialogSecondaryButton"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="48dp"
             android:text="@string/not_now" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/downloadDictationButton"
             style="@style/DialogPrimaryButton"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="48dp"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
             android:text="@string/download_model" />
     </LinearLayout>
 </LinearLayout>

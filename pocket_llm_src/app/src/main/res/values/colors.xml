@@ -119,6 +119,7 @@
     <color name="violet_tint_bubble">#2E2644</color>
     <color name="amber_tint_bubble">#40341D</color>
     <color name="coral_tint_bubble">#402B2A</color>
+    <color name="stop_soft_fill">#33F07A6E</color>
     <color name="delete_red">#FF4D4D</color>
     <color name="white">#FFFFFFFF</color>
 </resources>

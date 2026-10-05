@@ -4,10 +4,11 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginBottom="8dp"
-    android:background="@drawable/bg_saved_chat_item"
+    android:background="@drawable/bg_card"
     android:orientation="vertical"
-    android:paddingHorizontal="12dp"
-    android:paddingVertical="10dp">
+    android:paddingVertical="12dp"
+    android:paddingStart="16dp"
+    android:paddingEnd="10dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -29,7 +30,7 @@
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:textColor="?attr/colorAssistantText"
-                android:textSize="14sp"
+                android:textSize="15sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -47,7 +48,7 @@
                 android:includeFontPadding="false"
                 android:maxLines="2"
                 android:textColor="?attr/colorStatusText"
-                android:textSize="12sp" />
+                android:textSize="12.5sp" />
 
             <TextView
                 android:id="@+id/modelStatus"
@@ -66,10 +67,13 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/modelActionButton"
                 style="@style/ModelItemActionButton"
-                android:layout_width="64dp"
-                android:layout_height="40dp"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:minWidth="64dp"
+                android:paddingHorizontal="14dp"
                 android:textColor="@color/on_accent"
                 app:backgroundTint="?attr/colorSendFill"
+                app:cornerRadius="18dp"
                 app:rippleColor="?attr/colorSendStroke"
                 app:strokeColor="?attr/colorSendFill"
                 app:strokeWidth="1dp" />
@@ -96,6 +100,8 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:max="1000"
+        android:progressBackgroundTint="?attr/colorPocketOutline"
+        android:progressTint="?attr/colorSendFill"
         android:visibility="gone" />
 
     <TextView

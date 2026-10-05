@@ -3,13 +3,26 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_dialog_panel"
+    android:gravity="center_horizontal"
     android:orientation="vertical"
     android:padding="20dp">
 
+    <ImageView
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_marginTop="8dp"
+        android:alpha="0.88"
+        android:background="@drawable/bg_logo_tile"
+        android:clipToOutline="true"
+        android:contentDescription="@null"
+        android:scaleType="centerInside"
+        android:src="@drawable/logo_about" />
+
     <TextView
         android:id="@+id/aboutAppName"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
         android:text="@string/toolbar_app_title"
         android:textColor="?attr/colorAssistantText"
         android:textSize="22sp"
@@ -17,28 +30,32 @@
 
     <TextView
         android:id="@+id/aboutVersion"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="4dp"
         android:textColor="?attr/colorStatusText"
-        android:textSize="15sp" />
+        android:textSize="14sp" />
 
     <TextView
         android:id="@+id/aboutGithubLink"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_card"
         android:autoLink="web"
+        android:gravity="center"
         android:linksClickable="true"
+        android:padding="14dp"
         android:text="@string/about_github_link"
         android:textColor="?attr/colorAssistantText"
-        android:textSize="15sp" />
+        android:textColorLink="?attr/colorSendFill"
+        android:textSize="14sp" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/aboutOkButton"
         style="@style/DialogPrimaryButton"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="16dp"
         android:text="@android:string/ok" />
 </LinearLayout>
