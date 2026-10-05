@@ -2,8 +2,8 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:drawable="@mipmap/ic_launcher_2_foreground"
-        android:bottom="-29dp"
-        android:left="-29dp"
-        android:right="-29dp"
-        android:top="-29dp" />
+        android:bottom="-13dp"
+        android:left="-13dp"
+        android:right="-13dp"
+        android:top="-13dp" />
 </layer-list>

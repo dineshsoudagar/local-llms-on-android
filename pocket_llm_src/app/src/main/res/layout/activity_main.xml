@@ -211,10 +211,10 @@
                 android:layout_marginBottom="16dp"
                 android:gravity="center"
                 android:paddingHorizontal="18dp"
-                android:paddingVertical="8dp"
-                android:textColor="@color/on_accent"
+                android:paddingVertical="6dp"
+                android:textColor="?attr/colorStatusText"
                 android:textSize="14sp"
-                android:textStyle="bold"
+                android:textStyle="italic"
                 android:visibility="gone"
                 tools:text="Model is ready" />
 

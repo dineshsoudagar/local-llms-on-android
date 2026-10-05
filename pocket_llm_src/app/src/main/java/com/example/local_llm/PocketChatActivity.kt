@@ -5221,19 +5221,14 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun applyStatusBackground(message: String) {
-        val backgroundRes = when (message) {
-            MODEL_LOADING_STATUS_MESSAGE -> R.drawable.bg_status_loading
-            MODEL_READY_STATUS_MESSAGE -> R.drawable.bg_status_ready
-            else -> R.drawable.bg_status_chip
+        // Plain italic text rather than a chip, so the status never reads as a button.
+        val textColor = when (message) {
+            MODEL_LOADING_STATUS_MESSAGE -> ContextCompat.getColor(this, R.color.status_loading_background)
+            MODEL_READY_STATUS_MESSAGE -> ContextCompat.getColor(this, R.color.status_ready_background)
+            else -> resolveThemeColor(R.attr.colorStatusText)
         }
-        statusView.setBackgroundResource(backgroundRes)
-        statusView.setTextColor(
-            if (backgroundRes == R.drawable.bg_status_chip) {
-                resolveThemeColor(R.attr.colorAssistantText)
-            } else {
-                ContextCompat.getColor(this, R.color.on_accent)
-            }
-        )
+        statusView.background = null
+        statusView.setTextColor(textColor)
     }
 
     private fun updateMicRecordingState(active: Boolean) {
