@@ -171,6 +171,7 @@
     <string name="context_probe_model_unloaded">The model is unloaded while the context test runs.</string>
     <string name="context_probe_testing">Testing %1$,d tokens</string>
     <string name="context_probe_loading">Loading the model…</string>
+    <string name="context_probe_wait_for_load">Wait for the model to finish loading, then run the context test.</string>
     <string name="context_probe_filling">Filled %1$,d of %2$,d tokens</string>
     <string name="context_probe_retest">\n\nThis retest starts at %1$,d tokens, the largest size that worked last time, and goes up from there. If that size fails now, it starts again from 4,096.</string>
     <string name="context_probe_worked">Worked: %1$s</string>
