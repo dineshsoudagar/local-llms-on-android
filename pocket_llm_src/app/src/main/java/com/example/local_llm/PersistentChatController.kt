@@ -33,6 +33,7 @@ class PersistentChatController(
 ) {
 
     companion object {
+        private const val MIN_SPEED_SAMPLE_MILLIS = 300L
         // Roughly 10 tokens worth of text before live markdown rendering kicks in.
         private const val MARKDOWN_STREAM_CHAR_THRESHOLD = 40
         private const val TABLE_MARKDOWN_UPDATE_WORD_STEP = 50
@@ -93,6 +94,7 @@ class PersistentChatController(
     private var lastPublishedMarkdownTextLength: Int = 0
     private var lastPublishedMarkdownAtMillis: Long = 0L
     private var currentGenerationStartedAtMillis: Long? = null
+    private var firstOutputAtMillis: Long? = null
     private var currentThinkingStartedAtMillis: Long? = null
     private var currentThinkingFinishedAtMillis: Long? = null
     private var currentGenerationImageFilePaths: List<String> = emptyList()
@@ -594,6 +596,7 @@ class PersistentChatController(
                     text = response.text,
                     thinkingText = finalThinkingText,
                     thinkingDurationMillis = thinkingDurationMillis(finalThinkingText),
+                    tokensPerSecond = tokensPerSecond(response.text, finalThinkingText),
                     stopped = false,
                     renderAsMarkdown = true,
                     isStreaming = false
@@ -1032,6 +1035,7 @@ class PersistentChatController(
         if (partialTurn != null && (partialTurn.text.isNotBlank() || !partialTurn.thinkingText.isNullOrBlank())) {
             committedTurns += partialTurn.copy(
                 thinkingDurationMillis = thinkingDurationMillis(partialTurn.thinkingText),
+                tokensPerSecond = tokensPerSecond(partialTurn.text, partialTurn.thinkingText),
                 stopped = true,
                 renderAsMarkdown = true,
                 isStreaming = false
@@ -1049,12 +1053,16 @@ class PersistentChatController(
     private fun startGenerationTimer() {
         val now = SystemClock.elapsedRealtime()
         currentGenerationStartedAtMillis = now
+        firstOutputAtMillis = null
         currentThinkingStartedAtMillis = null
         currentThinkingFinishedAtMillis = null
     }
 
     private fun updateThinkingTimer(response: BackendResponse) {
         val now = SystemClock.elapsedRealtime()
+        if (firstOutputAtMillis == null && (response.text.isNotBlank() || !response.thinkingText.isNullOrBlank())) {
+            firstOutputAtMillis = now
+        }
         if (!response.thinkingText.isNullOrBlank() && currentThinkingStartedAtMillis == null) {
             currentThinkingStartedAtMillis = currentGenerationStartedAtMillis ?: now
         }
@@ -1073,7 +1081,19 @@ class PersistentChatController(
         return (end - start).coerceAtLeast(0L)
     }
 
+    /** Decode speed from the first streamed output, using the same estimate as prompt sizing. */
+    private fun tokensPerSecond(text: String, thinkingText: String?): Float? {
+        val start = firstOutputAtMillis ?: return null
+        val elapsedMillis = SystemClock.elapsedRealtime() - start
+        if (elapsedMillis < MIN_SPEED_SAMPLE_MILLIS) return null
+        val tokens = PromptTokenEstimator.estimate(text) +
+            (thinkingText?.let(PromptTokenEstimator::estimate) ?: 0)
+        if (tokens <= 0) return null
+        return tokens * 1000f / elapsedMillis
+    }
+
     private fun resetGenerationTimer() {
+        firstOutputAtMillis = null
         currentGenerationStartedAtMillis = null
         currentThinkingStartedAtMillis = null
         currentThinkingFinishedAtMillis = null

@@ -21,12 +21,11 @@
             android:id="@+id/preResponseStatusView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_status_chip"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="7dp"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="4dp"
             android:textColor="?attr/colorStatusText"
             android:textSize="14sp"
-            android:textStyle="bold" />
+            android:textStyle="normal" />
     </LinearLayout>
 
     <LinearLayout
@@ -41,14 +40,13 @@
             android:id="@+id/thoughtHeaderView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_status_chip"
             android:clickable="true"
             android:focusable="true"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="7dp"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="4dp"
             android:textColor="?attr/colorStatusText"
             android:textSize="14sp"
-            android:textStyle="bold" />
+            android:textStyle="normal" />
 
         <TextView
             android:id="@+id/thoughtView"
@@ -105,5 +103,15 @@
             app:tint="?attr/colorStatusText"
             android:visibility="gone" />
     </FrameLayout>
+
+    <TextView
+        android:id="@+id/messageSpeed"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:paddingHorizontal="8dp"
+        android:textColor="@color/pocket_faint"
+        android:textSize="12sp"
+        android:visibility="gone" />
 
 </LinearLayout>

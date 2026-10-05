@@ -16,7 +16,7 @@
         android:layout_height="wrap_content"
         android:paddingHorizontal="4dp"
         android:text="@string/lan_server_title"
-        android:textColor="?attr/colorAssistantText"
+        android:textColor="?attr/colorSendFill"
         android:textSize="22sp"
         android:textStyle="bold" />
 

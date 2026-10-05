@@ -22,6 +22,10 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.text.Editable
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
 import android.text.method.PasswordTransformationMethod
@@ -212,11 +216,10 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var selectedModelLabel: TextView
     private lateinit var thinkingToggleContainer: View
     private lateinit var thinkingToggle: CheckBox
+    private var currentModelSupportsThinking = false
     private lateinit var newChatButton: View
     private lateinit var sendButton: Button
     private lateinit var contextUsageIndicator: CircularProgressIndicator
-    private lateinit var emptyStateView: View
-    private lateinit var toolbarLogoView: View
     private lateinit var stopButton: Button
     private lateinit var micInputButton: MaterialButton
     private lateinit var attachmentButton: MaterialButton
@@ -371,8 +374,6 @@ open class PocketChatActivity : AppCompatActivity() {
         inputEditText = findViewById(R.id.userInput)
         sendButton = findViewById(R.id.sendButton)
         contextUsageIndicator = findViewById(R.id.contextUsageIndicator)
-        emptyStateView = findViewById(R.id.emptyStateView)
-        toolbarLogoView = findViewById(R.id.toolbarLogo)
         contextUsageIndicator.setOnClickListener {
             val state = chatController?.state?.value ?: return@setOnClickListener
             if (state.contextWindowTokens <= 0) return@setOnClickListener
@@ -480,6 +481,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
         thinkingToggle.setOnCheckedChangeListener { _, isChecked ->
             chatController?.setThinkingEnabled(isChecked)
+            updateModelSelectorLabel()
         }
 
         val restoredModel = retainedState.modelId?.let(ModelRegistry::findById)
@@ -3105,12 +3107,6 @@ open class PocketChatActivity : AppCompatActivity() {
                 customModelPickerLauncher.launch(arrayOf("*/*"))
             }
             .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                ?.setTextColor(resolveThemeColor(R.attr.colorSendFill))
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
-                ?.setTextColor(resolveThemeColor(R.attr.colorStatusText))
-        }
         dialog.show()
     }
 
@@ -3431,7 +3427,10 @@ open class PocketChatActivity : AppCompatActivity() {
         title = state.title
         toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
         updateModelSelectorLabel()
-        thinkingToggleContainer.visibility = if (state.supportsThinking) View.VISIBLE else View.GONE
+        if (currentModelSupportsThinking != state.supportsThinking) {
+            currentModelSupportsThinking = state.supportsThinking
+            updateModelSelectorLabel()
+        }
         val gemmaDirectAvailable = isGemmaDirectImageInputAvailable()
         if (!gemmaDirectAvailable && currentImageInputMode == ImageInputMode.GEMMA_DIRECT) {
             selectOcrImageInputMode(resetGemmaDirectInputs = true)
@@ -3468,16 +3467,10 @@ open class PocketChatActivity : AppCompatActivity() {
         applyStatusBackground(effectiveStatus)
 
         chatAdapter.submitTurns(state.transcript)
-        updateEmptyState(state.transcript.isEmpty())
         wasGenerating = state.isGenerating
         if (generationFinished) {
             refreshDrawerSessions()
         }
-    }
-
-    private fun updateEmptyState(isEmpty: Boolean) {
-        emptyStateView.visibility = if (isEmpty) View.VISIBLE else View.GONE
-        toolbarLogoView.visibility = if (isEmpty) View.INVISIBLE else View.VISIBLE
     }
 
     private fun contextUsagePercent(state: ChatUiState): Int =
@@ -3491,6 +3484,7 @@ open class PocketChatActivity : AppCompatActivity() {
         toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
         updateModelSelectorLabel()
         thinkingToggleContainer.visibility = View.GONE
+        currentModelSupportsThinking = false
         newChatButton.isEnabled = false
         sendButton.visibility = View.VISIBLE
         stopButton.visibility = View.GONE
@@ -3503,7 +3497,6 @@ open class PocketChatActivity : AppCompatActivity() {
         if (!preserveTranscript) {
             chatAdapter.submitTurns(emptyList())
         }
-        updateEmptyState(!preserveTranscript || chatAdapter.itemCount == 0)
         autoScrollDuringGeneration = false
         autoScrollPendingFinalUpdate = false
         wasGenerating = false
@@ -3511,8 +3504,17 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private fun updateModelSelectorLabel() {
         if (!::selectedModelLabel.isInitialized) return
-        selectedModelLabel.text = currentModel?.displayName
-            ?: getString(R.string.model_picker_empty_subtitle)
+        val modelName = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
+        selectedModelLabel.text = if (currentModelSupportsThinking && thinkingToggle.isChecked) {
+            val suffix = getString(R.string.model_chip_thinking_suffix)
+            SpannableString("$modelName · $suffix").apply {
+                val start = length - suffix.length
+                setSpan(ForegroundColorSpan(resolveThemeColor(R.attr.colorSendFill)), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                setSpan(RelativeSizeSpan(0.85f), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        } else {
+            modelName
+        }
         toolbarModelSelector.contentDescription = getString(
             R.string.model_popup_selected_format,
             selectedModelLabel.text,
@@ -3608,6 +3610,13 @@ open class PocketChatActivity : AppCompatActivity() {
                     selected = descriptor.id == currentModel?.id && chatController != null
                 ) { handleModelSelection(descriptor) }
             }
+        }
+        if (currentModelSupportsThinking) {
+            addHeading(getString(R.string.model_popup_thinking_heading))
+            addOption(
+                getString(R.string.model_popup_thinking_option),
+                selected = thinkingToggle.isChecked
+            ) { thinkingToggle.isChecked = !thinkingToggle.isChecked }
         }
         addHeading(getString(R.string.model_popup_image_heading))
         addOption(

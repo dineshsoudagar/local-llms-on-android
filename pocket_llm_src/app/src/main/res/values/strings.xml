@@ -7,6 +7,7 @@
     <string name="change_model_button">Change Models</string>
     <string name="enter_your_prompt">Type your message</string>
     <string name="send">Send</string>
+    <string name="tokens_per_second_format">%1$.1f tok/s</string>
     <string name="stop">Stop</string>
     <string name="voice_input">Voice input</string>
     <string name="dictation_record_title">Record dictation</string>
@@ -78,9 +79,11 @@
     <string name="chat_deleted">Chat deleted.</string>
     <string name="copy_response">Copy response</string>
     <string name="response_copied">Response copied.</string>
-    <string name="enable_thinking_mode">Thinking Mode</string>
+    <string name="enable_thinking_mode">Thinking mode</string>
+    <string name="model_popup_thinking_heading">Thinking</string>
+    <string name="model_popup_thinking_option">Think before answering</string>
+    <string name="model_chip_thinking_suffix">Thinking</string>
     <string name="new_chat">New Chat</string>
-    <string name="empty_state_tagline">Private AI that runs on this phone.</string>
     <string name="previous_chats">Chats</string>
     <string name="saved_chats_subtitle">Pick a conversation to reopen and continue from the same history.</string>
     <string name="saved_chat_fallback_preview">Tap to reopen this conversation.</string>
@@ -138,6 +141,7 @@
     <string name="model_settings_no_models">Download a model before changing its context length or instructions.</string>
     <string name="model_settings_saved">Model settings saved.</string>
     <string name="manage_models">Models</string>
+    <string name="models_section_title">Models</string>
     <string name="manage_models_intro">Download or import chat models, then choose one to use.</string>
     <string name="custom_model_add">+ Import your own model (beta)</string>
     <string name="custom_model_warning_title">Use your own LiteRT model</string>

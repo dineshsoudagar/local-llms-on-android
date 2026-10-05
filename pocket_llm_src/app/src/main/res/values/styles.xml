@@ -135,7 +135,7 @@
     </style>
 
     <style name="Pocket.AlertDialog.Title" parent="MaterialAlertDialog.MaterialComponents.Title.Text">
-        <item name="android:textColor">?attr/colorAssistantText</item>
+        <item name="android:textColor">?attr/colorSendFill</item>
         <item name="android:textSize">20sp</item>
         <item name="android:textStyle">bold</item>
     </style>
@@ -145,15 +145,22 @@
         <item name="android:textSize">15sp</item>
     </style>
 
-    <style name="Pocket.AlertDialog.Button" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
-        <item name="android:textColor">?attr/colorSendFill</item>
+    <style name="Pocket.AlertDialog.Button" parent="Widget.MaterialComponents.Button.UnelevatedButton">
+        <item name="backgroundTint">?attr/colorSendFill</item>
+        <item name="android:textColor">@color/on_accent</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textSize">15sp</item>
+        <item name="cornerRadius">20dp</item>
+        <item name="android:minWidth">72dp</item>
+        <item name="android:layout_marginStart">8dp</item>
     </style>
 
-    <style name="Pocket.AlertDialog.Button.Muted">
+    <style name="Pocket.AlertDialog.Button.Muted" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
         <item name="android:textColor">?attr/colorStatusText</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textSize">15sp</item>
     </style>
 
     <style name="Pocket.PopupMenu" parent="Widget.MaterialComponents.PopupMenu">

@@ -123,6 +123,7 @@ class ChatSessionStore(context: Context) {
                                 }
                                 turn.thinkingText?.let { put("thinkingText", it) }
                                 turn.thinkingDurationMillis?.let { put("thinkingDurationMillis", it) }
+                                turn.tokensPerSecond?.let { put("tokensPerSecond", it.toDouble()) }
                                 put("stopped", turn.stopped)
                                 put("renderAsMarkdown", turn.renderAsMarkdown)
                                 put("isStreaming", turn.isStreaming)
@@ -156,6 +157,9 @@ class ChatSessionStore(context: Context) {
                         thinkingText = turnJson.optString("thinkingText").takeIf { it.isNotBlank() },
                         thinkingDurationMillis = turnJson.optLong("thinkingDurationMillis")
                             .takeIf { turnJson.has("thinkingDurationMillis") },
+                        tokensPerSecond = turnJson.optDouble("tokensPerSecond")
+                            .takeIf { turnJson.has("tokensPerSecond") }
+                            ?.toFloat(),
                         stopped = turnJson.optBoolean("stopped"),
                         renderAsMarkdown = turnJson.optBoolean("renderAsMarkdown", true),
                         isStreaming = turnJson.optBoolean("isStreaming", false),

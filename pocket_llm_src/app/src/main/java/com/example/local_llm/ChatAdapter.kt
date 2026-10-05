@@ -87,6 +87,12 @@ class ChatAdapter(
         holder.textView.setBackgroundResource(bubbleBackground)
         holder.messageImage.setBackgroundResource(bubbleBackground)
         holder.textView.setTextColor(resolveThemeColor(holder.textView, textColorAttr))
+        val tokensPerSecond = turn.tokensPerSecond
+            ?.takeIf { !turn.isUser && !turn.isStreaming && !turn.isImage && !turn.isAttachment }
+        holder.speedView.visibility = if (tokensPerSecond == null) View.GONE else View.VISIBLE
+        holder.speedView.text = tokensPerSecond?.let {
+            holder.speedView.context.getString(R.string.tokens_per_second_format, it)
+        }
         holder.textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp)
         holder.preResponseStatusView.setTextColor(resolveThemeColor(holder.preResponseStatusView, R.attr.colorStatusText))
         holder.preResponseStatusView.setTextSize(TypedValue.COMPLEX_UNIT_SP, (fontSizeSp - 2f).coerceAtLeast(12f))
@@ -447,6 +453,7 @@ class ChatAdapter(
         val messageImage: ImageView = view.findViewById(R.id.messageImage)
         val textView: TextView = view.findViewById(R.id.messageText)
         val copyButton: ImageButton = view.findViewById(R.id.copyResponseButton)
+        val speedView: TextView = view.findViewById(R.id.messageSpeed)
         var messageTextRenderKey: TextRenderKey? = null
         var thoughtTextRenderKey: TextRenderKey? = null
 

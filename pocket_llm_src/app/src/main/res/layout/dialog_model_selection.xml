@@ -15,7 +15,7 @@
         android:includeFontPadding="false"
         android:paddingHorizontal="4dp"
         android:text="@string/model_picker_title"
-        android:textColor="?attr/colorAssistantText"
+        android:textColor="?attr/colorSendFill"
         android:textSize="22sp"
         android:textStyle="bold" />
 
