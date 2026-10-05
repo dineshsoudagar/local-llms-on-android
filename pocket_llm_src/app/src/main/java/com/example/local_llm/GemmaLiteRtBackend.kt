@@ -351,6 +351,16 @@ class GemmaLiteRtBackend(
         }
     }
 
+    override fun probeContextFill(fillerText: String): Int {
+        closeConversation()
+        return engine.createConversation(
+            ConversationConfig(channels = emptyList(), automaticToolCalling = false)
+        ).use { probe ->
+            probe.sendMessage(Message.user(fillerText), maxOutputToken = CONTEXT_PROBE_OUTPUT_TOKENS)
+            probe.getTokenCount()
+        }
+    }
+
     override fun cancelGeneration() {
         conversation?.cancelProcess()
     }

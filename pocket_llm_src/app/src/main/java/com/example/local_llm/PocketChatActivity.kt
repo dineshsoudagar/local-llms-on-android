@@ -198,6 +198,7 @@ open class PocketChatActivity : AppCompatActivity() {
     private var lastGemmaDirectImageInputAvailable: Boolean? = null
     private var modelDialogViews: ModelDialogViews? = null
     private var modelRecoveryDialog: AlertDialog? = null
+    private var contextProbeRunner: ContextProbeRunner? = null
     private var modelPickerPopup: PopupWindow? = null
     private lateinit var chatAdapter: ChatAdapter
     private lateinit var drawerLayout: DrawerLayout
@@ -525,6 +526,9 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        // The test's dialogs belong to this activity; stop it rather than leave it running unseen.
+        contextProbeRunner?.cancel()
+        contextProbeRunner = null
         if (::chatAdapter.isInitialized) {
             chatAdapter.unregisterAdapterDataObserver(chatAdapterObserver)
         }
@@ -3251,6 +3255,110 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun confirmContextProbe(descriptor: ModelDescriptor) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.context_probe_title)
+            .setMessage(getString(R.string.context_probe_intro, descriptor.displayName))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.context_probe_start) { _, _ -> startContextProbe(descriptor) }
+            .show()
+    }
+
+    private fun startContextProbe(descriptor: ModelDescriptor) {
+        if (contextProbeRunner != null) return
+        // The chat model's GPU memory must be free, or the test would measure what is left over.
+        val modelToReload = currentModel
+        cancelCurrentInitializationMarker()
+        val controller = chatController
+        val snapshot = controller?.snapshotActiveChat() ?: retainedState.pendingModelLoadSnapshot
+        if (controller != null) {
+            controllerStateJob?.cancel()
+            LanServerControllerRegistry.clearIf(controller)
+            chatController = null
+            retainedState.chatController = null
+            controller.close()
+        }
+        renderNoControllerState(getString(R.string.context_probe_model_unloaded), preserveTranscript = true)
+
+        val progressDialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.context_probe_title)
+            .setMessage(getString(R.string.context_probe_preparing))
+            .setCancelable(false)
+            .setNegativeButton(R.string.context_probe_stop, null)
+            .create()
+        progressDialog.setOnShowListener {
+            progressDialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setOnClickListener {
+                contextProbeRunner?.cancel()
+            }
+        }
+        progressDialog.show()
+
+        contextProbeRunner = ContextProbeRunner(
+            this,
+            descriptor,
+            onStepStarted = { size, steps ->
+                progressDialog.setMessage(formatContextProbeProgress(size, steps))
+            },
+            onFinished = { result ->
+                contextProbeRunner = null
+                progressDialog.dismiss()
+                if (!isFinishing && !isDestroyed) {
+                    showContextProbeResult(descriptor, result) {
+                        modelToReload?.let { requestModelLoad(it, snapshot) }
+                    }
+                }
+            }
+        ).also { it.start() }
+    }
+
+    private fun formatContextProbeProgress(size: Int, steps: List<ContextProbeStep>): String {
+        val worked = steps.filter { it.passed }.joinToString { "%,d".format(it.contextTokens) }
+        val failed = steps.filterNot { it.passed }.joinToString { "%,d".format(it.contextTokens) }
+        return buildString {
+            append(getString(R.string.context_probe_testing, size))
+            if (worked.isNotEmpty()) append("\n").append(getString(R.string.context_probe_worked, worked))
+            if (failed.isNotEmpty()) append("\n").append(getString(R.string.context_probe_failed, failed))
+        }
+    }
+
+    private fun showContextProbeResult(
+        descriptor: ModelDescriptor,
+        result: ContextProbeResult,
+        reload: () -> Unit
+    ) {
+        val recommended = result.recommendedTokens
+        val builder = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.context_probe_result_title)
+            .setCancelable(false)
+        when {
+            result.cancelled -> {
+                builder.setMessage(R.string.context_probe_result_stopped)
+                    .setPositiveButton(android.R.string.ok) { _, _ -> reload() }
+            }
+            recommended == null -> {
+                val firstError = result.steps.firstOrNull { !it.passed }?.error.orEmpty()
+                builder.setMessage(
+                    getString(
+                        R.string.context_probe_result_none,
+                        result.steps.firstOrNull()?.contextTokens ?: 0,
+                        firstError
+                    )
+                ).setPositiveButton(android.R.string.ok) { _, _ -> reload() }
+            }
+            else -> {
+                val largest = checkNotNull(result.largestPassedTokens)
+                ContextMemoryGuard(this).saveMeasuredLimit(descriptor.id, recommended)
+                builder.setMessage(getString(R.string.context_probe_result_message, largest, recommended))
+                    .setPositiveButton(getString(R.string.context_probe_use, recommended)) { _, _ ->
+                        modelRuntimeSettingsStore.save(descriptor, ModelRuntimeSettings(recommended))
+                        reload()
+                    }
+                    .setNegativeButton(R.string.context_probe_keep) { _, _ -> reload() }
+            }
+        }
+        builder.show()
+    }
+
     private fun showContextCapNoticeIfNeeded(descriptor: ModelDescriptor, decision: ContextDecision) {
         if (!decision.isCapped || isFinishing || isDestroyed) return
         if (!ContextMemoryGuard(this).markCapNoticeShown(descriptor.id, decision)) return
@@ -4689,7 +4797,12 @@ open class PocketChatActivity : AppCompatActivity() {
         // Saving a new value clears the crash-learned limit, so warn against the estimate alone.
         val estimatedDeviceLimit = minOf(contextDecision.deviceLimitTokens, maxContextLength)
         if (descriptor !is OnnxQwenSpec) {
-            contextLengthHelp.append(" " + getString(R.string.model_context_length_device_limit, deviceContextLimit))
+            val limitText = if (contextDecision.deviceLimitMeasured) {
+                R.string.model_context_length_measured_limit
+            } else {
+                R.string.model_context_length_device_limit
+            }
+            contextLengthHelp.append(" " + getString(limitText, deviceContextLimit))
             val loadedDecision = chatController?.contextDecision?.takeIf { editingActiveModel }
             if (loadedDecision != null && loadedDecision.isCapped) {
                 contextLengthHelp.append(
@@ -4828,6 +4941,21 @@ open class PocketChatActivity : AppCompatActivity() {
             } else {
                 showTransientMessage(getString(R.string.model_instruction_saved))
             }
+        }
+
+        val contextTestButton: Button = dialogView.findViewById(R.id.modelContextTestButton)
+        contextTestButton.visibility = if (descriptor is OnnxQwenSpec) View.GONE else View.VISIBLE
+        contextTestButton.setOnClickListener {
+            if (LanServerService.isRunning()) {
+                showTransientMessage(getString(R.string.model_settings_lan_blocked))
+                return@setOnClickListener
+            }
+            if (chatController?.state?.value?.isGenerating == true) {
+                showTransientMessage(getString(R.string.model_settings_generation_blocked))
+                return@setOnClickListener
+            }
+            dialog.dismiss()
+            confirmContextProbe(descriptor)
         }
 
         cancelButton.setOnClickListener {

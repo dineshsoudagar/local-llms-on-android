@@ -14,6 +14,7 @@ class ContextMemoryGuard(context: Context) {
         private const val PREFS_NAME = "context_memory_guard"
         private const val LEARNED_LIMIT_SUFFIX = "_learned_context_limit"
         private const val CAP_NOTICE_SUFFIX = "_context_cap_notice"
+        private const val MEASURED_LIMIT_SUFFIX = "_measured_context_limit"
         private const val KEY_RUN_MODEL_ID = "run_model_id"
         private const val KEY_RUN_CONTEXT = "run_context"
         private const val KEY_RUN_PROCESS = "run_process"
@@ -36,12 +37,24 @@ class ContextMemoryGuard(context: Context) {
             requestedTokens = requestedTokens,
             modelBytes = descriptor.approxDownloadBytes,
             totalMemoryBytes = memoryInfo.totalMem,
-            learnedLimitTokens = learnedLimit(descriptor.id)
+            learnedLimitTokens = learnedLimit(descriptor.id),
+            measuredLimitTokens = measuredLimit(descriptor.id)
         )
     }
 
     fun learnedLimit(modelId: String): Int? =
         prefs.getInt(modelId + LEARNED_LIMIT_SUFFIX, 0).takeIf { it > 0 }
+
+    fun measuredLimit(modelId: String): Int? =
+        prefs.getInt(modelId + MEASURED_LIMIT_SUFFIX, 0).takeIf { it > 0 }
+
+    /** Stores the context test's recommendation; it supersedes the estimate and earlier crash history. */
+    fun saveMeasuredLimit(modelId: String, tokens: Int) {
+        prefs.edit()
+            .putInt(modelId + MEASURED_LIMIT_SUFFIX, tokens)
+            .remove(modelId + LEARNED_LIMIT_SUFFIX)
+            .commit()
+    }
 
     /** The user chose a new context explicitly, so earlier crash history no longer applies. */
     fun clearLearnedLimit(modelId: String) {

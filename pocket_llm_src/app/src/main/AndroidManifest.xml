@@ -54,6 +54,10 @@
                 android:value="User-started LAN HTTP server for local on-device model access" />
         </service>
         <service
+            android:name=".ContextProbeService"
+            android:exported="false"
+            android:process=":context_probe" />
+        <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
             tools:node="merge" />

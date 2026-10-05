@@ -7,7 +7,9 @@ data class ContextDecision(
     val requestedTokens: Int,
     val effectiveTokens: Int,
     val deviceLimitTokens: Int,
-    val learnedLimitTokens: Int?
+    val learnedLimitTokens: Int?,
+    /** True when [deviceLimitTokens] comes from the on-device context test rather than the estimate. */
+    val deviceLimitMeasured: Boolean = false
 ) {
     val isCapped: Boolean get() = effectiveTokens < requestedTokens
     val cappedByCrashHistory: Boolean
@@ -48,11 +50,19 @@ object ContextMemoryBudget {
         requestedTokens: Int,
         modelBytes: Long,
         totalMemoryBytes: Long,
-        learnedLimitTokens: Int?
+        learnedLimitTokens: Int?,
+        measuredLimitTokens: Int? = null
     ): ContextDecision {
-        val deviceLimit = deviceLimit(modelBytes, totalMemoryBytes)
+        // A measured limit replaces the estimate, including its 8K floor.
+        val deviceLimit = measuredLimitTokens ?: deviceLimit(modelBytes, totalMemoryBytes)
         val effective = minOf(requestedTokens, deviceLimit, learnedLimitTokens ?: Int.MAX_VALUE)
-        return ContextDecision(requestedTokens, effective, deviceLimit, learnedLimitTokens)
+        return ContextDecision(
+            requestedTokens,
+            effective,
+            deviceLimit,
+            learnedLimitTokens,
+            deviceLimitMeasured = measuredLimitTokens != null
+        )
     }
 
     /**
