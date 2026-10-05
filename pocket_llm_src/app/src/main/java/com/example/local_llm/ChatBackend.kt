@@ -113,8 +113,11 @@ interface ChatBackend : AutoCloseable {
 
     suspend fun initialize()
 
-    /** Context test only: prefills [fillerText] in a throwaway conversation and returns the KV-cache token count. */
-    fun probeContextFill(fillerText: String): Int =
+    /**
+     * Context test only: prefills [fillerParts] one by one in a throwaway conversation, reporting
+     * the KV-cache token count after each, and returns the final count.
+     */
+    fun probeContextFill(fillerParts: List<String>, onFilled: (Int) -> Unit): Int =
         throw UnsupportedOperationException("This backend does not support the context test.")
     suspend fun resetConversation(
         history: List<ChatTurn>,

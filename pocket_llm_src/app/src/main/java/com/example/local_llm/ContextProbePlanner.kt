@@ -6,7 +6,10 @@ package com.example.local_llm
  * out-of-memory crash only ends that step.
  */
 object ContextProbePlanner {
-    private val LADDER = listOf(4_096, 8_192, 12_288, 16_384, 24_576, 32_768, 49_152, 65_536, 98_304, 131_072)
+    private val LADDER = listOf(
+        4_096, 8_192, 12_288, 16_384, 20_480, 24_576, 28_672, 32_768,
+        40_960, 49_152, 57_344, 65_536, 81_920, 98_304, 114_688, 131_072
+    )
     private const val GRANULARITY = 1_024
     private const val MAX_BISECTION_STEPS = 3
     private const val FILL_PERCENT = 80
@@ -18,21 +21,29 @@ object ContextProbePlanner {
         "music", "garden", "morning", "city", "road", "window", "paper", "friend", "family", "school"
     )
 
-    /** Next context size to try, or null when the search is finished. */
-    fun nextSize(passed: List<Int>, failed: List<Int>, maxTokens: Int): Int? {
+    private const val FILL_CHUNKS = 8
+
+    /**
+     * Next context size to try, or null when the search is finished. A retest starts at
+     * [startTokens], the largest size that worked last time, instead of climbing from the bottom.
+     */
+    fun nextSize(passed: List<Int>, failed: List<Int>, maxTokens: Int, startTokens: Int? = null): Int? {
+        val tested = passed + failed
+        val start = startTokens?.takeIf { it in (LADDER.first() + 1)..maxTokens }
+        if (start != null && tested.isEmpty()) return start
         val bestPass = passed.maxOrNull()
         val lowestFail = failed.minOrNull()
         val ladder = LADDER.filter { it <= maxTokens }.ifEmpty { listOf(maxTokens) }.let {
             if (maxTokens > it.last()) it + maxTokens else it
         }
-        if (lowestFail == null) {
-            return ladder.firstOrNull { it > (bestPass ?: 0) }
-        }
-        if (bestPass == null) {
-            // Even the smallest size failed: nothing below it is worth testing.
+        // Untested rungs between the best pass and the first failure come before any bisection.
+        ladder.firstOrNull { it > (bestPass ?: 0) && it < (lowestFail ?: Int.MAX_VALUE) && it !in tested }
+            ?.let { return it }
+        if (lowestFail == null || bestPass == null) {
+            // Either the top was reached or even the smallest size failed.
             return null
         }
-        val bisections = (passed + failed).count { it !in ladder }
+        val bisections = tested.count { it !in ladder && it != start }
         if (bisections >= MAX_BISECTION_STEPS) return null
         val mid = (bestPass + lowestFail) / 2 / GRANULARITY * GRANULARITY
         return mid.takeIf { it > bestPass && it < lowestFail && lowestFail - bestPass > GRANULARITY }
@@ -43,6 +54,12 @@ object ContextProbePlanner {
             ?.takeIf { it > 0 }
 
     fun fillTarget(contextTokens: Int): Int = contextTokens * FILL_PERCENT / 100
+
+    /** The prefill split into parts, so the test can report how far the context is filled. */
+    fun fillerChunks(targetTokens: Int): List<String> {
+        val parts = FILL_CHUNKS.coerceAtMost(targetTokens.coerceAtLeast(1))
+        return List(parts) { fillerText(targetTokens / parts) }
+    }
 
     /** About [targetTokens] tokens of plain words for the prefill. */
     fun fillerText(targetTokens: Int): String {
@@ -55,5 +72,6 @@ object ContextProbePlanner {
     }
 }
 
-/** The context test decodes only a few tokens after the prefill. */
+/** The context test decodes only a few tokens after the prefill; parts before the last decode one. */
 internal const val CONTEXT_PROBE_OUTPUT_TOKENS = 16
+internal const val CONTEXT_PROBE_PART_OUTPUT_TOKENS = 1
