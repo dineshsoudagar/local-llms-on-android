@@ -3303,11 +3303,18 @@ open class PocketChatActivity : AppCompatActivity() {
         renderNoControllerState(getString(R.string.context_probe_model_unloaded), preserveTranscript = true)
 
         val padding = (20 * resources.displayMetrics.density).toInt()
-        val progressText = TextView(this).apply { text = getString(R.string.context_probe_preparing) }
+        val progressText = TextView(this).apply {
+            text = getString(R.string.context_probe_preparing)
+            setTextColor(resolveThemeColor(R.attr.colorAssistantText))
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setLineSpacing(dp(2).toFloat(), 1f)
+        }
         val progressBar = LinearProgressIndicator(this).apply {
             isIndeterminate = true
             max = 100
             setPadding(0, padding / 2, 0, 0)
+            setIndicatorColor(resolveThemeColor(R.attr.colorSendFill))
+            trackColor = resolveThemeColor(R.attr.colorPocketRaised)
         }
         val progressView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

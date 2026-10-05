@@ -33,6 +33,12 @@
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.Pocket.AlertDialog</item>
         <item name="android:popupMenuStyle">@style/Pocket.PopupMenu</item>
         <item name="popupMenuStyle">@style/Pocket.PopupMenu</item>
+        <item name="android:textColorPrimary">@color/assistant_text</item>
+        <item name="android:textColorSecondary">@color/status_text</item>
+        <item name="android:textColorTertiary">@color/pocket_faint</item>
+        <item name="android:textColorHint">@color/input_hint</item>
+        <item name="android:textColorAlertDialogListItem">@color/assistant_text</item>
+        <item name="android:textColorLink">?attr/colorSendFill</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">?attr/colorAppBackground</item>
     </style>
@@ -69,6 +75,11 @@
         <item name="android:colorControlActivated">?attr/colorSendFill</item>
         <item name="android:colorControlNormal">?attr/colorSendStroke</item>
         <item name="android:statusBarColor">?attr/colorAppBackground</item>
+        <item name="android:textColorPrimary">@color/light_assistant_text</item>
+        <item name="android:textColorSecondary">@color/light_status_text</item>
+        <item name="android:textColorTertiary">@color/light_input_hint</item>
+        <item name="android:textColorHint">@color/light_input_hint</item>
+        <item name="android:textColorAlertDialogListItem">@color/light_assistant_text</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">?attr/colorAppBackground</item>
     </style>
