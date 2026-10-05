@@ -55,6 +55,14 @@ class GemmaLiteRtBackend(
             contextWindowTokens = runtimeSettings.contextLengthTokens
         )
 
+    private val tokenCalibration = TokenEstimateCalibration()
+
+    override val minimumOutputReserveTokens: Int
+        get() = liteRtMinimumOutputReserve(capabilities.contextWindowTokens)
+
+    override fun estimateSerializedPromptTokens(request: InferenceRequest): Int =
+        tokenCalibration.apply(rawPromptTokenEstimate(request))
+
     override suspend fun initialize() = withContext(Dispatchers.IO) {
         val modelFile = modelFileResolver.resolveModelFile(spec)
         val modelPath = modelFile.absolutePath
@@ -217,6 +225,12 @@ class GemmaLiteRtBackend(
             )
         }
 
+        observeTokenUsage(
+            tokenCalibration,
+            activeConversation,
+            request.copy(history = boundedHistory),
+            textBuilder.toString() + thinkingBuilder.toString()
+        )
         BackendResponse(
             text = textBuilder.toString(),
             thinkingText = thinkingBuilder.toString().takeIf { it.isNotBlank() },

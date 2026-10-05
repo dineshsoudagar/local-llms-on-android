@@ -17,40 +17,46 @@ interface ChatBackend : AutoCloseable {
 
     fun estimateTokens(text: String): Int = conservativeTokenEstimate(text)
 
-    fun estimateSerializedPromptTokens(request: InferenceRequest): Int {
-        val serialized = buildString {
-            append("<system>\n").append(request.modelInstruction)
-            append(if (request.thinkingEnabled) " /think" else " /no_think")
-            append("\n</system>\n")
-            request.history.forEach { turn ->
-                val role = when {
-                    turn.isToolResult -> "tool"
-                    turn.role == ChatRole.USER -> "user"
-                    else -> "assistant"
-                }
-                append('<').append(role).append(">\n")
-                append(turn.text).append("\n</").append(role).append(">\n")
-                turn.toolCalls.forEach { toolCall ->
-                    append("<tool_call id=").append(toolCall.id).append(">")
-                        .append(toolCall.name).append(':').append(toolCall.argumentsJson)
-                        .append("</tool_call>\n")
-                }
+    fun serializePromptForEstimate(request: InferenceRequest): String = buildString {
+        append("<system>\n").append(request.modelInstruction)
+        append(if (request.thinkingEnabled) " /think" else " /no_think")
+        append("\n</system>\n")
+        request.history.forEach { turn ->
+            val role = when {
+                turn.isToolResult -> "tool"
+                turn.role == ChatRole.USER -> "user"
+                else -> "assistant"
             }
-            request.tools.forEach { tool ->
-                append("<tool_definition>").append(tool.name).append(':')
-                    .append(tool.parametersJson).append("</tool_definition>\n")
+            append('<').append(role).append(">\n")
+            append(turn.text).append("\n</").append(role).append(">\n")
+            turn.toolCalls.forEach { toolCall ->
+                append("<tool_call id=").append(toolCall.id).append(">")
+                    .append(toolCall.name).append(':').append(toolCall.argumentsJson)
+                    .append("</tool_call>\n")
             }
-            append("<assistant>\n")
         }
-        return maxOf(
-            estimateTokens(serialized),
-            serialized.toByteArray(Charsets.UTF_8).size
-        )
+        request.tools.forEach { tool ->
+            append("<tool_definition>").append(tool.name).append(':')
+                .append(tool.parametersJson).append("</tool_definition>\n")
+        }
+        append("<assistant>\n")
     }
+
+    /** Uncalibrated upper bound for the whole prompt, including image and audio encoder tokens. */
+    fun rawPromptTokenEstimate(request: InferenceRequest): Int =
+        PromptTokenEstimator.estimate(serializePromptForEstimate(request)) +
+            request.imageFilePaths.size * PromptTokenEstimator.TOKENS_PER_IMAGE +
+            request.nativeAudioInputs.size * PromptTokenEstimator.TOKENS_PER_AUDIO_CLIP
+
+    fun estimateSerializedPromptTokens(request: InferenceRequest): Int = rawPromptTokenEstimate(request)
+
+    /** Room always left for the reply, even when the caller asks for no explicit reserve. */
+    val minimumOutputReserveTokens: Int
+        get() = 0
 
     fun promptTokenLimit(request: InferenceRequest): Int {
         require(request.outputTokenReserve >= 0) { "The output token reserve cannot be negative." }
-        return capabilities.contextWindowTokens - request.outputTokenReserve
+        return capabilities.contextWindowTokens - maxOf(request.outputTokenReserve, minimumOutputReserveTokens)
     }
 
     fun fitHistoryWithinContext(request: InferenceRequest): List<ChatTurn> {

@@ -34,6 +34,14 @@ class QwenLiteRtBackend(
     private lateinit var engine: Engine
     private var conversation: Conversation? = null
 
+    private val tokenCalibration = TokenEstimateCalibration()
+
+    override val minimumOutputReserveTokens: Int
+        get() = liteRtMinimumOutputReserve(capabilities.contextWindowTokens)
+
+    override fun estimateSerializedPromptTokens(request: InferenceRequest): Int =
+        tokenCalibration.apply(rawPromptTokenEstimate(request))
+
     override suspend fun initialize() = withContext(Dispatchers.IO) {
         val modelFile = modelFileResolver.resolveModelFile(spec)
 
@@ -158,6 +166,12 @@ class QwenLiteRtBackend(
         } else QwenResponseParser.parseVisibleResponse(
             rawOutput = rawOutputBuilder.toString(),
             channelThinking = channelThinkingBuilder.toString().takeIf { it.isNotBlank() }
+        )
+        observeTokenUsage(
+            tokenCalibration,
+            activeConversation,
+            request.copy(history = boundedHistory),
+            rawOutputBuilder.toString() + channelThinkingBuilder.toString()
         )
         finalResponse.copy(toolCalls = externalToolCalls)
     }

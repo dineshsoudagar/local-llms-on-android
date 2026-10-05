@@ -1091,9 +1091,10 @@ class PersistentChatController(
         ChatCompactionPlanner.instructionWithSummary(currentModelInstruction(), activeSummary())
 
     private fun estimateTurnTokens(turn: ChatTurn): Int {
-        // Matches the byte-based upper bound LiteRT prompt budgeting uses.
-        val toolBytes = turn.toolCalls.sumOf { it.name.length + it.argumentsJson.toByteArray(Charsets.UTF_8).size }
-        return turn.text.toByteArray(Charsets.UTF_8).size + toolBytes + 16
+        // Same estimator the backend uses for prompt budgeting, so compaction plans match trimming.
+        return backend.estimateSerializedPromptTokens(
+            InferenceRequest(history = listOf(turn), thinkingEnabled = false, modelInstruction = "")
+        )
     }
 
     /**
