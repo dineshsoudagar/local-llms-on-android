@@ -1,0 +1,7 @@
+* Use your phone as a password-protected LLM server on your local network, with a browser chat UI and an OpenAI-compatible API
+* Import your own LiteRT-LM model (beta)
+* Text, PDF and audio attachments, including OCR for scanned PDF pages
+* Offline multilingual Whisper speech-to-text
+* Per-model context length setting
+* LiteRT-LM updated to 0.17.1
+* F-Droid build: open-source Tesseract OCR instead of Google ML Kit

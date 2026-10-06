@@ -627,7 +627,10 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun createOcrInput(): OcrInput {
-        return OcrInput(this)
+        return OcrInput(
+            this,
+            statusListener = { message -> runOnUiThread { showTransientMessage(message) } }
+        )
     }
 
     private fun handleSpeechInputClick() {

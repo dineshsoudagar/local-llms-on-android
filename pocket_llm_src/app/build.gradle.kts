@@ -50,6 +50,18 @@ android {
         }
     }
 
+    // OCR: github and play share the Google ML Kit implementation in src/mlkit;
+    // fdroid uses the open-source Tesseract implementation in src/fdroid.
+    // AGP's built-in Kotlin compiles the kotlin source directories, so register the shared folder there.
+    sourceSets {
+        listOf("github", "play").forEach { flavor ->
+            getByName(flavor) {
+                java.srcDir("src/mlkit/java")
+                kotlin.srcDir("src/mlkit/java")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -123,7 +135,11 @@ dependencies {
     implementation("androidx.camera:camera-camera2:1.4.2")
     implementation("androidx.camera:camera-lifecycle:1.4.2")
     implementation("androidx.camera:camera-view:1.4.2")
-    implementation("com.google.mlkit:text-recognition:16.0.1")
+    // Proprietary ML Kit stays out of the fdroid flavor.
+    "githubImplementation"("com.google.mlkit:text-recognition:16.0.1")
+    "playImplementation"("com.google.mlkit:text-recognition:16.0.1")
+    // Tesseract OCR (Apache-2.0), JitPack-only; see docs/store/FDROID.md.
+    "fdroidImplementation"("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
     implementation("com.google.ai.edge.litertlm:litertlm-android:$liteRtLmVersion")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("androidx.work:work-runtime-ktx:2.11.2")

@@ -6,15 +6,10 @@ import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
-import com.google.android.gms.tasks.Task
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -23,8 +18,6 @@ import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 import java.util.UUID
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 class AttachmentImporter(
     context: Context,
@@ -229,10 +222,9 @@ class AttachmentImporter(
         )
         try {
             page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            val recognizer = createOcrEngine(appContext)
             return try {
-                val result = recognizer.process(InputImage.fromBitmap(bitmap, 0)).await()
-                AttachmentTextNormalizer.normalize(result.text)
+                AttachmentTextNormalizer.normalize(recognizer.recognizeBitmap(bitmap))
             } finally {
                 recognizer.close()
             }
@@ -374,12 +366,6 @@ class AttachmentImporter(
             AttachmentKind.PDF -> "The PDF is malformed or unreadable. Repair or re-export it and try again."
             AttachmentKind.AUDIO -> "Android could not decode this audio codec. Convert it to WAV, MP3, M4A, or OGG and try again."
         }
-    }
-
-    private suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { continuation ->
-        addOnSuccessListener { value -> if (continuation.isActive) continuation.resume(value) }
-        addOnFailureListener { error -> if (continuation.isActive) continuation.resumeWithException(error) }
-        addOnCanceledListener { continuation.cancel() }
     }
 
     private data class SourceMetadata(
