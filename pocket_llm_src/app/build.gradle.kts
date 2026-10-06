@@ -17,17 +17,37 @@ val liteRtLmVersion = "0.17.1"
 
 android {
     namespace = "com.example.local_llm"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.local_llm"
+        applicationId = "io.github.dineshsoudagar.pocketllm"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 15
         versionName = "1.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "LITERT_LM_RUNTIME_VERSION", "\"$liteRtLmVersion\"")
+        manifestPlaceholders["appLabel"] = "Pocket LLM"
+    }
+
+    // One codebase, three distribution channels:
+    // github = free APK on GitHub Releases, fdroid = F-Droid/IzzyOnDroid (no proprietary libraries),
+    // play = Google Play.
+    flavorDimensions += "store"
+    productFlavors {
+        create("github") {
+            dimension = "store"
+            buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"github\"")
+        }
+        create("fdroid") {
+            dimension = "store"
+            buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"fdroid\"")
+        }
+        create("play") {
+            dimension = "store"
+            buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"play\"")
+        }
     }
 
     buildTypes {
@@ -47,6 +67,15 @@ android {
         buildConfig = true
         compose = true
         viewBinding = true
+    }
+}
+
+// Debug builds of each channel install side by side so all three can be tested on one phone.
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        val channel = variant.flavorName ?: return@onVariants
+        variant.applicationId.set("io.github.dineshsoudagar.pocketllm.debug.$channel")
+        variant.manifestPlaceholders.put("appLabel", "Pocket LLM ($channel)")
     }
 }
 
@@ -203,3 +232,21 @@ tasks.named("preBuild").configure {
 // Android Studio may request this legacy Kotlin model task during sync. AGP 9
 // provides Kotlin support directly, so keep this as a no-op compatibility task.
 tasks.register("prepareKotlinBuildScriptModel")
+
+// The in-app Privacy Policy and Terms of Use read their contact details from legal_contact.xml.
+val legalContactFile = layout.projectDirectory.file("src/main/res/values/legal_contact.xml")
+val verifyLegalContactFilled by tasks.registering {
+    group = "verification"
+    description = "Fails release builds while legal contact details are still TODO."
+    inputs.file(legalContactFile)
+    doLast {
+        val text = legalContactFile.asFile.readText()
+        check(!Regex(">\\s*TODO\\s*<").containsMatchIn(text)) {
+            "Fill in src/main/res/values/legal_contact.xml before building a release."
+        }
+    }
+}
+
+tasks.matching { it.name.startsWith("pre") && it.name.endsWith("ReleaseBuild") }.configureEach {
+    dependsOn(verifyLegalContactFilled)
+}

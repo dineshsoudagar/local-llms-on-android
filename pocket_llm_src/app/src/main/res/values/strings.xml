@@ -283,4 +283,21 @@
     <string name="non_gemma_audio_download_required">This model needs the multilingual Whisper tiny transcription download before audio can be used.</string>
     <string name="record_audio_coming_soon">Audio recording could not start.</string>
     <string name="whisper_download_progress">Downloading transcription model: %1$d%%</string>
+    <string name="legal_consent_title">Welcome to Pocket LLM</string>
+    <string name="legal_consent_message">Pocket LLM runs AI models on your phone. There is no account, and the developer never receives your chats or files.\n\nAI answers can be wrong or inappropriate and are not professional advice. Models are made by third parties and have their own licenses.\n\nPlease read and accept the Terms of Use and Privacy Policy to continue.</string>
+    <string name="legal_accept">Accept</string>
+    <string name="legal_decline">Decline</string>
+    <string name="legal_read_terms">Read terms</string>
+    <string name="legal_read_privacy">Read privacy policy</string>
+    <string name="legal_privacy_policy">Privacy policy</string>
+    <string name="legal_terms_of_use">Terms of use</string>
+    <string name="legal_document_unavailable">This document could not be opened.</string>
+    <string name="report_response">Report response</string>
+    <string name="report_response_title">Report this response</string>
+    <string name="report_response_message">Use this if the answer is offensive, harmful or otherwise inappropriate.\n\nNothing is sent automatically. The next screen opens a pre-filled report that contains the model name and the reported answer, and you decide whether to send it.</string>
+    <string name="report_response_send">Continue</string>
+    <string name="report_response_subject">Pocket LLM: reported AI response</string>
+    <string name="report_response_body">Model: %1$s\nApp version: %2$s (%3$s)\n\nWhy I am reporting this response:\n\n\nReported response:\n%4$s</string>
+    <string name="report_response_no_app">No app found to send the report.</string>
+    <string name="report_issue_url" translatable="false">https://github.com/dineshsoudagar/local-llms-on-android/issues/new</string>
 </resources>
