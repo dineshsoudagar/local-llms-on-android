@@ -32,10 +32,16 @@ object LegalDocuments {
 
     fun contactValues(context: Context): Map<String, String> = mapOf(
         PLACEHOLDER_DEVELOPER_NAME to context.getString(R.string.legal_developer_name),
-        PLACEHOLDER_POSTAL_ADDRESS to context.getString(R.string.legal_postal_address),
+        PLACEHOLDER_POSTAL_ADDRESS to postalAddressSuffix(context.getString(R.string.legal_postal_address)),
         PLACEHOLDER_CONTACT_EMAIL to context.getString(R.string.legal_contact_email),
         PLACEHOLDER_EFFECTIVE_DATE to context.getString(R.string.legal_effective_date)
     )
+
+    /** The postal address is optional; the free builds can leave it empty and show only name and email. */
+    fun postalAddressSuffix(address: String): String {
+        val trimmed = address.trim()
+        return if (trimmed.isEmpty()) "" else ", $trimmed"
+    }
 
     fun fill(text: String, values: Map<String, String>): String {
         return placeholderPattern.replace(text) { match ->

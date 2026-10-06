@@ -6,7 +6,8 @@ Pocket LLM runs AI models on your own phone. It has no user accounts, no ads, no
 
 ## 1. Who is responsible
 
-{{DEVELOPER_NAME}}, {{POSTAL_ADDRESS}}
+{{DEVELOPER_NAME}}{{POSTAL_ADDRESS}}
+
 Email: {{CONTACT_EMAIL}}
 
 ## 2. Data that stays on your phone
