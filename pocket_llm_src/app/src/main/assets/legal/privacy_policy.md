@@ -39,11 +39,11 @@ The app connects to the internet only in these cases:
 
 Chat, image, document and audio processing happens on your phone and works offline once the models are installed.
 
-## 5. Text recognition (GitHub and Google Play versions)
+## 5. Text recognition
 
 The GitHub and Google Play versions read text from images and scanned PDFs with Google ML Kit, which runs on your phone. Google states that ML Kit sends limited diagnostic data to Google: device information (manufacturer, model, Android version), the app's package name and version, performance metrics, API settings and event types, with a per-installation identifier that is not meant to identify you. Your images and the recognized text are not sent. See https://developers.google.com/ml-kit/android-data-disclosure
 
-The F-Droid version does not include ML Kit.
+The F-Droid version does not include ML Kit. It reads text with the open-source Tesseract engine, which also runs on your phone and sends no data. The first time you use text recognition, it downloads the English language data (about 4 MB) from GitHub (raw.githubusercontent.com). GitHub receives the usual technical request data, such as your IP address. See the GitHub privacy statement: https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement
 
 ## 6. Your rights
 

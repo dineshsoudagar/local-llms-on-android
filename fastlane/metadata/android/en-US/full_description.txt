@@ -1,0 +1,20 @@
+Pocket LLM runs large language models directly on your Android phone. Chats, prompts, attachments and model answers stay on the device. There are no accounts, no ads, no analytics and no server run by the developer.
+
+<b>How it works</b>
+The app itself does not contain a model. After installing, you choose a built-in model (Qwen2.5, Qwen3, DeepSeek R1 Distill Qwen or Gemma 4) and the app downloads it from Hugging Face (huggingface.co). Models are several hundred MB to a few GB, so use Wi-Fi. You can also import your own LiteRT-LM model file (beta). Once a model is installed, chatting works offline.
+
+<b>Features</b>
+* Streaming chat with multi-turn history, Markdown rendering and optional thinking mode on supported models
+* Attach text files and PDFs; scanned PDF pages are read with on-device OCR
+* Read text from photos and images with on-device OCR, or send images directly to models that support image input
+* Offline speech-to-text with multilingual Whisper (downloaded once from Hugging Face, about 100 MB)
+* Audio attachments for models with native audio support
+* Editable instructions, prompt presets and per-model context length
+
+<b>Local network server</b>
+Optionally turn the phone into a password-protected LLM server for your home network: open the built-in web chat in a computer browser, or connect OpenAI-compatible clients and scripts. Requests stay inside your local network. The server only runs while you keep it switched on.
+
+<b>Good to know</b>
+* Running LLMs needs a recent phone with plenty of RAM. Large models or long contexts can fail to load or crash on some devices.
+* This version uses the open-source Tesseract engine for text recognition. The first time you use OCR it downloads the English language data (about 4 MB) from GitHub.
+* Network access is used only for model and data downloads you start, and for the optional local network server.

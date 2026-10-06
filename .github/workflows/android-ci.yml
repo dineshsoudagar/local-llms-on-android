@@ -46,6 +46,9 @@ jobs:
       - name: Build debug APKs (GitHub, F-Droid, Play)
         run: bash ./gradlew assembleGithubDebug assembleFdroidDebug assemblePlayDebug --stacktrace
 
+      - name: Check F-Droid APK has no ML Kit, Play Services or Firebase classes
+        run: python3 ../.github/scripts/check_no_proprietary_classes.py app/build/outputs/apk/fdroid/debug/*.apk
+
       - name: Check 16 KB page support of native libraries
         continue-on-error: true
         run: python3 ../.github/scripts/check_16kb_pages.py app/build/outputs/apk/play/debug/*.apk

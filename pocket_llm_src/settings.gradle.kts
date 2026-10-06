@@ -19,6 +19,14 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Tesseract4Android (F-Droid OCR) is only published on JitPack.
+        maven {
+            name = "JitPack"
+            url = uri("https://jitpack.io")
+            content {
+                includeGroup("cz.adaptech.tesseract4android")
+            }
+        }
         ivy {
             name = "SherpaOnnxAndroidReleases"
             url = uri("https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.4")

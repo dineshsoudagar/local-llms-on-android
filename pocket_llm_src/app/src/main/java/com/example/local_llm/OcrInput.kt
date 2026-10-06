@@ -2,17 +2,17 @@ package com.example.local_llm
 
 import android.content.Context
 import android.net.Uri
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.Text
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class OcrInput(
     context: Context,
-    private val listener: Listener? = null
+    private val listener: Listener? = null,
+    statusListener: OcrStatusListener? = null
 ) {
     enum class Source {
         GALLERY,
@@ -25,8 +25,8 @@ class OcrInput(
         fun onOcrFailed(message: String, source: Source, requestId: Long)
     }
 
-    private val appContext = context.applicationContext
-    private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    private val engine: OcrEngine = createOcrEngine(context.applicationContext, statusListener)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     fun recognizeImageUri(
         uri: Uri,
@@ -34,66 +34,24 @@ class OcrInput(
         requestId: Long = 0L
     ) {
         listener?.onOcrStarted(source, requestId)
-        val image = runCatching {
-            InputImage.fromFilePath(appContext, uri)
-        }.getOrElse { error ->
-            listener?.onOcrFailed(error.message ?: "Could not read that image.", source, requestId)
-            return
-        }
-
-        recognizer.process(image)
-            .addOnSuccessListener { result ->
-                listener?.onOcrTextRecognized(extractPlainText(result), source, requestId)
-            }
-            .addOnFailureListener { error ->
+        scope.launch {
+            try {
+                val text = recognizeImageUriText(uri)
+                listener?.onOcrTextRecognized(text, source, requestId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
                 listener?.onOcrFailed(error.message ?: "Could not read text from that image.", source, requestId)
             }
+        }
     }
 
-    suspend fun recognizeImageUriText(uri: Uri): String = suspendCancellableCoroutine { continuation ->
-        val image = runCatching {
-            InputImage.fromFilePath(appContext, uri)
-        }.getOrElse { error ->
-            continuation.resumeWithException(error)
-            return@suspendCancellableCoroutine
-        }
-
-        recognizer.process(image)
-            .addOnSuccessListener { result ->
-                if (continuation.isActive) {
-                    continuation.resume(extractPlainText(result))
-                }
-            }
-            .addOnFailureListener { error ->
-                if (continuation.isActive) {
-                    continuation.resumeWithException(error)
-                }
-            }
+    suspend fun recognizeImageUriText(uri: Uri): String {
+        return PromptPreprocessor.normalize(engine.recognizeUri(uri))
     }
 
     fun close() {
-        recognizer.close()
-    }
-
-    private fun extractPlainText(text: Text): String {
-        val lines = buildList {
-            text.textBlocks.forEachIndexed { blockIndex, block ->
-                block.lines.forEach { line ->
-                    val lineText = line.elements
-                        .joinToString(" ") { element -> element.text }
-                        .ifBlank { line.text }
-                    if (lineText.isNotBlank()) {
-                        add(lineText)
-                    }
-                }
-
-                if (blockIndex < text.textBlocks.lastIndex && isNotEmpty() && last().isNotBlank()) {
-                    add("")
-                }
-            }
-        }
-
-        val structuredText = lines.joinToString("\n")
-        return PromptPreprocessor.normalize(structuredText.ifBlank { text.text })
+        scope.cancel()
+        engine.close()
     }
 }
