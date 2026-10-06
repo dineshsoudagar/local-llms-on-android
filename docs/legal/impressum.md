@@ -2,14 +2,14 @@
 
 Angaben gemäß § 5 DDG
 
-{{Vollständiger Name}}
+Dinesh Soudagar
 {{Optional: Geschäftsbezeichnung, z. B. "Dicha"}}
 {{Straße und Hausnummer}}
 {{PLZ Ort}}
 Deutschland
 
 **Kontakt**
-E-Mail: {{E-Mail-Adresse}}
+E-Mail: dsoudagar.dev@gmail.com
 
 **Umsatzsteuer**
 Gemäß § 19 UStG wird keine Umsatzsteuer berechnet (Kleinunternehmerregelung).
