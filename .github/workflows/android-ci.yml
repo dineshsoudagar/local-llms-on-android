@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -16,7 +15,7 @@ permissions:
 
 jobs:
   build:
-    name: Unit tests and debug APK
+    name: Unit tests and debug APKs
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -42,10 +41,14 @@ jobs:
           echo "org.gradle.jvmargs=-Xmx6g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8" >> ~/.gradle/gradle.properties
 
       - name: Run unit tests
-        run: bash ./gradlew testDebugUnitTest --stacktrace
+        run: bash ./gradlew testGithubDebugUnitTest --stacktrace
 
-      - name: Build debug APK
-        run: bash ./gradlew assembleDebug --stacktrace
+      - name: Build debug APKs (GitHub, F-Droid, Play)
+        run: bash ./gradlew assembleGithubDebug assembleFdroidDebug assemblePlayDebug --stacktrace
+
+      - name: Check 16 KB page support of native libraries
+        continue-on-error: true
+        run: python3 ../.github/scripts/check_16kb_pages.py app/build/outputs/apk/play/debug/*.apk
 
       - name: Upload test reports
         if: failure()
@@ -54,9 +57,23 @@ jobs:
           name: unit-test-reports
           path: pocket_llm_src/app/build/reports/tests/
 
-      - name: Upload debug APK
+      - name: Upload GitHub debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: pocket-llm-debug-apk
-          path: pocket_llm_src/app/build/outputs/apk/debug/*.apk
+          name: pocket-llm-github-debug-apk
+          path: pocket_llm_src/app/build/outputs/apk/github/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload F-Droid debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocket-llm-fdroid-debug-apk
+          path: pocket_llm_src/app/build/outputs/apk/fdroid/debug/*.apk
+          if-no-files-found: error
+
+      - name: Upload Play debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocket-llm-play-debug-apk
+          path: pocket_llm_src/app/build/outputs/apk/play/debug/*.apk
           if-no-files-found: error

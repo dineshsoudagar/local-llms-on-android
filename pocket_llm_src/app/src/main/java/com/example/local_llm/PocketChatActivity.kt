@@ -399,7 +399,15 @@ open class PocketChatActivity : AppCompatActivity() {
             onImageTurnSelected = { turn ->
                 turn.imagePath?.let(::openImageViewer)
             },
-            onAttachmentTurnSelected = ::reactivateAttachmentTurn
+            onAttachmentTurnSelected = ::reactivateAttachmentTurn,
+            onReportResponse = { responseText ->
+                LegalDialogs.showReportResponse(
+                    this,
+                    currentModel?.displayName,
+                    currentVersionName(),
+                    responseText
+                )
+            }
         )
         chatRecyclerView.layoutManager = LinearLayoutManager(this)
         chatRecyclerView.adapter = chatAdapter
@@ -515,6 +523,10 @@ open class PocketChatActivity : AppCompatActivity() {
                 reopenSettingsDialogOnStart = false
                 showSettingsDialog()
             }
+        }
+
+        chatRecyclerView.post {
+            LegalDialogs.showConsentIfNeeded(this, LegalConsentStore(this))
         }
     }
 
@@ -4561,7 +4573,15 @@ open class PocketChatActivity : AppCompatActivity() {
             .inflate(R.layout.dialog_about, null)
         val versionView: TextView = dialogView.findViewById(R.id.aboutVersion)
         val githubLinkView: TextView = dialogView.findViewById(R.id.aboutGithubLink)
+        val privacyLinkView: TextView = dialogView.findViewById(R.id.aboutPrivacyLink)
+        val termsLinkView: TextView = dialogView.findViewById(R.id.aboutTermsLink)
         val okButton: Button = dialogView.findViewById(R.id.aboutOkButton)
+        privacyLinkView.setOnClickListener {
+            LegalDialogs.showDocument(this, LegalDocument.PRIVACY_POLICY)
+        }
+        termsLinkView.setOnClickListener {
+            LegalDialogs.showDocument(this, LegalDocument.TERMS_OF_USE)
+        }
 
         versionView.text = getString(R.string.about_version_format, currentVersionName())
         githubLinkView.movementMethod = LinkMovementMethod.getInstance()

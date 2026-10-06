@@ -29,7 +29,8 @@ import kotlin.math.roundToInt
 class ChatAdapter(
     private var fontSizeSp: Float = 16f,
     private val onImageTurnSelected: (ChatTurn) -> Unit = {},
-    private val onAttachmentTurnSelected: (ChatTurn) -> Unit = {}
+    private val onAttachmentTurnSelected: (ChatTurn) -> Unit = {},
+    private val onReportResponse: (String) -> Unit = {}
 ) : ListAdapter<ChatTurn, ChatAdapter.MessageViewHolder>(DiffCallback) {
 
     private val expandedThoughtIds = mutableSetOf<String>()
@@ -40,6 +41,7 @@ class ChatAdapter(
         private const val BUBBLE_HORIZONTAL_PADDING_DP = 16
         private const val BUBBLE_VERTICAL_PADDING_DP = 12
         private const val COPY_BUTTON_RESERVED_END_PADDING_DP = 36
+        private const val ACTION_COLUMN_MIN_HEIGHT_DP = 60
         private const val THOUGHT_COLLAPSED_ICON = "\u25B8"
         private const val THOUGHT_EXPANDED_ICON = "\u25BE"
         private const val IMAGE_BUBBLE_MAX_HEIGHT_DP = 320
@@ -175,12 +177,19 @@ class ChatAdapter(
         }
 
         holder.copyButton.visibility = if (canCopyResponse) View.VISIBLE else View.GONE
+        holder.reportButton.visibility = if (canCopyResponse) View.VISIBLE else View.GONE
+        // Copy (top) and report (bottom) share the reserved end column, so keep room for both.
+        holder.textView.minHeight = if (canCopyResponse) dp(holder.textView, ACTION_COLUMN_MIN_HEIGHT_DP) else 0
         if (canCopyResponse) {
             holder.copyButton.setOnClickListener { view ->
                 copyResponseToClipboard(view.context, bubbleText)
             }
+            holder.reportButton.setOnClickListener {
+                onReportResponse(bubbleText)
+            }
         } else {
             holder.copyButton.setOnClickListener(null)
+            holder.reportButton.setOnClickListener(null)
         }
     }
 
@@ -191,6 +200,8 @@ class ChatAdapter(
     ) {
         holder.copyButton.visibility = View.GONE
         holder.copyButton.setOnClickListener(null)
+        holder.reportButton.visibility = View.GONE
+        holder.reportButton.setOnClickListener(null)
         holder.bubbleFrame.visibility = View.VISIBLE
         holder.messageImage.visibility = View.VISIBLE
         holder.textView.visibility = View.GONE
@@ -447,6 +458,7 @@ class ChatAdapter(
         val messageImage: ImageView = view.findViewById(R.id.messageImage)
         val textView: TextView = view.findViewById(R.id.messageText)
         val copyButton: ImageButton = view.findViewById(R.id.copyResponseButton)
+        val reportButton: ImageButton = view.findViewById(R.id.reportResponseButton)
         var messageTextRenderKey: TextRenderKey? = null
         var thoughtTextRenderKey: TextRenderKey? = null
 

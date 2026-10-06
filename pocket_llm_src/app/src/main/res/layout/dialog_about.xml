@@ -34,6 +34,29 @@
         android:textColor="?attr/colorAssistantText"
         android:textSize="15sp" />
 
+    <TextView
+        android:id="@+id/aboutPrivacyLink"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:background="?attr/selectableItemBackground"
+        android:paddingVertical="6dp"
+        android:text="@string/legal_privacy_policy"
+        android:textColor="?attr/colorAssistantText"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/aboutTermsLink"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:paddingVertical="6dp"
+        android:text="@string/legal_terms_of_use"
+        android:textColor="?attr/colorAssistantText"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
     <com.google.android.material.button.MaterialButton
         android:id="@+id/aboutOkButton"
         style="@style/DialogPrimaryButton"
