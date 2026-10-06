@@ -188,4 +188,8 @@ object ModelArtifactInspector {
     }
 }
 
-data class BackendInitializationPolicy(val allowCpuFallback: Boolean = true)
+data class BackendInitializationPolicy(
+    val allowCpuFallback: Boolean = true,
+    /** Skip GPU attempts entirely, e.g. after the GPU path crashed the process for this model. */
+    val cpuOnly: Boolean = false
+)

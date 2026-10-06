@@ -22,7 +22,12 @@ object LanServerControllerRegistry {
         }
 
         current?.controller?.close()
-        val controller = PersistentChatController(context.applicationContext, descriptor, initializationPolicy)
+        val effectivePolicy = if (ModelLoadRecoveryStore(context.applicationContext).isGpuUnsafe(descriptor.id)) {
+            initializationPolicy.copy(allowCpuFallback = true, cpuOnly = true)
+        } else {
+            initializationPolicy
+        }
+        val controller = PersistentChatController(context.applicationContext, descriptor, effectivePolicy)
         entry = Entry(descriptor.id, controller)
         return controller
     }

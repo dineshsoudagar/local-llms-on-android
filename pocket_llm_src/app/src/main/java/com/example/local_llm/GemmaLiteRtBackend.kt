@@ -13,6 +13,7 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -74,6 +75,8 @@ class GemmaLiteRtBackend(
         }
         val failures = mutableListOf<EngineInitFailure>()
         for (attempt in buildEngineInitAttempts()) {
+            // Native init cannot be interrupted; at least do not start another attempt after cancel.
+            ensureActive()
             Log.i(
                 TAG,
                 "Initializing ${spec.displayName} from $modelPath (${modelFile.length()} bytes) " +
@@ -418,6 +421,30 @@ class GemmaLiteRtBackend(
     private fun buildEngineInitAttempts(): List<EngineInitAttempt> {
         val attempts = mutableListOf<EngineInitAttempt>()
         val cpuBackend = Backend.CPU(numOfThreads = CPU_THREAD_COUNT)
+        if (initializationPolicy.cpuOnly) {
+            // A previous GPU load crashed the process in native code; never retry the GPU path.
+            if (imageInputRequested || audioInputRequested) {
+                attempts += EngineInitAttempt(
+                    "CPU text + CPU multimodal",
+                    cpuBackend,
+                    cpuBackend.takeIf { imageInputRequested },
+                    cpuBackend.takeIf { audioInputRequested },
+                    runtimeIdentity(
+                        text = "cpu-$CPU_THREAD_COUNT",
+                        vision = "cpu-$CPU_THREAD_COUNT".takeIf { imageInputRequested },
+                        audio = "cpu-$CPU_THREAD_COUNT".takeIf { audioInputRequested }
+                    )
+                )
+            }
+            attempts += EngineInitAttempt(
+                "CPU text only",
+                cpuBackend,
+                null,
+                null,
+                runtimeIdentity("cpu-$CPU_THREAD_COUNT", null, null)
+            )
+            return attempts
+        }
         if (imageInputRequested || audioInputRequested) {
             attempts += EngineInitAttempt(
                 "GPU text + GPU multimodal",

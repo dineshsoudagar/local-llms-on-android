@@ -348,7 +348,15 @@ open class PocketChatActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         retainedState = ViewModelProvider(this)[PocketChatViewModel::class.java]
         if (retainedState.chatController == null) {
-            modelLoadCoordinator.recoverInterrupted(System.currentTimeMillis())
+            val interruptedLoad = modelLoadCoordinator.record
+                ?.takeIf { it.phase == ModelLoadPhase.INITIALIZING }
+            val interruptedCause = interruptedLoad
+                ?.let { ProcessExitInspector.interruptedLoadCause(this, it.timestampMillis) }
+                ?: InterruptedLoadCause.UNKNOWN
+            if (interruptedLoad != null && interruptedCause == InterruptedLoadCause.NATIVE_CRASH) {
+                modelLoadRecoveryStore.markGpuUnsafe(interruptedLoad.modelId)
+            }
+            modelLoadCoordinator.recoverInterrupted(System.currentTimeMillis(), interruptedCause)
             persistModelLoadRecord()
         }
         setContentView(R.layout.activity_main)

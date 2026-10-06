@@ -31,6 +31,8 @@ class PersistentChatController(
 ) {
 
     companion object {
+        private val backendReleaseScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
         // Roughly 10 tokens worth of text before live markdown rendering kicks in.
         private const val MARKDOWN_STREAM_CHAR_THRESHOLD = 40
         private const val TABLE_MARKDOWN_UPDATE_WORD_STEP = 50
@@ -919,10 +921,24 @@ class PersistentChatController(
     }
 
     fun close() {
+        val scopeJob = scope.coroutineContext[Job]
         cancelInitialization()
         generationJob?.cancel()
-        runCatching { backend.close() }
+        runCatching { backend.cancelGeneration() }
         scope.cancel()
+        // Cancelled jobs stay incomplete until their blocking IO section returns.
+        val hasPendingWork = scopeJob?.children?.any { !it.isCompleted } == true
+        if (scopeJob == null || !hasPendingWork) {
+            runCatching { backend.close() }
+            return
+        }
+        // Native load/inference calls cannot be interrupted by coroutine cancellation. Freeing
+        // the runtime while they still run is a use-after-free, which hardened allocators
+        // (GrapheneOS hardened_malloc, MTE) turn into a crash. Release once that work returns.
+        backendReleaseScope.launch {
+            scopeJob.join()
+            runCatching { backend.close() }
+        }
     }
 
     private suspend fun resetConversationForFreshSession() {

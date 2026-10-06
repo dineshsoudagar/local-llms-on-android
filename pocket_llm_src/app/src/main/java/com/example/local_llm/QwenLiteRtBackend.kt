@@ -37,6 +37,17 @@ class QwenLiteRtBackend(
     override suspend fun initialize() = withContext(Dispatchers.IO) {
         val modelFile = modelFileResolver.resolveModelFile(spec)
 
+        if (initializationPolicy.cpuOnly) {
+            // A previous GPU load crashed the process in native code; never retry the GPU path.
+            engine = createInitializedEngine(modelFile.absolutePath, Backend.CPU()).getOrElse { cpuError ->
+                throw IllegalStateException(
+                    "Failed to initialize LiteRT-LM on CPU (GPU is disabled after a previous crash): ${cpuError.message}",
+                    cpuError
+                )
+            }
+            return@withContext
+        }
+
         val gpuResult = createInitializedEngine(modelFile.absolutePath, Backend.GPU())
 
         engine = gpuResult.getOrElse { gpuError ->
