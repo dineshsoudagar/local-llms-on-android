@@ -14,8 +14,9 @@ The contact email is also where the in-app "Report response" button sends report
 ## Before publishing
 
 1. Fill in `legal_contact.xml`.
-2. Publish the filled-in Privacy Policy at a public URL (for example GitHub Pages). Google Play asks for this URL.
-3. Fill in [`impressum.md`](impressum.md) and publish it next to the policy. German law requires an Impressum for apps offered commercially.
-4. When either document changes materially, bump `LegalDocuments.CURRENT_VERSION` so users accept the new version.
+2. The postal address may stay empty in the public repo; the Play build sets it in the private repo.
+3. Publish the filled-in Privacy Policy at a public URL (for example GitHub Pages). Google Play asks for this URL.
+4. Fill in [`impressum.md`](impressum.md) and publish it next to the policy. German law requires an Impressum for apps offered commercially.
+5. When either document changes materially, bump `LegalDocuments.CURRENT_VERSION` so users accept the new version.
 
 These texts are a careful starting point written for an offline app with no accounts. They have not been reviewed by a lawyer.

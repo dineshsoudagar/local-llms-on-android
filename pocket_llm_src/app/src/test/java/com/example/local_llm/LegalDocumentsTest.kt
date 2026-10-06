@@ -17,6 +17,12 @@ class LegalDocumentsTest {
     }
 
     @Test
+    fun emptyPostalAddressLeavesNoDanglingComma() {
+        assertEquals("", LegalDocuments.postalAddressSuffix("  "))
+        assertEquals(", Main St 1, Dresden", LegalDocuments.postalAddressSuffix("Main St 1, Dresden"))
+    }
+
+    @Test
     fun bundledDocumentsOnlyUseSupportedPlaceholders() {
         LegalDocument.entries.forEach { document ->
             val text = mainSourceFile("assets/${document.assetPath}").readText()
