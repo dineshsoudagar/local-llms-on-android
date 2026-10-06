@@ -8,6 +8,6 @@
 <resources>
     <string name="legal_developer_name" translatable="false">Dinesh Soudagar</string>
     <string name="legal_postal_address" translatable="false"></string>
-    <string name="legal_contact_email" translatable="false">TODO</string>
+    <string name="legal_contact_email" translatable="false">dsoudagar.dev@gmail.com</string>
     <string name="legal_effective_date" translatable="false">6 October 2026</string>
 </resources>
