@@ -52,9 +52,14 @@ android {
 
     // OCR: github and play share the Google ML Kit implementation in src/mlkit;
     // fdroid uses the open-source Tesseract implementation in src/fdroid.
+    // AGP's built-in Kotlin compiles the kotlin source directories, so register the shared folder there.
     sourceSets {
-        getByName("github").java.srcDir("src/mlkit/java")
-        getByName("play").java.srcDir("src/mlkit/java")
+        listOf("github", "play").forEach { flavor ->
+            getByName(flavor) {
+                java.srcDir("src/mlkit/java")
+                kotlin.srcDir("src/mlkit/java")
+            }
+        }
     }
 
     buildTypes {
