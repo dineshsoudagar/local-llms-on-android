@@ -2,6 +2,21 @@
 
 Turn your Android phone into a **local LLM server for your home network**, or chat privately on-device with text, images, PDFs, audio, and offline speech-to-text.
 
+**Preview option A**
+
+> [!TIP]
+> ## 🎁 Get Pocket LLM Pro for free
+> **Become a beta tester on Google Play** and unlock Pro (on-device image generation + web search) at launch, free.
+> 👉 [Join the beta in 2 minutes](#-join-the-pocket-llm-pro-beta-on-google-play)
+
+**Preview option B**
+
+<p align="center">
+  <a href="#-join-the-pocket-llm-pro-beta-on-google-play">
+    <img src="https://img.shields.io/badge/🎁_Become_a_tester-Get_Pro_FREE-gold?style=for-the-badge" alt="Become a tester, get Pro free">
+  </a>
+  <br><b>Test the Google Play beta for 14 days and get Pocket LLM Pro free at launch.</b>
+</p>
 Chat in the app, open its Web UI on your computer, or connect a compatible OpenAI client while the model runs on your phone.
 
 🏠 [Watch the LAN demo](#lan-server-demo) or [connect scripts and scheduled workflows](docs/lan/README.md).
