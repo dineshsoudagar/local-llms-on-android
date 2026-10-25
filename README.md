@@ -2,7 +2,7 @@
 
 Turn your Android phone into a **local LLM server for your home network**, or chat privately on-device with text, images, PDFs, audio, and offline speech-to-text.
 
-<p align="center">
+<p>
   <img src="https://img.shields.io/badge/🎁_Become_a_tester-Get_Pro_FREE-gold?style=for-the-badge" alt="Become a tester, get Pro free">
 </p>
 
