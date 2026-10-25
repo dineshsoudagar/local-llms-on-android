@@ -16,7 +16,7 @@ Install the small base APK, then download a built-in model or import your own Li
 
 ## 🧪 Join the Pocket LLM Pro beta on Google Play
 
-Pocket LLM is coming to Google Play, with new Pro features: on-device image generation, web search with sources, and the LAN server with an OpenAI-compatible API.
+Pocket LLM is coming to Google Play, with new Pro features: on-device image generation and web search with sources.
 
 Help test it before launch, and **get Pocket LLM Pro for free** as a thank you.
 
