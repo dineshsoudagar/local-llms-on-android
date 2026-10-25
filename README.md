@@ -2,21 +2,14 @@
 
 Turn your Android phone into a **local LLM server for your home network**, or chat privately on-device with text, images, PDFs, audio, and offline speech-to-text.
 
-**Preview option A**
-
-> [!TIP]
-> ## 🎁 Get Pocket LLM Pro for free
-> **Become a beta tester on Google Play** and unlock Pro (on-device image generation + web search) at launch, free.
-> 👉 [Join the beta in 2 minutes](#-join-the-pocket-llm-pro-beta-on-google-play)
-
-**Preview option B**
-
 <p align="center">
-  <a href="#-join-the-pocket-llm-pro-beta-on-google-play">
-    <img src="https://img.shields.io/badge/🎁_Become_a_tester-Get_Pro_FREE-gold?style=for-the-badge" alt="Become a tester, get Pro free">
-  </a>
-  <br><b>Test the Google Play beta for 14 days and get Pocket LLM Pro free at launch.</b>
+  <img src="https://img.shields.io/badge/🎁_Become_a_tester-Get_Pro_FREE-gold?style=for-the-badge" alt="Become a tester, get Pro free">
 </p>
+
+1. Join the beta group with the Google account on your phone: [groups.google.com/g/pocket-llm-pro-beta](https://groups.google.com/g/pocket-llm-pro-beta)
+2. Tap **Become a tester** and install from Google Play: [play.google.com/apps/testing/io.github.dineshsoudagar.pocketllm](https://play.google.com/apps/testing/io.github.dineshsoudagar.pocketllm)
+3. Use it for 14 days and send feedback with the flag button. You get **Pocket LLM Pro free** at launch.
+
 Chat in the app, open its Web UI on your computer, or connect a compatible OpenAI client while the model runs on your phone.
 
 🏠 [Watch the LAN demo](#lan-server-demo) or [connect scripts and scheduled workflows](docs/lan/README.md).
@@ -28,18 +21,6 @@ Install the small base APK, then download a built-in model or import your own Li
 [![Total APK downloads](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/total?logo=github&label=Total%20APK%20downloads)](https://github.com/dineshsoudagar/local-llms-on-android/releases)
 
 ---
-
-## 🧪 Join the Pocket LLM Pro beta on Google Play
-
-Pocket LLM is coming to Google Play, with new Pro features: on-device image generation and web search with sources.
-
-Help test it before launch, and **get Pocket LLM Pro for free** as a thank you.
-
-1. Join the beta group with the Google account you use on your phone: [groups.google.com/g/pocket-llm-pro-beta](https://groups.google.com/g/pocket-llm-pro-beta)
-2. Open the test link on your phone and tap **Become a tester**: [play.google.com/apps/testing/io.github.dineshsoudagar.pocketllm](https://play.google.com/apps/testing/io.github.dineshsoudagar.pocketllm)
-3. Install Pocket LLM from Google Play, use it for at least 14 days, and send feedback with the flag button under any answer.
-
-Testers who stay in the beta for the 14 days receive a free Pocket LLM Pro code when the app launches.
 
 ## 🆕 New in v1.6.0
 
