@@ -80,6 +80,21 @@ android {
         compose = true
         viewBinding = true
     }
+    // One APK per ABI (arm64-v8a covers almost every current phone) plus a universal APK.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+    // Compress native libraries in the GitHub/F-Droid APKs to keep downloads small.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
 }
 
 // Debug builds of each channel install side by side so all three can be tested on one phone.

@@ -51,7 +51,7 @@ jobs:
 
       - name: Check 16 KB page support of native libraries
         continue-on-error: true
-        run: python3 ../.github/scripts/check_16kb_pages.py app/build/outputs/apk/play/debug/*.apk
+        run: python3 ../.github/scripts/check_16kb_pages.py app/build/outputs/apk/play/debug/*-universal-debug.apk
 
       - name: Upload test reports
         if: failure()
