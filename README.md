@@ -3,12 +3,10 @@
 Turn your Android phone into a **local LLM server for your home network**, or chat privately on-device with text, images, PDFs, audio, and offline speech-to-text.
 
 <p>
-  <img src="https://img.shields.io/badge/🎁_Become_a_tester-Get_Pro_FREE-gold?style=for-the-badge" alt="Become a tester, get Pro free">
+  <img src="https://img.shields.io/badge/🔒_Testing_closed-Pro_coming_soon-gray?style=for-the-badge" alt="Testing closed, Pro coming soon">
 </p>
 
-1. Join the beta group with the Google account on your phone: [groups.google.com/g/pocket-llm-pro-beta](https://groups.google.com/g/pocket-llm-pro-beta) (after joining the group, it can take up to 30 minutes before the Play link works for you)
-2. Tap **Become a tester** and install from Google Play: [play.google.com/apps/testing/io.github.dineshsoudagar.pocketllm](https://play.google.com/apps/testing/io.github.dineshsoudagar.pocketllm)
-3. Use it for 14 days and send feedback. You get **Pocket LLM Pro free** at launch.
+**Testing is closed.** Thanks to everyone who tested! Pocket LLM Pro is coming to Google Play soon. Stay tuned.
 
 Chat in the app, open its Web UI on your computer, or connect a compatible OpenAI client while the model runs on your phone.
 
