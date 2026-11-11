@@ -6,13 +6,13 @@ Turn your Android phone into a **local LLM server for your home network**, or ch
   <img src="https://img.shields.io/badge/🔒_Testing_closed-Pro_coming_soon-gray?style=for-the-badge" alt="Testing closed, Pro coming soon">
 </p>
 
-**Testing is closed.** Thanks to everyone who tested! Pocket LLM Pro is coming to Google Play soon. Stay tuned.
+**Testing is closed.** Thanks to everyone who tested! Pocket LLM Pro is coming soon to Google Play.
 
 ---
 
-## ⭐ Coming soon: Pocket LLM on Google Play
+## ⭐ GitHub vs Google Play
 
-The Google Play version is coming soon. Stay tuned! Pocket LLM Pro is an optional one-time purchase that unlocks the features marked ⭐.
+Pocket LLM Pro is an optional one-time purchase that unlocks the features marked ⭐.
 
 | Feature | GitHub | Google Play |
 |---|:---:|:---:|
