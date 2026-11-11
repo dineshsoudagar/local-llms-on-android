@@ -8,12 +8,6 @@ Turn your Android phone into a **local LLM server for your home network**, or ch
 
 **Testing is closed.** Thanks to everyone who tested! Pocket LLM Pro is coming to Google Play soon. Stay tuned.
 
-Chat in the app, open its Web UI on your computer, or connect a compatible OpenAI client while the model runs on your phone.
-
-🏠 [Watch the LAN demo](#lan-server-demo) or [connect scripts and scheduled workflows](docs/lan/README.md).
-
-Install the small base APK, then download a built-in model or import your own LiteRT model (beta).
-
 ---
 
 ## ⭐ Coming soon: Pocket LLM on Google Play
