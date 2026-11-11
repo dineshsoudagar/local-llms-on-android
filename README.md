@@ -16,6 +16,42 @@ Install the small base APK, then download a built-in model or import your own Li
 
 ---
 
+## ⭐ Coming soon: Pocket LLM on Google Play
+
+The Google Play version is coming soon. Stay tuned! Pocket LLM Pro is an optional one-time purchase that unlocks the features marked ⭐.
+
+| Feature | GitHub | Google Play |
+|---|:---:|:---:|
+| Offline, private chat | ✅ | ✅ |
+| Built-in models (Qwen, DeepSeek, Gemma) | ✅ | ✅ |
+| Custom `.litertlm` model import | ✅ | ✅ |
+| Thinking mode | ✅ | ✅ |
+| Documents, PDFs and OCR | ✅ | ✅ |
+| Image input and camera | ✅ | ✅ |
+| Offline dictation (Whisper) | ✅ | ✅ |
+| New app design | 🔜 Planned | ✅ |
+| Context size fitted to your phone's memory | 🔜 Planned | ✅ |
+| Long chats: old messages summarized, not dropped | 🔜 Planned | ✅ |
+| LAN server, Web UI and OpenAI-compatible API | ✅ | ⭐ Pro |
+| llama.cpp engine: run GGUF models | ❌ | ✅ |
+| Browse and download models from Hugging Face | ❌ | ✅ |
+| Import GGUF and safetensors models | ❌ | ✅ |
+| Find your phone's maximum context size | ❌ | ✅ |
+| Dictation with the model's own audio input | ❌ | ✅ |
+| Web search in chat | ❌ | ⭐ Pro |
+| Image tools: create images, remove background | ❌ | ⭐ Pro |
+| Offline translator: text and camera overlay | ❌ | ⭐ Pro |
+
+Free users of the Google Play version get 3 tries of the image tools.
+
+**Pro costs €2.99, once. It helps me keep building free apps as an indie developer. Thank you for your support!**
+
+More free apps from me, coming soon: **Smart To Do** and **Cloud Tidy**.
+
+Feedback or ideas? Email me at [dinesh@100paths.de](mailto:dinesh@100paths.de).
+
+---
+
 [![Total APK downloads](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/total?logo=github&label=Total%20APK%20downloads)](https://github.com/dineshsoudagar/local-llms-on-android/releases)
 
 ---
