@@ -1,194 +1,448 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.local_llm" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/frame_layout_background</item>
-        <item name="colorPrimaryVariant">@color/app_background</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <item name="colorOnBackground">@color/assistant_text</item>
-        <item name="colorSurface">@color/frame_layout_background</item>
-        <item name="colorOnSurface">@color/assistant_text</item>
-        <item name="android:windowBackground">?attr/colorAppBackground</item>
-        <item name="colorAppBackground">@color/app_background</item>
-        <item name="colorFrameBackground">@color/frame_layout_background</item>
-        <item name="colorUserBubble">@color/user_bubble</item>
-        <item name="colorAssistantBubble">@color/bot_bubble</item>
-        <item name="colorUserText">@color/user_text</item>
-        <item name="colorAssistantText">@color/assistant_text</item>
-        <item name="colorInputBackground">@color/app_background</item>
-        <item name="colorInputText">@color/assistant_text</item>
-        <item name="colorInputHint">@color/input_hint</item>
-        <item name="colorStatusText">@color/status_text</item>
-        <item name="colorSendFill">@color/send_button_fill</item>
-        <item name="colorSendStroke">@color/send_button_stroke</item>
+    <!-- Material 3 themes. One layout, three seeds (Cobalt default, Emerald, Coral), light and dark each.
+         Role values come from docs/dev/ui-redesign/m3-concept.html. Base = Cobalt dark. -->
+    <style name="Theme.local_llm" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorToolActive">#A994FF</item>
+        <!-- App colour attributes, all mapped onto the Material 3 roles below. -->
+        <item name="snackbarStyle">@style/Widget.Pocket.Snackbar</item>
+        <item name="snackbarTextViewStyle">@style/Widget.Pocket.Snackbar.TextView</item>
+        <item name="snackbarButtonStyle">@style/Widget.Pocket.Snackbar.Button</item>
+        <!-- No pressed highlight anywhere: no ripples, blocks or list selectors. -->
+        <item name="colorControlHighlight">@android:color/transparent</item>
+        <item name="android:colorControlHighlight">@android:color/transparent</item>
+        <item name="selectableItemBackgroundBorderless">@android:color/transparent</item>
+        <item name="android:selectableItemBackgroundBorderless">@android:color/transparent</item>
+        <item name="android:listSelector">@android:color/transparent</item>
+        <item name="selectableItemBackground">@android:color/transparent</item>
+        <item name="android:selectableItemBackground">@android:color/transparent</item>
+        <item name="colorAppBackground">?attr/colorSurface</item>
+        <item name="colorFrameBackground">?attr/colorSurfaceContainerLow</item>
+        <item name="colorPocketRaised">?attr/colorSurfaceContainerHigh</item>
+        <item name="colorPocketOutline">?attr/colorOutlineVariant</item>
+        <item name="colorUserBubble">?attr/colorPrimaryContainer</item>
+        <item name="colorAssistantBubble">?attr/colorSurface</item>
+        <item name="colorUserText">?attr/colorOnSurface</item>
+        <item name="colorAssistantText">?attr/colorOnSurface</item>
+        <item name="colorInputBackground">?attr/colorSurfaceContainerHigh</item>
+        <item name="colorInputText">?attr/colorOnSurface</item>
+        <item name="colorInputHint">?attr/colorOnSurfaceVariant</item>
+        <item name="colorStatusText">?attr/colorOnSurfaceVariant</item>
+        <item name="colorSendFill">?attr/colorPrimary</item>
+        <item name="colorOnAccent">?attr/colorOnPrimary</item>
+        <item name="colorSendStroke">?attr/colorOutline</item>
         <item name="colorStopFill">@color/stop_button_fill</item>
         <item name="colorStopStroke">@color/stop_button_stroke</item>
-        <item name="colorAssistantGradientStart">@color/bot_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/bot_bubble</item>
-        <item name="colorAccentGradientStart">@color/send_button_fill</item>
-        <item name="colorAccentGradientEnd">@color/send_button_fill</item>
+        <item name="colorAssistantGradientStart">?attr/colorSurface</item>
+        <item name="colorAssistantGradientEnd">?attr/colorSurface</item>
+        <item name="colorAccentGradientStart">?attr/pocketGradient1</item>
+        <item name="colorAccentGradientEnd">?attr/pocketGradient3</item>
+        <item name="colorLogoTile">@color/logo_tile_fill</item>
+        <item name="colorTile1">?attr/colorPrimaryContainer</item>
+        <item name="colorTile1On">?attr/colorOnPrimaryContainer</item>
+        <item name="colorTile2">?attr/colorPrimaryContainer</item>
+        <item name="colorTile2On">?attr/colorOnPrimaryContainer</item>
+        <item name="colorTile3">?attr/colorPrimaryContainer</item>
+        <item name="colorTile3On">?attr/colorOnPrimaryContainer</item>
+        <item name="colorTile4">?attr/colorPrimaryContainer</item>
+        <item name="colorTile4On">?attr/colorOnPrimaryContainer</item>
+        <item name="android:windowBackground">?attr/colorSurface</item>
+        <item name="android:navigationBarColor">?attr/colorSurface</item>
+        <item name="colorControlActivated">?attr/colorPrimary</item>
+        <item name="android:colorControlActivated">?attr/colorPrimary</item>
+        <item name="colorControlNormal">?attr/colorOnSurfaceVariant</item>
+        <item name="android:colorControlNormal">?attr/colorOnSurfaceVariant</item>
+        <item name="android:textColorPrimary">?attr/colorOnSurface</item>
+        <item name="android:textColorSecondary">?attr/colorOnSurfaceVariant</item>
+        <item name="android:textColorTertiary">?attr/colorOutline</item>
+        <item name="android:textColorHint">?attr/colorOnSurfaceVariant</item>
+        <item name="android:textColorAlertDialogListItem">?attr/colorOnSurface</item>
+        <item name="android:textColorLink">?attr/colorPrimary</item>
+        <item name="colorPrimaryDark">@android:color/transparent</item>
+        <item name="android:colorPrimaryDark">@android:color/transparent</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Pocket.AlertDialog</item>
+        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.Pocket.BottomSheet</item>
+        <item name="android:popupMenuStyle">@style/Pocket.PopupMenu</item>
+        <item name="popupMenuStyle">@style/Pocket.PopupMenu</item>
+        <!-- Inter for text, Outfit for headings (M3 display, headline, title). -->
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="fontFamily">@font/inter</item>
+        <item name="textAppearanceDisplaySmall">@style/TextAppearance.Pocket.DisplaySmall</item>
+        <item name="textAppearanceHeadlineSmall">@style/TextAppearance.Pocket.HeadlineSmall</item>
+        <item name="textAppearanceTitleLarge">@style/TextAppearance.Pocket.TitleLarge</item>
+        <item name="textAppearanceTitleMedium">@style/TextAppearance.Pocket.TitleMedium</item>
+        <item name="textAppearanceTitleSmall">@style/TextAppearance.Pocket.TitleSmall</item>
+        <item name="textAppearanceBodyLarge">@style/TextAppearance.Pocket.BodyLarge</item>
+        <item name="textAppearanceBodyMedium">@style/TextAppearance.Pocket.BodyMedium</item>
+        <item name="textAppearanceBodySmall">@style/TextAppearance.Pocket.BodySmall</item>
+        <item name="textAppearanceLabelLarge">@style/TextAppearance.Pocket.LabelLarge</item>
+        <item name="textAppearanceLabelMedium">@style/TextAppearance.Pocket.LabelMedium</item>
+        <item name="textAppearanceHeadline6">@style/TextAppearance.Pocket.TitleLarge</item>
+        <item name="textAppearanceSubtitle1">@style/TextAppearance.Pocket.BodyLarge</item>
+        <item name="textAppearanceSubtitle2">@style/TextAppearance.Pocket.TitleSmall</item>
+        <item name="textAppearanceBody1">@style/TextAppearance.Pocket.BodyLarge</item>
+        <item name="textAppearanceBody2">@style/TextAppearance.Pocket.BodyMedium</item>
+        <item name="textAppearanceButton">@style/TextAppearance.Pocket.LabelLarge</item>
+        <item name="textAppearanceCaption">@style/TextAppearance.Pocket.BodySmall</item>
+        <item name="shapeAppearanceCornerExtraLarge">@style/ShapeAppearance.Pocket.ExtraLarge</item>
+        <item name="pocketGlowA">#33A994FF</item>
+        <item name="pocketGlowB">#244FD1C5</item>
+        <item name="pocketPageBackground">?attr/colorAppBackground</item>
+        <item name="colorPrimary">#A994FF</item>
+        <item name="colorOnPrimary">#1A1245</item>
+        <item name="colorPrimaryContainer">#2F2870</item>
+        <item name="colorOnPrimaryContainer">#E6DEFF</item>
+        <item name="colorSecondary">#C9C2DD</item>
+        <item name="colorSecondaryContainer">#3A3550</item>
+        <item name="colorOnSecondaryContainer">#E6E0F5</item>
+        <item name="colorTertiary">#4FD1C5</item>
+        <item name="colorTertiaryContainer">#1F5A55</item>
+        <item name="colorOnTertiaryContainer">#BDF5EE</item>
+        <item name="colorSurface">#121014</item>
+        <item name="colorSurfaceContainerLowest">#0D0B10</item>
+        <item name="colorSurfaceContainerLow">#1B1820</item>
+        <item name="colorSurfaceContainer">#201C27</item>
+        <item name="colorSurfaceContainerHigh">#25212C</item>
+        <item name="colorSurfaceContainerHighest">#2F2A38</item>
+        <item name="colorOnSurface">#ECE8F4</item>
+        <item name="colorOnSurfaceVariant">#A79FB8</item>
+        <item name="colorOutline">#6F6880</item>
+        <item name="colorOutlineVariant">#3D3748</item>
+        <item name="pocketGradient1">#A994FF</item>
+        <item name="pocketGradient2">#8DA8F2</item>
+        <item name="pocketGradient3">#4FD1C5</item>
+        <item name="android:colorBackground">#121014</item>
+        <item name="colorOnBackground">#ECE8F4</item>
+        <item name="colorSurfaceVariant">#2F2A38</item>
+        <item name="colorSurfaceBright">#2F2A38</item>
+        <item name="colorSurfaceDim">#0D0B10</item>
+        <item name="colorOnSecondary">#121014</item>
+        <item name="colorOnTertiary">#04201C</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:navigationBarColor">?attr/colorAppBackground</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">false</item>
     </style>
 
     <style name="Theme.local_llm.Light" parent="Theme.local_llm">
-        <item name="colorPrimary">@color/light_frame_background</item>
-        <item name="colorPrimaryVariant">@color/light_app_background</item>
-        <item name="colorOnPrimary">@color/light_assistant_text</item>
-        <item name="colorOnBackground">@color/light_assistant_text</item>
-        <item name="colorSurface">@color/light_frame_background</item>
-        <item name="colorOnSurface">@color/light_assistant_text</item>
-        <item name="android:windowBackground">?attr/colorAppBackground</item>
-        <item name="colorAppBackground">@color/light_app_background</item>
-        <item name="colorFrameBackground">@color/light_frame_background</item>
-        <item name="colorUserBubble">@color/light_assistant_bubble</item>
-        <item name="colorAssistantBubble">@color/light_user_bubble</item>
-        <item name="colorUserText">@color/light_user_text</item>
-        <item name="colorAssistantText">@color/light_assistant_text</item>
-        <item name="colorInputBackground">@color/light_input_background</item>
-        <item name="colorInputText">@color/light_input_text</item>
-        <item name="colorInputHint">@color/light_input_hint</item>
-        <item name="colorStatusText">@color/light_status_text</item>
-        <item name="colorSendStroke">@color/light_control_stroke</item>
-        <item name="colorStopStroke">@color/light_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_user_bubble</item>
-        <item name="colorAccentGradientStart">@color/send_button_fill</item>
-        <item name="colorAccentGradientEnd">@color/send_button_fill</item>
-        <item name="colorControlActivated">?attr/colorSendFill</item>
-        <item name="colorControlNormal">?attr/colorSendStroke</item>
-        <item name="android:colorControlActivated">?attr/colorSendFill</item>
-        <item name="android:colorControlNormal">?attr/colorSendStroke</item>
+        <item name="colorToolActive">#5B47D6</item>
+        <item name="colorLogoTile">@color/white</item>
+        <item name="colorPrimary">#5B47D6</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#E6DEFF</item>
+        <item name="colorOnPrimaryContainer">#1A0B5E</item>
+        <item name="colorSecondary">#575E71</item>
+        <item name="colorSecondaryContainer">#DBE2F9</item>
+        <item name="colorOnSecondaryContainer">#141B2C</item>
+        <item name="colorTertiary">#0B7A72</item>
+        <item name="colorTertiaryContainer">#BDF5EE</item>
+        <item name="colorOnTertiaryContainer">#00201D</item>
+        <item name="colorSurface">#FAF9FC</item>
+        <item name="colorSurfaceContainerLowest">#FFFFFF</item>
+        <item name="colorSurfaceContainerLow">#F4F3F6</item>
+        <item name="colorSurfaceContainer">#EEEDF0</item>
+        <item name="colorSurfaceContainerHigh">#E8E7EB</item>
+        <item name="colorSurfaceContainerHighest">#E3E2E5</item>
+        <item name="colorOnSurface">#1A1B1F</item>
+        <item name="colorOnSurfaceVariant">#44474E</item>
+        <item name="colorOutline">#74777F</item>
+        <item name="colorOutlineVariant">#C4C6CF</item>
+        <item name="pocketGradient1">#5B47D6</item>
+        <item name="pocketGradient2">#6F6FD8</item>
+        <item name="pocketGradient3">#0B9C90</item>
+        <item name="android:colorBackground">#FAF9FC</item>
+        <item name="colorOnBackground">#1A1B1F</item>
+        <item name="colorSurfaceVariant">#E3E2E5</item>
+        <item name="colorSurfaceBright">#FFFFFF</item>
+        <item name="colorSurfaceDim">#E3E2E5</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="colorOnTertiary">#FFFFFF</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:navigationBarColor">?attr/colorAppBackground</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
     </style>
 
-    <style name="Theme.local_llm.Midnight" parent="Theme.local_llm">
-        <item name="colorUserBubble">@color/midnight_user_bubble</item>
-        <item name="colorAssistantBubble">@color/midnight_assistant_bubble</item>
-        <item name="colorUserText">@color/midnight_user_text</item>
-        <item name="colorStatusText">@color/midnight_status_text</item>
-        <item name="colorSendFill">@color/midnight_send_fill</item>
-        <item name="colorSendStroke">@color/midnight_send_stroke</item>
-        <item name="colorStopFill">@color/midnight_stop_fill</item>
-        <item name="colorStopStroke">@color/midnight_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/midnight_assistant_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/midnight_assistant_bubble</item>
-        <item name="colorAccentGradientStart">@color/midnight_send_fill</item>
-        <item name="colorAccentGradientEnd">@color/midnight_send_fill</item>
+    <style name="Theme.local_llm.Violet" parent="Theme.local_llm" />
+    <style name="Theme.local_llm.Violet.Light" parent="Theme.local_llm.Light" />
+
+    <style name="Theme.local_llm.Blue" parent="Theme.local_llm">
+        <item name="colorToolActive">#74ADFF</item>
+        <item name="colorPrimary">#74ADFF</item>
+        <item name="colorOnPrimary">#0A1A3A</item>
+        <item name="colorPrimaryContainer">#1B3566</item>
+        <item name="colorOnPrimaryContainer">#D8E6FF</item>
+        <item name="colorTertiary">#FF8AD8</item>
+        <item name="colorTertiaryContainer">#5B2A4E</item>
+        <item name="colorOnTertiaryContainer">#FFD8F2</item>
+        <item name="colorOnTertiary">#2A0A21</item>
+        <item name="pocketGradient1">#74ADFF</item>
+        <item name="pocketGradient2">#A98CF0</item>
+        <item name="pocketGradient3">#FF8AD8</item>
+        <item name="pocketGlowA">#3374ADFF</item>
+        <item name="pocketGlowB">#24FF8AD8</item>
+    </style>
+    <style name="Theme.local_llm.Blue.Light" parent="Theme.local_llm.Light">
+        <item name="colorToolActive">#005AC1</item>
+        <item name="colorPrimary">#005AC1</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#D8E2FF</item>
+        <item name="colorOnPrimaryContainer">#001A41</item>
+        <item name="colorTertiary">#76507F</item>
+        <item name="colorTertiaryContainer">#F7D8FF</item>
+        <item name="colorOnTertiaryContainer">#2D0B38</item>
+        <item name="pocketGradient1">#1F5FCC</item>
+        <item name="pocketGradient2">#7048D0</item>
+        <item name="pocketGradient3">#C2457E</item>
     </style>
 
-    <style name="Theme.local_llm.Midnight.Light" parent="Theme.local_llm.Light">
-        <item name="colorAssistantBubble">@color/light_midnight_user_bubble</item>
-        <item name="colorSendFill">@color/midnight_send_fill</item>
-        <item name="colorSendStroke">@color/midnight_send_stroke</item>
-        <item name="colorStopFill">@color/midnight_stop_fill</item>
-        <item name="colorStopStroke">@color/midnight_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_midnight_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_midnight_user_bubble</item>
-        <item name="colorAccentGradientStart">@color/midnight_send_fill</item>
-        <item name="colorAccentGradientEnd">@color/midnight_send_fill</item>
+    <style name="Theme.local_llm.Mint" parent="Theme.local_llm">
+        <item name="colorToolActive">#5EE0D2</item>
+        <item name="colorPrimary">#5EE0D2</item>
+        <item name="colorOnPrimary">#04201C</item>
+        <item name="colorPrimaryContainer">#123A36</item>
+        <item name="colorOnPrimaryContainer">#C9F5F0</item>
+        <item name="colorTertiary">#8B7CF6</item>
+        <item name="colorTertiaryContainer">#2A2466</item>
+        <item name="colorOnTertiaryContainer">#E3DEFF</item>
+        <item name="colorOnTertiary">#120E40</item>
+        <item name="pocketGradient1">#5EE0D2</item>
+        <item name="pocketGradient2">#4FB7E8</item>
+        <item name="pocketGradient3">#8B7CF6</item>
+        <item name="pocketGlowA">#335EE0D2</item>
+        <item name="pocketGlowB">#248B7CF6</item>
+    </style>
+    <style name="Theme.local_llm.Mint.Light" parent="Theme.local_llm.Light">
+        <item name="colorToolActive">#00796B</item>
+        <item name="colorPrimary">#00796B</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#BDF1EA</item>
+        <item name="colorOnPrimaryContainer">#00201C</item>
+        <item name="colorTertiary">#5B4DB5</item>
+        <item name="colorTertiaryContainer">#E5DEFF</item>
+        <item name="colorOnTertiaryContainer">#170F52</item>
+        <item name="pocketGradient1">#00897B</item>
+        <item name="pocketGradient2">#2F7FD0</item>
+        <item name="pocketGradient3">#6A4DD0</item>
     </style>
 
-    <style name="Theme.local_llm.Forest" parent="Theme.local_llm">
-        <item name="colorUserBubble">@color/forest_user_bubble</item>
-        <item name="colorAssistantBubble">@color/forest_assistant_bubble</item>
-        <item name="colorUserText">@color/forest_user_text</item>
-        <item name="colorStatusText">@color/forest_status_text</item>
-        <item name="colorSendFill">@color/forest_send_fill</item>
-        <item name="colorSendStroke">@color/forest_send_stroke</item>
-        <item name="colorStopFill">@color/forest_stop_fill</item>
-        <item name="colorStopStroke">@color/forest_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/forest_assistant_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/forest_assistant_bubble</item>
-        <item name="colorAccentGradientStart">@color/forest_send_fill</item>
-        <item name="colorAccentGradientEnd">@color/forest_send_fill</item>
+    <style name="Theme.local_llm.Rose" parent="Theme.local_llm">
+        <item name="colorToolActive">#FF8FB1</item>
+        <item name="colorPrimary">#FF8FB1</item>
+        <item name="colorOnPrimary">#3A0A1C</item>
+        <item name="colorPrimaryContainer">#5B1B33</item>
+        <item name="colorOnPrimaryContainer">#FFD9E4</item>
+        <item name="colorTertiary">#FFB86B</item>
+        <item name="colorTertiaryContainer">#5A3410</item>
+        <item name="colorOnTertiaryContainer">#FFE0C2</item>
+        <item name="colorOnTertiary">#2B1503</item>
+        <item name="pocketGradient1">#FF8FB1</item>
+        <item name="pocketGradient2">#E07BD8</item>
+        <item name="pocketGradient3">#FFB86B</item>
+        <item name="pocketGlowA">#33FF8FB1</item>
+        <item name="pocketGlowB">#24FFB86B</item>
     </style>
-
-    <style name="Theme.local_llm.Forest.Light" parent="Theme.local_llm.Light">
-        <item name="colorAssistantBubble">@color/light_forest_user_bubble</item>
-        <item name="colorSendFill">@color/forest_send_fill</item>
-        <item name="colorSendStroke">@color/forest_send_stroke</item>
-        <item name="colorStopFill">@color/forest_stop_fill</item>
-        <item name="colorStopStroke">@color/forest_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_forest_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_forest_user_bubble</item>
-        <item name="colorAccentGradientStart">@color/forest_send_fill</item>
-        <item name="colorAccentGradientEnd">@color/forest_send_fill</item>
-    </style>
-
-    <style name="Theme.local_llm.Violet" parent="Theme.local_llm">
-        <item name="colorUserBubble">@color/violet_user_bubble</item>
-        <item name="colorAssistantBubble">@color/violet_assistant_bubble</item>
-        <item name="colorUserText">@color/violet_user_text</item>
-        <item name="colorStatusText">@color/violet_status_text</item>
-        <item name="colorSendFill">@color/violet_send_fill</item>
-        <item name="colorSendStroke">@color/violet_send_stroke</item>
-        <item name="colorStopFill">@color/violet_stop_fill</item>
-        <item name="colorStopStroke">@color/violet_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/violet_assistant_gradient_start</item>
-        <item name="colorAssistantGradientEnd">@color/violet_assistant_gradient_end</item>
-        <item name="colorAccentGradientStart">@color/violet_accent_gradient_start</item>
-        <item name="colorAccentGradientEnd">@color/violet_accent_gradient_end</item>
-    </style>
-
-    <style name="Theme.local_llm.Violet.Light" parent="Theme.local_llm.Light">
-        <item name="colorAssistantBubble">@color/light_violet_user_bubble</item>
-        <item name="colorSendFill">@color/violet_send_fill</item>
-        <item name="colorSendStroke">@color/violet_send_stroke</item>
-        <item name="colorStopFill">@color/violet_stop_fill</item>
-        <item name="colorStopStroke">@color/violet_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_violet_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_violet_user_bubble</item>
-        <item name="colorAccentGradientStart">@color/violet_accent_gradient_start</item>
-        <item name="colorAccentGradientEnd">@color/violet_accent_gradient_end</item>
+    <style name="Theme.local_llm.Rose.Light" parent="Theme.local_llm.Light">
+        <item name="colorToolActive">#B3265B</item>
+        <item name="colorPrimary">#B3265B</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#FFD9E3</item>
+        <item name="colorOnPrimaryContainer">#3E001B</item>
+        <item name="colorTertiary">#8B5000</item>
+        <item name="colorTertiaryContainer">#FFDCBB</item>
+        <item name="colorOnTertiaryContainer">#2D1600</item>
+        <item name="pocketGradient1">#D81B60</item>
+        <item name="pocketGradient2">#9C4DCC</item>
+        <item name="pocketGradient3">#E08A00</item>
     </style>
 
     <style name="Theme.local_llm.Amber" parent="Theme.local_llm">
-        <item name="colorAssistantBubble">@color/amber_assistant_bubble</item>
-        <item name="colorStatusText">@color/amber_status_text</item>
-        <item name="colorSendFill">@color/amber_send_fill</item>
-        <item name="colorSendStroke">@color/amber_send_stroke</item>
-        <item name="colorStopFill">@color/amber_stop_fill</item>
-        <item name="colorStopStroke">@color/amber_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/amber_assistant_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/amber_assistant_bubble</item>
-        <item name="colorAccentGradientStart">@color/amber_send_fill</item>
-        <item name="colorAccentGradientEnd">@color/amber_send_fill</item>
+        <item name="colorToolActive">#FFC857</item>
+        <item name="colorPrimary">#FFC857</item>
+        <item name="colorOnPrimary">#2E1F00</item>
+        <item name="colorPrimaryContainer">#5A4100</item>
+        <item name="colorOnPrimaryContainer">#FFE9B3</item>
+        <item name="colorTertiary">#7FD6A2</item>
+        <item name="colorTertiaryContainer">#1B4A33</item>
+        <item name="colorOnTertiaryContainer">#CFF5DF</item>
+        <item name="colorOnTertiary">#05210F</item>
+        <item name="pocketGradient1">#FFC857</item>
+        <item name="pocketGradient2">#FF9F5A</item>
+        <item name="pocketGradient3">#7FD6A2</item>
+        <item name="pocketGlowA">#33FFC857</item>
+        <item name="pocketGlowB">#247FD6A2</item>
     </style>
-
     <style name="Theme.local_llm.Amber.Light" parent="Theme.local_llm.Light">
-        <item name="colorAssistantBubble">@color/light_amber_user_bubble</item>
-        <item name="colorSendFill">@color/amber_send_fill</item>
-        <item name="colorSendStroke">@color/amber_send_stroke</item>
-        <item name="colorStopFill">@color/amber_stop_fill</item>
-        <item name="colorStopStroke">@color/amber_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_amber_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_amber_user_bubble</item>
-        <item name="colorAccentGradientStart">@color/amber_send_fill</item>
-        <item name="colorAccentGradientEnd">@color/amber_send_fill</item>
+        <item name="colorToolActive">#8A5A00</item>
+        <item name="colorPrimary">#8A5A00</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#FFDEA6</item>
+        <item name="colorOnPrimaryContainer">#2C1A00</item>
+        <item name="colorTertiary">#1E6B45</item>
+        <item name="colorTertiaryContainer">#A8F2C5</item>
+        <item name="colorOnTertiaryContainer">#002112</item>
+        <item name="pocketGradient1">#E0A100</item>
+        <item name="pocketGradient2">#E07A1F</item>
+        <item name="pocketGradient3">#2E9E6A</item>
     </style>
 
     <style name="Theme.local_llm.Coral" parent="Theme.local_llm">
-        <item name="colorAssistantBubble">@color/coral_assistant_bubble</item>
-        <item name="colorStatusText">@color/coral_status_text</item>
-        <item name="colorSendFill">@color/coral_send_fill</item>
-        <item name="colorSendStroke">@color/coral_send_stroke</item>
-        <item name="colorStopFill">@color/coral_stop_fill</item>
-        <item name="colorStopStroke">@color/coral_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/coral_assistant_gradient_start</item>
-        <item name="colorAssistantGradientEnd">@color/coral_assistant_gradient_end</item>
-        <item name="colorAccentGradientStart">@color/coral_accent_gradient_start</item>
-        <item name="colorAccentGradientEnd">@color/coral_accent_gradient_end</item>
+        <item name="colorToolActive">#FF8A7A</item>
+        <item name="colorPrimary">#FF8A7A</item>
+        <item name="colorOnPrimary">#3A0D06</item>
+        <item name="colorPrimaryContainer">#5E241B</item>
+        <item name="colorOnPrimaryContainer">#FFDAD4</item>
+        <item name="colorTertiary">#62D2E8</item>
+        <item name="colorTertiaryContainer">#0C4552</item>
+        <item name="colorOnTertiaryContainer">#C4F1FA</item>
+        <item name="colorOnTertiary">#00222B</item>
+        <item name="pocketGradient1">#FF8A7A</item>
+        <item name="pocketGradient2">#FFA45A</item>
+        <item name="pocketGradient3">#62D2E8</item>
+        <item name="pocketGlowA">#33FF8A7A</item>
+        <item name="pocketGlowB">#2462D2E8</item>
+    </style>
+    <style name="Theme.local_llm.Coral.Light" parent="Theme.local_llm.Light">
+        <item name="colorToolActive">#B3261E</item>
+        <item name="colorPrimary">#B3261E</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#FFDAD6</item>
+        <item name="colorOnPrimaryContainer">#410002</item>
+        <item name="colorTertiary">#00677A</item>
+        <item name="colorTertiaryContainer">#AEECFF</item>
+        <item name="colorOnTertiaryContainer">#001F27</item>
+        <item name="pocketGradient1">#E5483C</item>
+        <item name="pocketGradient2">#E8872A</item>
+        <item name="pocketGradient3">#1B9BB5</item>
     </style>
 
-    <style name="Theme.local_llm.Coral.Light" parent="Theme.local_llm.Light">
-        <item name="colorAssistantBubble">@color/light_coral_user_bubble</item>
-        <item name="colorSendFill">@color/coral_send_fill</item>
-        <item name="colorSendStroke">@color/coral_send_stroke</item>
-        <item name="colorStopFill">@color/coral_stop_fill</item>
-        <item name="colorStopStroke">@color/coral_stop_stroke</item>
-        <item name="colorAssistantGradientStart">@color/light_coral_user_bubble</item>
-        <item name="colorAssistantGradientEnd">@color/light_coral_user_bubble</item>
-        <item name="colorAccentGradientStart">@color/coral_accent_gradient_start</item>
-        <item name="colorAccentGradientEnd">@color/coral_accent_gradient_end</item>
+    <!-- Backgrounds (dark themes only), applied on top of the accent theme. Aurora is the default. -->
+    <style name="ThemeOverlay.Pocket.Bg.Aurora" parent="">
+        <item name="pocketPageBackground">@drawable/bg_glow_aurora</item>
+    </style>
+    <style name="ThemeOverlay.Pocket.Bg.VioletGlow" parent="">
+        <item name="pocketPageBackground">@drawable/bg_glow_violet</item>
+    </style>
+    <style name="ThemeOverlay.Pocket.Bg.Graphite" parent="">
+        <item name="pocketLogoGradient">false</item>
+        <item name="colorSurface">#0F1114</item>
+        <item name="android:colorBackground">#0F1114</item>
+        <item name="colorSurfaceContainerLowest">#0A0C0E</item>
+        <item name="colorSurfaceContainerLow">#181B20</item>
+        <item name="colorSurfaceContainer">#1D2127</item>
+        <item name="colorSurfaceContainerHigh">#21252C</item>
+        <item name="colorSurfaceContainerHighest">#2B3039</item>
+        <item name="colorSurfaceVariant">#2B3039</item>
+        <item name="colorSurfaceBright">#2B3039</item>
+        <item name="colorSurfaceDim">#0A0C0E</item>
+        <item name="colorOutlineVariant">#3A414D</item>
+        <item name="pocketPageBackground">?attr/colorAppBackground</item>
+    </style>
+    <style name="ThemeOverlay.Pocket.Bg.Oled" parent="">
+        <item name="pocketLogoGradient">false</item>
+        <item name="colorSurface">#000000</item>
+        <item name="android:colorBackground">#000000</item>
+        <item name="colorSurfaceContainerLowest">#000000</item>
+        <item name="colorSurfaceContainerLow">#0C0C0E</item>
+        <item name="colorSurfaceContainer">#141417</item>
+        <item name="colorSurfaceContainerHigh">#1B1B1F</item>
+        <item name="colorSurfaceContainerHighest">#26262B</item>
+        <item name="colorSurfaceVariant">#26262B</item>
+        <item name="colorSurfaceBright">#26262B</item>
+        <item name="colorSurfaceDim">#000000</item>
+        <item name="pocketPageBackground">?attr/colorAppBackground</item>
+    </style>
+
+    <style name="ThemeOverlay.Pocket.Bg.Midnight" parent="">
+        <item name="colorSurface">#090C18</item>
+        <item name="android:colorBackground">#090C18</item>
+        <item name="colorSurfaceContainerLowest">#05070F</item>
+        <item name="colorSurfaceContainerLow">#0F1324</item>
+        <item name="colorSurfaceContainer">#141932</item>
+        <item name="colorSurfaceContainerHigh">#1A2040</item>
+        <item name="colorSurfaceContainerHighest">#242B52</item>
+        <item name="colorSurfaceVariant">#242B52</item>
+        <item name="colorSurfaceBright">#242B52</item>
+        <item name="colorSurfaceDim">#05070F</item>
+        <item name="colorOutlineVariant">#363E6B</item>
+        <item name="pocketPageBackground">@drawable/bg_glow_violet</item>
+    </style>
+
+    <style name="ThemeOverlay.Pocket.Bg.Teal" parent="">
+        <item name="colorSurface">#071312</item>
+        <item name="android:colorBackground">#071312</item>
+        <item name="colorSurfaceContainerLowest">#040B0A</item>
+        <item name="colorSurfaceContainerLow">#0B1B1A</item>
+        <item name="colorSurfaceContainer">#102524</item>
+        <item name="colorSurfaceContainerHigh">#16302F</item>
+        <item name="colorSurfaceContainerHighest">#1F3E3C</item>
+        <item name="colorSurfaceVariant">#1F3E3C</item>
+        <item name="colorSurfaceBright">#1F3E3C</item>
+        <item name="colorSurfaceDim">#040B0A</item>
+        <item name="colorOutlineVariant">#2F5552</item>
+        <item name="pocketPageBackground">@drawable/bg_glow_violet</item>
+    </style>
+
+    <style name="TextAppearance.Pocket.DisplaySmall" parent="TextAppearance.Material3.DisplaySmall">
+        <item name="fontFamily">@font/space_grotesk_medium</item>
+        <item name="android:fontFamily">@font/space_grotesk_medium</item>
+    </style>
+    <style name="TextAppearance.Pocket.HeadlineSmall" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="fontFamily">@font/space_grotesk_medium</item>
+        <item name="android:fontFamily">@font/space_grotesk_medium</item>
+    </style>
+    <style name="TextAppearance.Pocket.TitleLarge" parent="TextAppearance.Material3.TitleLarge">
+        <item name="fontFamily">@font/space_grotesk_medium</item>
+        <item name="android:fontFamily">@font/space_grotesk_medium</item>
+    </style>
+    <style name="TextAppearance.Pocket.TitleMedium" parent="TextAppearance.Material3.TitleMedium">
+        <item name="fontFamily">@font/space_grotesk_medium</item>
+        <item name="android:fontFamily">@font/space_grotesk_medium</item>
+    </style>
+    <style name="TextAppearance.Pocket.TitleSmall" parent="TextAppearance.Material3.TitleSmall">
+        <item name="fontFamily">@font/inter_medium</item>
+        <item name="android:fontFamily">@font/inter_medium</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+    <style name="TextAppearance.Pocket.BodyLarge" parent="TextAppearance.Material3.BodyLarge">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+    <style name="TextAppearance.Pocket.BodyMedium" parent="TextAppearance.Material3.BodyMedium">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+    <style name="TextAppearance.Pocket.BodySmall" parent="TextAppearance.Material3.BodySmall">
+        <item name="fontFamily">@font/inter</item>
+        <item name="android:fontFamily">@font/inter</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+    <style name="TextAppearance.Pocket.LabelLarge" parent="TextAppearance.Material3.LabelLarge">
+        <item name="fontFamily">@font/inter_medium</item>
+        <item name="android:fontFamily">@font/inter_medium</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+    <style name="TextAppearance.Pocket.LabelMedium" parent="TextAppearance.Material3.LabelMedium">
+        <item name="fontFamily">@font/inter_medium</item>
+        <item name="android:fontFamily">@font/inter_medium</item>
+        <item name="android:letterSpacing">0</item>
+    </style>
+    <style name="ShapeAppearance.Pocket.ExtraLarge" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">28dp</item>
+    </style>
+
+    <!-- All bottom sheets: 28 dp top corners, drag handle, surfaceContainerLow. -->
+    <style name="ThemeOverlay.Pocket.BottomSheet" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Pocket.BottomSheet</item>
+        <item name="android:navigationBarColor">?attr/colorSurfaceContainerLow</item>
+    </style>
+    <style name="Pocket.BottomSheet" parent="Widget.Material3.BottomSheet.Modal">
+        <item name="backgroundTint">?attr/colorSurfaceContainerLow</item>
+        <item name="shapeAppearance">@style/ShapeAppearance.Pocket.SheetTop</item>
+    </style>
+    <style name="ShapeAppearance.Pocket.SheetTop" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">28dp</item>
+        <item name="cornerSizeTopRight">28dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
     </style>
 </resources>

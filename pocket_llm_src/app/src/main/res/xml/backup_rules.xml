@@ -7,6 +7,11 @@
 -->
 <full-backup-content>
     <exclude domain="file" path="chat_attachments/" />
+    <!-- Downloaded models and speech files are large and can be downloaded again. -->
+    <exclude domain="file" path="models/" />
+    <exclude domain="file" path="asr/" />
+    <!-- The Pro unlock is restored from Google Play, never from a backup. -->
+    <exclude domain="sharedpref" path="pocket_pro.xml" />
     <!--
    <include domain="sharedpref" path="."/>
    <exclude domain="sharedpref" path="device.xml"/>

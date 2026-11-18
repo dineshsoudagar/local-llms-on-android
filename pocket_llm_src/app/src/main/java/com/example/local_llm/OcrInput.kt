@@ -16,7 +16,8 @@ class OcrInput(
 ) {
     enum class Source {
         GALLERY,
-        CAMERA
+        CAMERA,
+        GENERATED
     }
 
     interface Listener {

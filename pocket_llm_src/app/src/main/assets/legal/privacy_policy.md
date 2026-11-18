@@ -28,7 +28,7 @@ Android's own backup feature can include chat history and settings in your devic
 - **Camera:** only when you take a photo to send to the model or to read text from it.
 - **Microphone:** only when you record audio or use dictation. Speech is transcribed on your phone.
 - **Notifications:** to show model download progress and that the LAN server is running.
-- **Internet:** to download models and to run the LAN server when you start it.
+- **Internet:** to download models, to run the LAN server when you start it, and for web search when you turn it on.
 - **Foreground service and wake lock:** to keep downloads and the LAN server running while the screen is off.
 
 ## 4. Network connections
@@ -37,6 +37,7 @@ The app connects to the internet only in these cases:
 
 - **Model downloads:** when you download a built-in model or the speech-to-text model, the file is downloaded from Hugging Face (huggingface.co). Hugging Face receives the usual technical request data, such as your IP address. See the Hugging Face privacy policy: https://huggingface.co/privacy
 - **LAN server:** when you start it, other devices on your local network can connect to the phone with the password you set. Requests and responses stay inside your network and are not sent to the developer.
+- **Web search (optional, off by default):** when you turn on web search, the model can look things up while answering. The search words the model chooses, which are based on your message, are sent from your phone directly to the search service you picked: Wikipedia (no key needed), or Tavily, Serper or Brave Search with your own API key. The model can also open web pages from the results, and those websites receive the request. Each service receives the usual technical request data, such as your IP address, and handles it under its own privacy policy: Wikipedia https://foundation.wikimedia.org/wiki/Policy:Privacy_policy, Tavily https://tavily.com/privacy, Serper https://serper.dev/privacy, Brave https://search.brave.com/help/privacy-policy. Your API keys are stored only on your phone. Nothing is sent to the developer.
 
 Chat, image, document and audio processing happens on your phone and works offline once the models are installed.
 

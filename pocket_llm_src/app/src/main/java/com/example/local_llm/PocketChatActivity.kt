@@ -1,5 +1,7 @@
 package com.example.local_llm
 
+import android.app.ActivityManager
+import kotlinx.coroutines.delay
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -11,9 +13,10 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ImageDecoder
-import android.graphics.Paint
 import android.graphics.Rect
+import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
@@ -22,19 +25,25 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.text.Editable
+import android.text.SpannableString
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ImageSpan
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
 import android.text.TextWatcher
 import android.text.method.LinkMovementMethod
-import android.text.method.PasswordTransformationMethod
 import android.text.method.HideReturnsTransformationMethod
 import android.text.format.Formatter
 import android.text.util.Linkify
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.WindowManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
@@ -42,19 +51,23 @@ import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.ImageView
+import androidx.annotation.DrawableRes
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.PopupMenu
 import android.widget.PopupWindow
 import android.widget.RadioGroup
-import android.widget.ScrollView
 import android.widget.SeekBar
+import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.AppCompatSpinner
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Camera
 import androidx.camera.core.ImageCapture
@@ -63,6 +76,7 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.Lifecycle
@@ -74,7 +88,12 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -90,18 +109,18 @@ import java.util.Locale
 import kotlin.math.ceil
 import kotlin.math.max
 
-open class PocketChatActivity : AppCompatActivity() {
+open class PocketChatActivity : AppCompatActivity(), ProFeatureLauncher {
 
     companion object {
         private const val TAG = "PocketChatActivity"
+        private const val PLAY_PACKAGE = "io.github.dineshsoudagar.pocketllm"
         private const val IMAGE_INPUT_MAX_DIMENSION = 1024
         private const val IMAGE_INPUT_MIN_NORMALIZED_DIMENSION = 256
         private const val IMAGE_INPUT_EXTREME_ASPECT_RATIO = 4f
         private const val IMAGE_INPUT_JPEG_QUALITY = 90
         private const val CAMERA_CROP_MAX_IMAGE_DIMENSION = 1600
         private const val CAMERA_CROP_JPEG_QUALITY = 95
-        private const val SETTINGS_STATE_ORIGINAL_PREFIX = "settings_preview_original"
-        private const val SETTINGS_STATE_DRAFT_PREFIX = "settings_preview_draft"
+        private const val STATE_SETTINGS_PAGE_OPEN = "settings_page_open"
     }
 
     private data class ModelDialogViews(
@@ -132,18 +151,6 @@ open class PocketChatActivity : AppCompatActivity() {
         val voiceText: String?
     )
 
-    private data class SettingsDialogPreviewState(
-        val originalSettings: AppSettings,
-        val draftSettings: AppSettings
-    ) {
-        fun previewThemeSettings(): AppSettings {
-            return originalSettings.copy(
-                accent = draftSettings.accent,
-                appearance = draftSettings.appearance
-            )
-        }
-    }
-
     private enum class PendingImageStatus {
         PENDING,
         READING,
@@ -172,9 +179,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
     private lateinit var settingsStore: AppSettingsStore
     private lateinit var currentSettings: AppSettings
-    private var settingsDialogPreviewState: SettingsDialogPreviewState? = null
-    private var isRecreatingForSettingsPreview = false
-    private var reopenSettingsDialogOnStart = false
+    private var settingsPageOpen = false
     private lateinit var modelInstructionStore: ModelInstructionStore
     private lateinit var modelRuntimeSettingsStore: ModelRuntimeSettingsStore
     private lateinit var modelSelectionStore: ModelSelectionStore
@@ -197,8 +202,42 @@ open class PocketChatActivity : AppCompatActivity() {
     private var modelDownloadStateJob: Job? = null
     private var lastGemmaDirectImageInputAvailable: Boolean? = null
     private var modelDialogViews: ModelDialogViews? = null
+    // The Manage models row that shows the running download, so progress ticks can update just that row.
+    private var downloadRowProgress: Pair<ProgressBar, TextView>? = null
+    private var modelCardTarget: LinearLayout? = null
+    private var downloadSheet: BottomSheetDialog? = null
+    private var downloadSheetViews: DownloadSheetViews? = null
+
+    private class DownloadSheetViews(val ring: ProgressBar, val title: TextView, val sub: TextView)
+    private var downloadRowModelId: String? = null
     private var modelRecoveryDialog: AlertDialog? = null
-    private var modelPickerPopup: PopupWindow? = null
+    private val contextProbeHost = object : ContextProbeFeature.Host {
+        override val activity: AppCompatActivity get() = this@PocketChatActivity
+        override fun showTransientMessage(message: String) = this@PocketChatActivity.showTransientMessage(message)
+        override fun resolveThemeColor(attrId: Int): Int = this@PocketChatActivity.resolveThemeColor(attrId)
+        override fun updateKeepScreenOn() = this@PocketChatActivity.updateKeepScreenOn()
+        override val isModelPreparing: Boolean get() = modelPreparationJob?.isActive == true
+        override val isModelLoading: Boolean get() = chatController?.state?.value?.isLoading == true
+        // The chat model's GPU memory must be free, or the test would measure what is left over.
+        override fun unloadModelForProbe(message: String): () -> Unit {
+            val modelToReload = currentModel
+            cancelCurrentInitializationMarker()
+            val controller = chatController
+            val snapshot = controller?.snapshotActiveChat() ?: retainedState.pendingModelLoadSnapshot
+            if (controller != null) {
+                controllerStateJob?.cancel()
+                SharedChatControllerRegistry.clearIf(controller)
+                chatController = null
+                retainedState.chatController = null
+                controller.close()
+            }
+            renderNoControllerState(message, preserveTranscript = true)
+            return {
+                modelToReload?.let { requestModelLoad(it, snapshot) }
+            }
+        }
+    }
+    private var modelPickerPopup: BottomSheetDialog? = null
     private lateinit var chatAdapter: ChatAdapter
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var drawerChatsRecyclerView: RecyclerView
@@ -206,13 +245,70 @@ open class PocketChatActivity : AppCompatActivity() {
     private lateinit var drawerSessionsAdapter: DrawerSessionsAdapter
     private lateinit var chatRecyclerView: RecyclerView
     private lateinit var inputEditText: EditText
+    private lateinit var modelLoadingCard: ModelLoadingCard
     private lateinit var toolbarSubtitleView: TextView
     private lateinit var toolbarModelSelector: View
     private lateinit var selectedModelLabel: TextView
     private lateinit var thinkingToggleContainer: View
     private lateinit var thinkingToggle: CheckBox
+    private var currentModelSupportsThinking = false
     private lateinit var newChatButton: View
     private lateinit var sendButton: Button
+    private lateinit var imageModePanel: View
+    private lateinit var webSearchButton: MaterialButton
+    private lateinit var createImageModeButton: MaterialButton
+    private lateinit var imageModelChip: MaterialButton
+    private lateinit var refinePromptButton: MaterialButton
+    private lateinit var imageModeStatus: TextView
+    private lateinit var noModelHint: TextView
+
+    private val webSearchHost = object : WebSearchFeature.Host {
+        override val activity: AppCompatActivity get() = this@PocketChatActivity
+        override val chatController: PersistentChatController? get() = this@PocketChatActivity.chatController
+        override fun updateWebSearchButton() = this@PocketChatActivity.updateWebSearchButton()
+        override fun requireProOrTrial(feature: ProFeature, action: () -> Unit) = this@PocketChatActivity.requireProOrTrial(feature, action)
+        override fun resolveThemeColor(attrId: Int): Int = this@PocketChatActivity.resolveThemeColor(attrId)
+    }
+    private val chatHost = object : ImageGenFeature.ChatHost {
+        override val activity: AppCompatActivity get() = this@PocketChatActivity
+        override val chatController: PersistentChatController? get() = this@PocketChatActivity.chatController
+        override val inputEditText: EditText get() = this@PocketChatActivity.inputEditText
+        override val sendButton: Button get() = this@PocketChatActivity.sendButton
+        override val stopButton: Button get() = this@PocketChatActivity.stopButton
+        override val attachmentButton: MaterialButton get() = this@PocketChatActivity.attachmentButton
+        override val galleryOcrButton: Button get() = this@PocketChatActivity.galleryOcrButton
+        override val cameraOcrButton: Button get() = this@PocketChatActivity.cameraOcrButton
+        override val createImageModeButton: MaterialButton get() = this@PocketChatActivity.createImageModeButton
+        override val imageModelChip: MaterialButton get() = this@PocketChatActivity.imageModelChip
+        override val refinePromptButton: MaterialButton get() = this@PocketChatActivity.refinePromptButton
+        override val webSearchButton: MaterialButton get() = this@PocketChatActivity.webSearchButton
+        override val imageModeStatus: TextView get() = this@PocketChatActivity.imageModeStatus
+        override val imageModePanel: View get() = this@PocketChatActivity.imageModePanel
+        override val proGate: ProGate get() = this@PocketChatActivity.proGate
+        override val modelFileResolver: ModelFileResolver get() = this@PocketChatActivity.modelFileResolver
+        override fun requireProOrTrial(feature: ProFeature, action: () -> Unit) = this@PocketChatActivity.requireProOrTrial(feature, action)
+        override fun showTransientMessage(message: String) = this@PocketChatActivity.showTransientMessage(message)
+        override fun resolveThemeColor(attrId: Int): Int = this@PocketChatActivity.resolveThemeColor(attrId)
+        override fun updateWebSearchButton() = this@PocketChatActivity.updateWebSearchButton()
+        override fun applyChatState() = this@PocketChatActivity.chatController?.let { this@PocketChatActivity.applyChatState(it.state.value) } ?: this@PocketChatActivity.applyImageModeComposer()
+        override fun setPromptInputText(text: String) = this@PocketChatActivity.setPromptInputText(text)
+        override fun openImageViewer(path: String) = this@PocketChatActivity.openImageViewer(path)
+        override fun showManageModelsDialog() = this@PocketChatActivity.showManageModelsDialog()
+        override fun startModelDownload(spec: ModelDescriptor) = this@PocketChatActivity.startModelDownload(spec)
+        override fun refreshProBadges() = this@PocketChatActivity.refreshProBadges()
+        override fun proLabel(resId: Int, feature: ProFeature): CharSequence = this@PocketChatActivity.proLabel(resId, feature)
+        override fun launchImageGen(intent: Intent) = this@PocketChatActivity.imageGenLauncher.launch(intent)
+        override fun addDownloadableModelOption(descriptor: ModelDescriptor, onUseModel: () -> Unit) {
+            this@PocketChatActivity.modelDialogViews?.let {
+                this@PocketChatActivity.addDownloadableModelOption(this@PocketChatActivity.layoutInflater, it.listContainer, descriptor, false, onUseModel)
+            }
+        }
+        override fun dismissModelDialog() {
+            this@PocketChatActivity.modelDialogViews?.dialog?.dismiss()
+        }
+    }
+    private var refineJob: Job? = null
+    private lateinit var contextUsageIndicator: CircularProgressIndicator
     private lateinit var stopButton: Button
     private lateinit var micInputButton: MaterialButton
     private lateinit var attachmentButton: MaterialButton
@@ -286,6 +382,111 @@ open class PocketChatActivity : AppCompatActivity() {
         override fun onItemRangeChanged(positionStart: Int, itemCount: Int, payload: Any?) = scrollChatToBottomIfNeeded()
     }
 
+    private val translatorLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        TranslatorFeature.instance?.resultChatText(result.resultCode, result.data)?.let(::setPromptInputText)
+    }
+
+    private fun openTranslator(text: String? = null, imagePath: String? = null, pendingModelId: String? = null) {
+        val feature = TranslatorFeature.instance ?: return
+        translatorLauncher.launch(
+            feature.createIntent(this, text, imagePath).putExtra(SharedContent.EXTRA_PENDING_MODEL, pendingModelId)
+        )
+    }
+
+    private var translatorLoadStartedAt = 0L
+
+    private val translatorHost = object : TranslatorFeature.ChatHost {
+        override fun loadModel(descriptor: ModelDescriptor): String? {
+            if (ContextProbeFeature.instance?.isRunning() == true || LanServerFeature.isRunning()) {
+                return getString(R.string.lan_server_model_switch_blocked)
+            }
+            if (chatController?.state?.value?.isGenerating == true ||
+                isImagePreprocessingForSend || attachmentImportInProgress ||
+                audioPreparationJob?.isActive == true
+            ) {
+                return getString(R.string.model_switch_generation_blocked)
+            }
+            translatorLoadStartedAt = System.currentTimeMillis()
+            // The snapshot carries the open chat over to the new model.
+            requestModelLoad(descriptor, chatController?.snapshotActiveChat())
+            return null
+        }
+
+        override fun loadFailure(modelId: String): String? =
+            modelLoadCoordinator.record
+                ?.takeIf {
+                    it.modelId == modelId && it.phase == ModelLoadPhase.FAILED &&
+                        it.timestampMillis >= translatorLoadStartedAt
+                }
+                ?.let { it.failureReason ?: getString(R.string.model_load_failed_generic) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSharedContent(intent)
+    }
+
+    /** Text or an image shared from another app, after the user chose what to do with it. */
+    private fun handleSharedContent(intent: Intent) {
+        val action = intent.getStringExtra(SharedContent.EXTRA_ACTION) ?: return
+        // Handled once; a rotation must not repeat it.
+        intent.removeExtra(SharedContent.EXTRA_ACTION)
+        if (!LegalConsentStore(this).hasAcceptedCurrentVersion()) {
+            showTransientMessage(getString(R.string.share_needs_consent))
+            return
+        }
+        val text = intent.getStringExtra(SharedContent.EXTRA_TEXT)
+        val imagePath = intent.getStringExtra(SharedContent.EXTRA_IMAGE_PATH)
+        if (action == SharedContent.ACTION_LOAD_MODEL) {
+            val descriptor = text?.let(ModelRegistry::findById) ?: return
+            val refused = translatorHost.loadModel(descriptor)
+            if (refused != null) showTransientMessage(refused)
+            openTranslator(pendingModelId = descriptor.id.takeIf { refused == null })
+            return
+        }
+        if (action == SharedContent.ACTION_TRANSLATE) {
+            openTranslator(text, imagePath)
+            return
+        }
+        if (chatController?.state?.value?.isGenerating == true) {
+            showTransientMessage(getString(R.string.share_chat_busy))
+            return
+        }
+        if (action == SharedContent.ACTION_NEW_CHAT && chatController?.state?.value?.isReady == true) {
+            startNewChatFromUi()
+        }
+        if (text != null) {
+            val draft = inputEditText.text.toString()
+            setPromptInputText(if (draft.isBlank()) text else draft.trimEnd() + "\n\n" + text)
+        }
+        if (imagePath != null) importAndAddPendingImage(Uri.fromFile(java.io.File(imagePath)), OcrInput.Source.GALLERY)
+    }
+
+    private val imageGenLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        refreshProBadges()
+        if (ImageGenFeature.instance?.isResultManageModels(result.resultCode) == true) showManageModelsDialog()
+        if (ImageGenFeature.instance?.isResultUseInChat(result.resultCode) == true) {
+            ImageGenFeature.instance?.getResultPath(result.data)?.let(::attachSavedImageByPath)
+        }
+    }
+
+    private val hfBrowserLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode != RESULT_OK) return@registerForActivityResult
+        ModelRegistry.loadCustomModels(this)
+        ImageGenFeature.instance?.loadCustomModels(this)
+        result.data?.getStringExtra("added_model_name")?.let {
+            showTransientMessage(getString(R.string.hf_added, it))
+        }
+        showManageModelsDialog()
+    }
+
     private val speechPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -298,7 +499,7 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
-    private val cameraPermissionLauncher = registerForActivityResult(
+    private val cameraPermissionLauncher: androidx.activity.result.ActivityResultLauncher<String> = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         val shouldStart = pendingCameraOcrStart
@@ -306,7 +507,15 @@ open class PocketChatActivity : AppCompatActivity() {
         if (granted && shouldStart) {
             showCameraOcrDialog()
         } else if (!granted) {
-            showTransientMessage(getString(R.string.camera_permission_denied))
+            CameraPermissionPrompt.show(
+                this,
+                onTryAgain = {
+                    pendingCameraOcrStart = true
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                },
+                onOpenSettings = {},
+                onCancel = { showTransientMessage(getString(R.string.camera_permission_denied)) }
+            )
         }
     }
 
@@ -327,14 +536,14 @@ open class PocketChatActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         settingsStore = AppSettingsStore(this)
-        settingsDialogPreviewState = restoreSettingsDialogPreviewState(savedInstanceState)
-        currentSettings = settingsDialogPreviewState?.previewThemeSettings() ?: settingsStore.load()
-        reopenSettingsDialogOnStart = settingsDialogPreviewState != null
+        currentSettings = settingsStore.load()
+        settingsPageOpen = savedInstanceState?.getBoolean(STATE_SETTINGS_PAGE_OPEN) == true
         modelInstructionStore = ModelInstructionStore(this)
         modelRuntimeSettingsStore = ModelRuntimeSettingsStore(this)
         modelSelectionStore = ModelSelectionStore(this)
         modelFileResolver = ModelFileResolver(this)
         ModelRegistry.loadCustomModels(this)
+        ImageGenFeature.instance?.loadCustomModels(this)
         modelLoadRecoveryStore = ModelLoadRecoveryStore(this)
         modelLoadCoordinator = ModelLoadCoordinator(modelLoadRecoveryStore.load())
         modelPreflightChecker = ModelPreflightChecker(this, modelFileResolver)
@@ -344,11 +553,23 @@ open class PocketChatActivity : AppCompatActivity() {
         attachmentRepository = AttachmentRepository(this)
         attachmentWorkerCoordinator = AttachmentWorkerCoordinator(this)
         whisperModelStore = WhisperModelStore(this)
-        setTheme(currentSettings.accent.styleFor(currentSettings.appearance))
+        setTheme(currentSettings.accent.styleFor(currentSettings.appearance, this))
+        if (currentSettings.isDark(this)) theme.applyStyle(currentSettings.background.overlayRes, true)
         super.onCreate(savedInstanceState)
+        // The manifest theme is light; paint the window in the chosen theme at once so a theme change does not flash.
+        window.setBackgroundDrawable(ColorDrawable(resolveThemeColor(com.google.android.material.R.attr.colorSurface)))
+        applyEdgeToEdge()
         retainedState = ViewModelProvider(this)[PocketChatViewModel::class.java]
         if (retainedState.chatController == null) {
-            modelLoadCoordinator.recoverInterrupted(System.currentTimeMillis())
+            val interruptedLoad = modelLoadCoordinator.record
+                ?.takeIf { it.phase == ModelLoadPhase.INITIALIZING }
+            val interruptedCause = interruptedLoad
+                ?.let { ProcessExitInspector.interruptedLoadCause(this, it.timestampMillis) }
+                ?: InterruptedLoadCause.UNKNOWN
+            if (interruptedLoad != null && interruptedCause == InterruptedLoadCause.NATIVE_CRASH) {
+                modelLoadRecoveryStore.markGpuUnsafe(interruptedLoad.modelId)
+            }
+            modelLoadCoordinator.recoverInterrupted(System.currentTimeMillis(), interruptedCause)
             persistModelLoadRecord()
         }
         setContentView(R.layout.activity_main)
@@ -361,14 +582,42 @@ open class PocketChatActivity : AppCompatActivity() {
         toolbarModelSelector = findViewById(R.id.modelSelector)
         selectedModelLabel = findViewById(R.id.selectedModelLabel)
         toolbarSubtitleView = findViewById(R.id.toolbarSubtitle)
-        thinkingToggleContainer = findViewById(R.id.thinkingToggleContainer)
+        findViewById<TextView>(R.id.toolbarTitle).typeface = ResourcesCompat.getFont(this, R.font.space_grotesk_medium)
+        applyThemeGradient(findViewById(R.id.toolbarTitle))
         thinkingToggle = findViewById(R.id.thinkingToggle)
+        thinkingToggleContainer = thinkingToggle
+        thinkingToggle.setChipIcon(R.drawable.ic_tier_bulb)
+        thinkingToggle.compoundDrawableTintList = ContextCompat.getColorStateList(this, R.color.think_chip_content)
         newChatButton = findViewById(R.id.newChatButton)
         inputEditText = findViewById(R.id.userInput)
         sendButton = findViewById(R.id.sendButton)
+        contextUsageIndicator = findViewById(R.id.contextUsageIndicator)
+        contextUsageIndicator.setOnClickListener {
+            val state = chatController?.state?.value ?: return@setOnClickListener
+            if (state.contextWindowTokens <= 0) return@setOnClickListener
+            showContextUsageDialog(state)
+        }
         stopButton = findViewById(R.id.stopButton)
         micInputButton = findViewById(R.id.micInputButton)
         attachmentButton = findViewById(R.id.attachmentButton)
+        imageModePanel = findViewById(R.id.imageModePanel)
+        webSearchButton = findViewById(R.id.webSearchButton)
+        // Web search is a Pro feature: the free build has no implementation, so hide the chip.
+        webSearchButton.visibility = if (WebSearchFeature.isAvailable) View.VISIBLE else View.GONE
+        webSearchButton.setOnClickListener { onWebSearchChipClicked() }
+        webSearchButton.setOnLongClickListener { showManageWebSearchDialog(); true }
+        createImageModeButton = findViewById(R.id.createImageModeButton)
+        imageModelChip = findViewById(R.id.imageModelChip)
+        refinePromptButton = findViewById(R.id.refinePromptButton)
+        imageModeStatus = findViewById(R.id.imageModeStatus)
+        noModelHint = findViewById(R.id.noModelHint)
+        val noModelLink = getString(R.string.no_model_hint_link)
+        noModelHint.text = SpannableString(getString(R.string.no_model_hint_text) + " " + noModelLink).apply {
+            val start = length - noModelLink.length
+            setSpan(ForegroundColorSpan(resolveThemeColor(R.attr.colorSendFill)), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        noModelHint.setOnClickListener { showManageModelsDialog() }
         galleryOcrButton = findViewById(R.id.galleryOcrButton)
         cameraOcrButton = findViewById(R.id.cameraOcrButton)
         pendingImageInputsScroll = findViewById(R.id.pendingImageInputsScroll)
@@ -380,6 +629,8 @@ open class PocketChatActivity : AppCompatActivity() {
         activeAttachmentCancel = findViewById(R.id.activeAttachmentCancel)
         activeAttachmentDetach = findViewById(R.id.activeAttachmentDetach)
         statusView = findViewById(R.id.statusView)
+        modelLoadingCard = findViewById(R.id.modelLoadingCard)
+        modelLoadingCard.onHidden = { lastChatState?.let { updateChatGreeting(it) } }
         transientMessageView = findViewById(R.id.transientMessageView)
         chatRecyclerView = findViewById(R.id.chatRecyclerView)
         speechInput = createSpeechInput()
@@ -389,6 +640,7 @@ open class PocketChatActivity : AppCompatActivity() {
         supportActionBar?.setDisplayShowTitleEnabled(false)
         toolbarMenuButton.setOnClickListener {
             refreshDrawerSessions()
+            refreshProBadges()
             drawerLayout.openDrawer(GravityCompat.START)
         }
         toolbarSubtitleView.text = getString(R.string.model_picker_empty_subtitle)
@@ -399,6 +651,8 @@ open class PocketChatActivity : AppCompatActivity() {
             onImageTurnSelected = { turn ->
                 turn.imagePath?.let(::openImageViewer)
             },
+            onImageTurnLongPressed = ::showImageTurnActions,
+            onImageTurnReported = ::reportGeneratedImage,
             onAttachmentTurnSelected = ::reactivateAttachmentTurn,
             onReportResponse = { responseText ->
                 LegalDialogs.showReportResponse(
@@ -407,8 +661,24 @@ open class PocketChatActivity : AppCompatActivity() {
                     currentVersionName(),
                     responseText
                 )
+            },
+            onTranslateResponse = if (TranslatorFeature.isAvailable) { text ->
+                requireProOrTrial(ProFeature.TRANSLATOR) { openTranslator(text = text) }
+            } else null,
+            onShareResponse = { text ->
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                }
+                startActivity(Intent.createChooser(send, null))
+            },
+            onRetryResponse = ::retryLastResponse,
+            onMagicAction = { turn, tool ->
+                turn.imagePath?.let { openImageGeneration(toolName = tool.name, photoPath = it) }
             }
         )
+        chatAdapter.setMagicNote(magicActionsNote())
+
         chatRecyclerView.layoutManager = LinearLayoutManager(this)
         chatRecyclerView.adapter = chatAdapter
         chatRecyclerView.itemAnimator = null
@@ -430,14 +700,17 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         newChatButton.setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
             startNewChatFromUi()
         }
+        findViewById<View>(R.id.toolbarNewChat).setOnClickListener { startNewChatFromUi() }
+        findViewById<View>(R.id.toolsButton).setOnClickListener(::showToolsMenu)
 
         micInputButton.setOnClickListener {
             showDictationRecordingDialog()
         }
 
-        attachmentButton.setOnClickListener(::showAttachmentMenu)
+        attachmentButton.setOnClickListener(::showPlusMenu)
         activeAttachmentDetach.setOnClickListener { detachActiveAttachment() }
         activeAttachmentRetry.setOnClickListener { retryActiveAttachment() }
         activeAttachmentCancel.setOnClickListener { cancelActiveAttachmentWork() }
@@ -457,15 +730,13 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         stopButton.setOnClickListener {
-            chatController?.cancelGeneration()
+            if (ImageGenFeature.instance?.isImageModeActive() == true && ImageGenFeature.instance?.isBusy() == true) ImageGenFeature.instance?.cancel() else chatController?.cancelGeneration()
         }
-
-        thinkingToggleContainer.setOnClickListener {
-            thinkingToggle.isChecked = !thinkingToggle.isChecked
-        }
+        ImageGenFeature.instance?.setupImageMode(chatHost)
 
         thinkingToggle.setOnCheckedChangeListener { _, isChecked ->
             chatController?.setThinkingEnabled(isChecked)
+            updateModelSelectorLabel()
         }
 
         val restoredModel = retainedState.modelId?.let(ModelRegistry::findById)
@@ -478,7 +749,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val retainedController = retainedState.chatController
         if (retainedController != null && currentModel != null) {
             chatController = retainedController
-            LanServerControllerRegistry.register(currentModel!!.id, retainedController)
+            SharedChatControllerRegistry.register(currentModel!!.id, retainedController)
             toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
             thinkingToggle.isChecked = retainedController.isThinkingEnabled()
             observeController(retainedController)
@@ -518,15 +789,28 @@ open class PocketChatActivity : AppCompatActivity() {
         refreshDrawerSessions()
         reconnectActiveAttachmentWorkIfNeeded()
 
-        if (reopenSettingsDialogOnStart) {
-            chatRecyclerView.post {
-                reopenSettingsDialogOnStart = false
-                showSettingsDialog()
-            }
-        }
 
         chatRecyclerView.post {
             LegalDialogs.showConsentIfNeeded(this, LegalConsentStore(this))
+        }
+
+        TranslatorFeature.chatHost = translatorHost
+        if (savedInstanceState == null) chatRecyclerView.post { handleSharedContent(intent) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateKeepScreenOn()
+        // Tries may have been used in the Translator or Image tools screens.
+        refreshProBadges()
+    }
+
+    /** Keeps the screen on while the context test or the LAN server runs, so the phone doesn't lock mid-way. */
+    private fun updateKeepScreenOn() {
+        if (ContextProbeFeature.instance?.isRunning() == true || LanServerFeature.isRunning()) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
 
@@ -537,6 +821,11 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (TranslatorFeature.chatHost === translatorHost) TranslatorFeature.chatHost = null
+        proGateInstance?.close()
+        proGateInstance = null
+        // The test's dialogs belong to this activity; stop it rather than leave it running unseen.
+        ContextProbeFeature.instance?.onDestroy()
         if (::chatAdapter.isInitialized) {
             chatAdapter.unregisterAdapterDataObserver(chatAdapterObserver)
         }
@@ -565,10 +854,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
-        settingsDialogPreviewState?.let { previewState ->
-            saveAppSettings(outState, SETTINGS_STATE_ORIGINAL_PREFIX, previewState.originalSettings)
-            saveAppSettings(outState, SETTINGS_STATE_DRAFT_PREFIX, previewState.draftSettings)
-        }
+        outState.putBoolean(STATE_SETTINGS_PAGE_OPEN, settingsPageOpen)
         super.onSaveInstanceState(outState)
     }
 
@@ -1241,6 +1527,10 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun handleSendClick() {
+        if (ImageGenFeature.instance?.isImageModeActive() == true) {
+            ImageGenFeature.instance?.handleCreateImageSend(chatHost)
+            return
+        }
         val controller = chatController ?: return
         if (isImagePreprocessingForSend || attachmentImportInProgress || audioPreparationJob?.isActive == true) {
             return
@@ -1253,6 +1543,29 @@ open class PocketChatActivity : AppCompatActivity() {
 
         if (imagePreprocessingJob?.isActive == true) {
             return
+        }
+
+        if (WebSearchFeature.instance?.isUsable(this) == true && controller.supportsNativeToolCalling() &&
+            inputEditText.text.isNotBlank()
+        ) {
+            if (ProUiFeature.isAvailable) {
+                // The try is used only when this answer finishes; see [settleWebSearchTry].
+                if (!ProUiFeature.instance!!.hasTrial(this, proGate, ProFeature.WEB_SEARCH)) {
+                    WebSearchFeature.instance?.setUsable(this, false)
+                    refreshProBadges()
+                    return
+                }
+            } else {
+                if (!proGate.isUnlocked()) {
+                    proGate.requireUnlocked(this, ProFeature.WEB_SEARCH) {}
+                    WebSearchFeature.instance?.setUsable(this, false)
+                    refreshProBadges()
+                    return
+                }
+            }
+            webSearchTryFrom = controller.state.value.finishedAnswers
+            webSearchTryStarted = false
+            refreshProBadges()
         }
 
         val draft = captureComposerDraft()
@@ -2265,37 +2578,83 @@ open class PocketChatActivity : AppCompatActivity() {
         inputEditText.setSelection(inputEditText.text.length)
     }
 
-    private fun showAttachmentMenu(anchor: View) {
-        if (pendingImageInputs.isNotEmpty()) {
-            showTransientMessage(getString(R.string.attachment_mixed_input_blocked))
-            return
+    /** The "+" in the message bar: Camera, Photo, Document, Audio file, then the four image tools. */
+    private fun showPlusMenu(anchor: View) {
+        val content = layoutInflater.inflate(R.layout.popup_plus_menu, null) as LinearLayout
+        val popup = PopupWindow(content, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true).apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            isOutsideTouchable = true
+            elevation = dp(12).toFloat()
         }
-        PopupMenu(this, anchor).apply {
-            menu.add(getString(R.string.attachment_document)).setOnMenuItemClickListener {
+        val locked = !proGate.isUnlocked()
+        fun heading(@StringRes title: Int) {
+            content.addView(TextView(this).apply {
+                setText(title)
+                setTextColor(resolveThemeColor(R.attr.colorStatusText))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+                setPadding(dp(14), dp(10), dp(14), dp(2))
+            })
+        }
+        fun row(@DrawableRes icon: Int, @StringRes label: Int, pro: Boolean, action: () -> Unit) {
+            val view = layoutInflater.inflate(R.layout.item_plus_menu_row, content, false)
+            view.findViewById<ImageView>(R.id.plusRowIcon).apply {
+                setImageResource(icon)
+                imageTintList = ColorStateList.valueOf(resolveThemeColor(if (pro) R.attr.colorSendFill else R.attr.colorStatusText))
+            }
+            view.findViewById<TextView>(R.id.plusRowLabel).setText(label)
+            view.findViewById<View>(R.id.plusRowPro).visibility = if (pro && locked) View.VISIBLE else View.GONE
+            view.setOnClickListener {
+                popup.dismiss()
+                action()
+            }
+            content.addView(view)
+        }
+        fun attachment(action: () -> Unit) {
+            if (pendingImageInputs.isNotEmpty()) showTransientMessage(getString(R.string.attachment_mixed_input_blocked))
+            else action()
+        }
+        heading(R.string.plus_menu_add)
+        row(R.drawable.ic_camera_24, R.string.plus_menu_camera, false) { handleCameraOcrClick() }
+        row(R.drawable.ic_image_24, R.string.plus_menu_photo, false) {
+            galleryImagePickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
+        row(R.drawable.ic_doc_20, R.string.plus_menu_document, false) {
+            attachment {
                 documentPickerLauncher.launch(
-                    arrayOf(
-                        "application/pdf",
-                        "text/*",
-                        "application/json",
-                        "application/xml",
-                        "application/yaml"
-                    )
+                    arrayOf("application/pdf", "text/*", "application/json", "application/xml", "application/yaml")
                 )
-                true
             }
-            menu.add(getString(R.string.attachment_audio_file)).setOnMenuItemClickListener {
-                audioPickerLauncher.launch(arrayOf("audio/*", "video/mp4"))
-                true
-            }
-            show()
         }
+        row(R.drawable.ic_attach_file_24, R.string.plus_menu_audio, false) {
+            attachment { audioPickerLauncher.launch(arrayOf("audio/*", "video/mp4")) }
+        }
+        if (ImageGenFeature.isAvailable) {
+            content.addView(View(this).apply {
+                setBackgroundColor(resolveThemeColor(R.attr.colorPocketOutline))
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)).apply {
+                    setMargins(dp(14), dp(4), dp(14), dp(4))
+                }
+            })
+            row(R.drawable.ic_sparkle_20, R.string.plus_menu_create, true) { openImageGeneration(toolName = ImageTool.CREATE.name) }
+        }
+
+        val button = anchor as MaterialButton
+        button.setIconResource(R.drawable.ic_close_18)
+        button.contentDescription = getString(R.string.plus_menu_close)
+        popup.setOnDismissListener {
+            button.setIconResource(R.drawable.ic_plus_24)
+            button.contentDescription = getString(R.string.plus_menu_open)
+        }
+        content.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        popup.showAsDropDown(anchor, 0, -(anchor.height + content.measuredHeight + dp(8)))
     }
 
     private fun showDictationRecordingDialog() {
         if (dictationRecorder != null || dictationTranscriptionJob?.isActive == true) return
         val controller = requireUsableController() ?: return
         if (controller.state.value.isGenerating) return
-        if (!whisperModelStore.isAvailable()) {
+        // A model with working audio input transcribes the recording itself, so no Whisper download is needed.
+        if (!canDictateWithNativeAudio() && !whisperModelStore.isAvailable()) {
             val content = layoutInflater.inflate(R.layout.dialog_dictation_download, null)
             val message: TextView = content.findViewById(R.id.dictationDownloadMessage)
             val downloadButton: MaterialButton = content.findViewById(R.id.downloadDictationButton)
@@ -2396,6 +2755,12 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun canDictateWithNativeAudio(): Boolean {
+        return DictationFeature.isAvailable &&
+            chatController?.state?.value?.let { it.isReady && it.supportsNativeAudioInput } == true &&
+            currentModel?.nativeAudioSegmentMillis != null
+    }
+
     private fun transcribeDictation(recording: File) {
         if (dictationTranscriptionJob?.isActive == true) return
         showTransientMessage(getString(R.string.dictation_transcribing))
@@ -2403,6 +2768,7 @@ open class PocketChatActivity : AppCompatActivity() {
         dictationTranscriptionJob = lifecycleScope.launch {
             val normalized = File(cacheDir, "temporary_dictation/${recording.nameWithoutExtension}.wav")
             try {
+                val useNativeAudio = canDictateWithNativeAudio()
                 val transcriptionWork: suspend () -> String = {
                     val audio = withContext(Dispatchers.IO) { AudioNormalizer().normalize(recording, normalized) }
                     val descriptor = AttachmentDescriptor(
@@ -2411,18 +2777,38 @@ open class PocketChatActivity : AppCompatActivity() {
                         mimeType = "audio/wav",
                         kind = AttachmentKind.AUDIO,
                         status = AttachmentStatus.READY,
-                        processingRoute = AttachmentProcessingRoute.SHERPA_WHISPER,
+                        processingRoute = if (useNativeAudio) {
+                            AttachmentProcessingRoute.GEMMA_NATIVE_AUDIO
+                        } else {
+                            AttachmentProcessingRoute.SHERPA_WHISPER
+                        },
                         sourcePath = audio.file.absolutePath,
                         sizeBytes = audio.file.length(),
                         durationMillis = audio.durationMillis
                     )
-                    WhisperAttachmentTranscriber(this@PocketChatActivity)
-                        .transcribe(descriptor)
-                        .joinToString(" ") { it.text }
-                        .let(PromptPreprocessor::normalize)
+                    if (useNativeAudio) {
+                        val controller = chatController ?: error("The model is not ready.")
+                        val feature = DictationFeature.instance ?: error("Model dictation is not available.")
+                        PromptPreprocessor.normalize(
+                            feature.transcribe(
+                                applicationContext,
+                                controller,
+                                descriptor,
+                                checkNotNull(currentModel?.nativeAudioSegmentMillis)
+                            )
+                        )
+                    } else {
+                        WhisperAttachmentTranscriber(this@PocketChatActivity)
+                            .transcribe(descriptor)
+                            .joinToString(" ") { it.text }
+                            .let(PromptPreprocessor::normalize)
+                    }
                 }
-                val transcript = chatController?.withRuntimeLease { transcriptionWork() }
-                    ?: transcriptionWork()
+                val transcript = if (useNativeAudio) {
+                    transcriptionWork()
+                } else {
+                    chatController?.withRuntimeLease { transcriptionWork() } ?: transcriptionWork()
+                }
                 if (transcript.isBlank()) {
                     showTransientMessage(getString(R.string.dictation_no_speech))
                 } else {
@@ -2873,7 +3259,7 @@ open class PocketChatActivity : AppCompatActivity() {
             if (compactReadyAudio) R.drawable.bg_active_audio_attachment else R.drawable.bg_image_input_chip
         )
         activeAttachmentText.setTextColor(
-            if (compactReadyAudio) ContextCompat.getColor(this, R.color.white) else resolveThemeColor(R.attr.colorInputText)
+            if (compactReadyAudio) resolveThemeColor(R.attr.colorOnAccent) else resolveThemeColor(R.attr.colorInputText)
         )
         activeAttachmentContainer.visibility = if (attachmentImportInProgress || descriptor != null) {
             View.VISIBLE
@@ -2945,6 +3331,7 @@ open class PocketChatActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 ModelDownloadStateStore.state.collect { state ->
                     applyModelDownloadState(state)
+                    updateNoModelHint()
                 }
             }
         }
@@ -2986,7 +3373,17 @@ open class PocketChatActivity : AppCompatActivity() {
                     )
                 }
 
-                refreshModelSelectionDialog()
+                // A progress tick only needs the running row to change. Rebuilding the whole list here
+                // inflated every row and checked every model file on the main thread, once a second,
+                // while the download was saturating the disk.
+                val row = downloadRowProgress
+                if (row != null && downloadRowModelId == state.modelId && row.first.isAttachedToWindow) {
+                    updateProgressBar(row.first, activeDownloadBytes, activeDownloadTotalBytes)
+                    row.second.text = formatDownloadProgressText(activeDownloadBytes, activeDownloadTotalBytes)
+                    updateDownloadSheet()
+                } else {
+                    refreshModelSelectionDialog()
+                }
                 if (chatController == null) {
                     renderNoControllerState(modelOperationStatusMessage.orEmpty(), preserveTranscript = true)
                 }
@@ -3043,7 +3440,7 @@ open class PocketChatActivity : AppCompatActivity() {
         }
         chatController?.close()
         chatController = controller
-        LanServerControllerRegistry.register(descriptor.id, controller)
+        SharedChatControllerRegistry.register(descriptor.id, controller)
         currentModel = descriptor
         ensureImageInputModeAllowedForCurrentModel()
         retainedState.chatController = controller
@@ -3058,7 +3455,7 @@ open class PocketChatActivity : AppCompatActivity() {
         lastGemmaDirectImageInputAvailable = null
         updateImageInputButtonDescriptions()
         refreshDrawerSessions()
-        thinkingToggle.isChecked = false
+        thinkingToggle.isChecked = settingsStore.loadThinkByDefault()
         observeController(controller)
         applyChatState(controller.state.value)
         if (attempt != null) {
@@ -3080,6 +3477,10 @@ open class PocketChatActivity : AppCompatActivity() {
         ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let { importAttachment(it, AttachmentKind.AUDIO) } }
 
+    private var proGateInstance: ProGate? = null
+    private val proGate: ProGate
+        get() = proGateInstance ?: createProGate(this).also { proGateInstance = it }
+
     private val customModelPickerLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> uri?.let(::importCustomModel) }
@@ -3095,16 +3496,57 @@ open class PocketChatActivity : AppCompatActivity() {
                 customModelPickerLauncher.launch(arrayOf("*/*"))
             }
             .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                ?.setTextColor(resolveThemeColor(R.attr.colorSendFill))
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
-                ?.setTextColor(resolveThemeColor(R.attr.colorStatusText))
-        }
         dialog.show()
     }
 
+    private val llamaHost = object : LlamaFeature.Host {
+        override val activity: AppCompatActivity get() = this@PocketChatActivity
+        override fun showModelImportFailure(error: Throwable) = this@PocketChatActivity.showModelImportFailure(error)
+        override fun onModelImported(id: String, isChat: Boolean, displayName: String) {
+            ModelRegistry.loadCustomModels(this@PocketChatActivity)
+            ImageGenFeature.instance?.loadCustomModels(this@PocketChatActivity)
+            refreshModelSelectionDialog()
+            if (isChat) {
+                ModelRegistry.findById(id)?.let(::handleModelSelection)
+            } else {
+                showTransientMessage(getString(R.string.local_import_image_done, displayName))
+            }
+        }
+    }
+
+    /** Routes a picked file: .litertlm to the LiteRT import, .gguf (chat or image) and .safetensors (image) to the local importer. */
     private fun importCustomModel(uri: Uri) {
+        val fileName = runCatching {
+            contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
+                ?.substringAfterLast('/')
+                ?: throw IllegalArgumentException("Could not read the selected file name.")
+        }.getOrElse {
+            showModelImportFailure(it)
+            return
+        }
+        when {
+            fileName.endsWith(".litertlm", ignoreCase = true) -> importLiteRtModel(uri)
+            fileName.endsWith(".gguf", ignoreCase = true) || fileName.endsWith(".safetensors", ignoreCase = true) -> {
+                if (LlamaFeature.isAvailable) {
+                    LlamaFeature.instance?.handleLocalImport(llamaHost, uri, fileName)
+                } else {
+                    showModelImportFailure(IllegalArgumentException(getString(R.string.local_import_unsupported)))
+                }
+            }
+            else -> showModelImportFailure(IllegalArgumentException(getString(R.string.local_import_unsupported)))
+        }
+    }
+
+    private fun showModelImportFailure(error: Throwable) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.custom_model_add)
+            .setMessage(getString(R.string.custom_model_import_failed, error.message ?: "Unknown error"))
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun importLiteRtModel(uri: Uri) {
         val progress = MaterialAlertDialogBuilder(this)
             .setTitle(R.string.custom_model_add)
             .setMessage(R.string.custom_model_importing)
@@ -3180,7 +3622,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val attempt = modelLoadCoordinator.begin(descriptor.id, System.currentTimeMillis())
         persistModelLoadRecord()
         retainedState.pendingModelLoadSnapshot = activeChatSnapshot
-        val controller = LanServerControllerRegistry.getOrCreate(this, descriptor, policy)
+        val controller = SharedChatControllerRegistry.getOrCreate(this, descriptor, policy)
         switchToController(descriptor, controller, activeChatSnapshot, attempt)
     }
 
@@ -3196,6 +3638,7 @@ open class PocketChatActivity : AppCompatActivity() {
                     persistModelLoadRecord()
                 }
                 retainedState.pendingModelLoadSnapshot = null
+                chatController?.contextDecision?.let { showContextCapNoticeIfNeeded(descriptor, it) }
             },
             onFailure = { error ->
                 val reason = usefulModelLoadError(descriptor, error)
@@ -3265,6 +3708,26 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun showContextCapNoticeIfNeeded(descriptor: ModelDescriptor, decision: ContextDecision) {
+        if (!decision.isCapped || isFinishing || isDestroyed) return
+        if (!ContextMemoryGuard(this).markCapNoticeShown(descriptor.id, decision)) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.model_context_capped_title)
+            .setMessage(
+                getString(
+                    if (decision.cappedByCrashHistory) {
+                        R.string.model_context_capped_after_crash
+                    } else {
+                        R.string.model_context_capped_device
+                    },
+                    decision.effectiveTokens,
+                    decision.requestedTokens
+                )
+            )
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
     private fun persistModelLoadRecord() {
         modelLoadRecoveryStore.save(modelLoadCoordinator.record)
     }
@@ -3279,6 +3742,7 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun applyChatState(state: ChatUiState) {
+        updateNoModelHint()
         if (state.isReady) reconnectActiveAttachmentWorkIfNeeded()
         restoreActiveAttachmentIfNeeded(state.activeAttachmentId)
         val generationStarted = state.isGenerating && !wasGenerating
@@ -3296,7 +3760,13 @@ open class PocketChatActivity : AppCompatActivity() {
         title = state.title
         toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
         updateModelSelectorLabel()
+        if (currentModelSupportsThinking != state.supportsThinking) {
+            currentModelSupportsThinking = state.supportsThinking
+            updateModelSelectorLabel()
+        }
         thinkingToggleContainer.visibility = if (state.supportsThinking) View.VISIBLE else View.GONE
+        updateWebSearchButton()
+        updateChatGreeting(state)
         val gemmaDirectAvailable = isGemmaDirectImageInputAvailable()
         if (!gemmaDirectAvailable && currentImageInputMode == ImageInputMode.GEMMA_DIRECT) {
             selectOcrImageInputMode(resetGemmaDirectInputs = true)
@@ -3307,23 +3777,57 @@ open class PocketChatActivity : AppCompatActivity() {
             updateImageInputButtonDescriptions()
             refreshModelSelectionDialog()
         }
+        val sendWasHidden = sendButton.visibility != View.VISIBLE
         sendButton.visibility = if (state.isGenerating) View.GONE else View.VISIBLE
+        if (sendWasHidden && sendButton.visibility == View.VISIBLE) morphIn(sendButton)
         stopButton.visibility = if (state.isGenerating) View.VISIBLE else View.GONE
+        findViewById<AnswerLineView>(R.id.answerLine)?.setActive(state.isGenerating)
+        setStopGlow(state.isGenerating)
+        settleWebSearchTry(state)
         newChatButton.isEnabled = state.isReady && !state.isGenerating && !isImagePreprocessingForSend
+        findViewById<View>(R.id.toolbarNewChat).apply {
+            isEnabled = newChatButton.isEnabled
+            alpha = if (isEnabled) 1f else 0.4f
+        }
+        updateChatToolChips()
         sendButton.isEnabled = state.isReady && !state.isGenerating && !isImagePreprocessingForSend
         attachmentButton.isEnabled = state.isReady && !state.isGenerating &&
             !attachmentImportInProgress && audioPreparationJob?.isActive != true
         stopButton.isEnabled = state.isGenerating
+        applyImageModeComposer()
+        if (state.contextWindowTokens > 0) {
+            contextUsageIndicator.visibility = View.VISIBLE
+            contextUsageIndicator.setProgressCompat(contextUsagePercent(state), true)
+        } else {
+            contextUsageIndicator.visibility = View.GONE
+        }
 
+        findViewById<View>(R.id.modelStateDot).backgroundTintList = ColorStateList.valueOf(
+            when {
+                state.isReady -> getColor(R.color.status_running)
+                state.isLoading -> getColor(R.color.state_warn)
+                else -> getColor(R.color.pocket_faint)
+            }
+        )
         val effectiveStatus = if (state.isReady) {
             state.statusMessage
         } else {
             modelOperationStatusMessage ?: state.statusMessage
         }
         statusView.text = effectiveStatus
-        val showInlineStatus = effectiveStatus.isNotBlank() &&
+        val greetingShows = state.isReady && !state.isGenerating && state.transcript.isEmpty()
+        val showInlineStatus = effectiveStatus.isNotBlank() && !greetingShows &&
             (state.transcript.isEmpty() || !state.isReady)
-        statusView.visibility = if (showInlineStatus) View.VISIBLE else View.GONE
+        val showLoadingCard = state.isLoading && !state.isReady && state.transcript.isEmpty() &&
+            effectiveStatus == MODEL_LOADING_STATUS_MESSAGE
+        if (showLoadingCard) {
+            currentModel?.displayName?.let { modelLoadingCard.setModelName(it) }
+            modelLoadingCard.show(currentModel?.id)
+        } else {
+            modelLoadingCard.hide(success = state.isReady)
+        }
+        inputEditText.alpha = if (state.isLoading && !state.isReady) 0.5f else 1f
+        statusView.visibility = if (showInlineStatus && !showLoadingCard) View.VISIBLE else View.GONE
         applyStatusBackground(effectiveStatus)
 
         chatAdapter.submitTurns(state.transcript)
@@ -3333,6 +3837,85 @@ open class PocketChatActivity : AppCompatActivity() {
         }
     }
 
+    private fun showContextUsageDialog(state: ChatUiState) {
+        val view = layoutInflater.inflate(R.layout.dialog_context_usage, null)
+        val window = state.contextWindowTokens
+        val used = state.contextUsedTokens.coerceIn(0, window)
+        view.findViewById<TextView>(R.id.contextUsageUsed).text = getString(R.string.context_usage_tokens, used)
+        view.findViewById<TextView>(R.id.contextUsageTotal).text = getString(R.string.context_usage_total, window)
+        view.findViewById<TextView>(R.id.contextUsagePercent).text =
+            getString(R.string.context_usage_percent, contextUsagePercent(state))
+        view.findViewById<TextView>(R.id.contextUsageNote).setText(
+            if (currentModel is OnnxQwenSpec) R.string.context_usage_note_trimmed else R.string.context_usage_note
+        )
+
+        val breakdown = state.contextBreakdown
+        val parts = listOf(
+            Triple(R.string.context_usage_instruction, breakdown.instructionTokens, resolveThemeColor(R.attr.colorSendFill)),
+            Triple(R.string.context_usage_summary, breakdown.summaryTokens, ContextCompat.getColor(this, R.color.context_summary)),
+            Triple(R.string.context_usage_documents, breakdown.documentTokens, ContextCompat.getColor(this, R.color.context_documents)),
+            Triple(R.string.context_usage_conversation, breakdown.conversationTokens, ContextCompat.getColor(this, R.color.context_conversation))
+        )
+        val bar = view.findViewById<LinearLayout>(R.id.contextUsageBar)
+        bar.clipToOutline = true
+        parts.filter { it.second > 0 }.forEach { (_, tokens, color) ->
+            bar.addView(View(this).apply {
+                setBackgroundColor(color)
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, tokens.toFloat())
+            })
+        }
+        val free = window - used
+        if (free > 0) {
+            bar.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, free.toFloat())
+            })
+        }
+
+        val rows = view.findViewById<LinearLayout>(R.id.contextUsageRows)
+        parts.filter { it.second > 0 || it.first == R.string.context_usage_conversation }
+            .forEach { (label, tokens, color) -> rows.addView(contextUsageRow(label, tokens, color)) }
+        rows.addView(contextUsageRow(R.string.context_usage_free, free, resolveThemeColor(com.google.android.material.R.attr.colorOutlineVariant), outlined = true))
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.context_usage_description)
+            .setView(view)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun contextUsageRow(label: Int, tokens: Int, color: Int, outlined: Boolean = false): View {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(6), 0, dp(6))
+            addView(View(this@PocketChatActivity).apply {
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(color)
+                    if (outlined) setStroke(dp(1), resolveThemeColor(com.google.android.material.R.attr.colorOutline))
+                }
+                layoutParams = LinearLayout.LayoutParams(dp(10), dp(10))
+            })
+            addView(TextView(this@PocketChatActivity).apply {
+                text = getString(label)
+                setTextColor(resolveThemeColor(R.attr.colorAssistantText))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    marginStart = dp(12)
+                }
+            })
+            addView(TextView(this@PocketChatActivity).apply {
+                text = getString(R.string.context_usage_tokens, tokens)
+                setTextColor(resolveThemeColor(R.attr.colorStatusText))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                fontFeatureSettings = "tnum"
+            })
+        }
+    }
+
+    private fun contextUsagePercent(state: ChatUiState): Int =
+        (state.contextUsedTokens.toLong() * 100 / state.contextWindowTokens.coerceAtLeast(1)).toInt().coerceIn(0, 100)
+
     private fun renderNoControllerState(
         message: String,
         preserveTranscript: Boolean
@@ -3341,14 +3924,21 @@ open class PocketChatActivity : AppCompatActivity() {
         toolbarSubtitleView.text = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
         updateModelSelectorLabel()
         thinkingToggleContainer.visibility = View.GONE
+        currentModelSupportsThinking = false
         newChatButton.isEnabled = false
+        findViewById<View>(R.id.toolbarNewChat).apply { isEnabled = false; alpha = 0.4f }
+        updateChatToolChips()
         sendButton.visibility = View.VISIBLE
         stopButton.visibility = View.GONE
         sendButton.isEnabled = false
         stopButton.isEnabled = false
-        statusView.text = message
-        statusView.visibility = if (message.isBlank()) View.GONE else View.VISIBLE
-        applyStatusBackground(message)
+        applyImageModeComposer()
+        contextUsageIndicator.visibility = View.GONE
+        // With the no-model hint in the middle of the screen, the same request is not repeated here.
+        val shown = if (message == getString(R.string.model_required_message) && resources.getBoolean(R.bool.show_no_model_hint)) "" else message
+        statusView.text = shown
+        statusView.visibility = if (shown.isBlank()) View.GONE else View.VISIBLE
+        applyStatusBackground(shown)
         if (!preserveTranscript) {
             chatAdapter.submitTurns(emptyList())
         }
@@ -3357,10 +3947,21 @@ open class PocketChatActivity : AppCompatActivity() {
         wasGenerating = false
     }
 
+    private fun updateNoModelHint() {
+        if (!::noModelHint.isInitialized) return
+        val state = chatController?.state?.value
+        val show = resources.getBoolean(R.bool.show_no_model_hint) &&
+            state?.isReady != true && state?.isLoading != true &&
+            modelPreparationJob?.isActive != true && activeDownloadModelId == null
+        noModelHint.visibility = if (show) View.VISIBLE else View.GONE
+    }
+
     private fun updateModelSelectorLabel() {
+        updateNoModelHint()
         if (!::selectedModelLabel.isInitialized) return
-        selectedModelLabel.text = currentModel?.displayName
-            ?: getString(R.string.model_picker_empty_subtitle)
+        val modelName = currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
+        // Thinking has its own chip in the input pill, so the dropdown shows only the model name.
+        selectedModelLabel.text = modelName
         toolbarModelSelector.contentDescription = getString(
             R.string.model_popup_selected_format,
             selectedModelLabel.text,
@@ -3372,130 +3973,223 @@ open class PocketChatActivity : AppCompatActivity() {
         )
     }
 
+    /**
+     * Choose a model: a half-height bottom sheet whose list scrolls. Groups: Chat, Image input, Image creation,
+     * Web search, Not downloaded (opens Manage models) and More (Import from Hugging Face).
+     */
     private fun showModelPickerPopup() {
         modelPickerPopup?.dismiss()
         val content = layoutInflater.inflate(R.layout.popup_model_picker, null)
         val options: LinearLayout = content.findViewById(R.id.modelPickerOptions)
-        val scroll: ScrollView = content.findViewById(R.id.modelPickerScroll)
-        val manageLink: TextView = content.findViewById(R.id.modelPickerManageLink)
-        val panelWidth = minOf(dp(310), resources.displayMetrics.widthPixels - dp(24))
-        val popup = PopupWindow(content, panelWidth, ViewGroup.LayoutParams.WRAP_CONTENT, true).apply {
-            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-            isOutsideTouchable = true
-            elevation = dp(12).toFloat()
-        }
+        val scroll: View = content.findViewById(R.id.modelPickerScroll)
+        val popup = BottomSheetDialog(this)
+        popup.setContentView(content)
         modelPickerPopup = popup
         popup.setOnDismissListener {
             if (modelPickerPopup === popup) modelPickerPopup = null
         }
-        val mutedColor = resolveThemeColor(R.attr.colorStatusText)
-        val textColor = resolveThemeColor(R.attr.colorAssistantText)
-        val accentColor = resolveThemeColor(R.attr.colorSendFill)
+        val accentColor = resolveThemeColor(com.google.android.material.R.attr.colorPrimary)
+        val onSelectedColor = resolveThemeColor(com.google.android.material.R.attr.colorOnSecondaryContainer)
 
         fun addHeading(title: String) {
             options.addView(TextView(this).apply {
-                text = title
-                setTextColor(mutedColor)
+                text = title.uppercase(java.util.Locale.getDefault())
+                setTextColor(accentColor)
+                typeface = ResourcesCompat.getFont(this@PocketChatActivity, R.font.space_grotesk_medium)
+                letterSpacing = 0.06f
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
-                setPadding(dp(8), dp(8), dp(8), dp(3))
+                setPadding(dp(12), dp(12), dp(12), dp(6))
             })
         }
 
-        fun addOption(label: String, selected: Boolean, enabled: Boolean = true, action: () -> Unit) {
-            val row = LinearLayout(this).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(42)
-                )
-                gravity = Gravity.CENTER_VERTICAL
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(dp(8), 0, dp(8), 0)
-                isClickable = enabled
-                isFocusable = enabled
-                isEnabled = enabled
-                val ripple = TypedValue()
-                if (theme.resolveAttribute(android.R.attr.selectableItemBackground, ripple, true)) {
-                    setBackgroundResource(ripple.resourceId)
+        fun addRow(
+            title: String,
+            detail: String? = null,
+            initials: String? = null,
+            icon: Int? = null,
+            selected: Boolean = false,
+            enabled: Boolean = true,
+            actionText: String? = null,
+            chevron: Boolean = false,
+            onClick: () -> Unit
+        ) {
+            val row = layoutInflater.inflate(R.layout.item_model_sheet_row, options, false)
+            val titleView: TextView = row.findViewById(R.id.modelRowTitle)
+            val detailView: TextView = row.findViewById(R.id.modelRowDetail)
+            val initialsView: TextView = row.findViewById(R.id.modelRowInitials)
+            val iconView: ImageView = row.findViewById(R.id.modelRowIcon)
+            val actionView: TextView = row.findViewById(R.id.modelRowAction)
+            val trailing: ImageView = row.findViewById(R.id.modelRowTrailing)
+            titleView.text = title
+            if (detail != null) {
+                detailView.text = detail
+                detailView.visibility = View.VISIBLE
+            }
+            if (icon != null) {
+                iconView.setImageResource(icon)
+                iconView.visibility = View.VISIBLE
+            } else {
+                initialsView.text = initials ?: title.take(1)
+            }
+            if (actionText != null) {
+                actionView.text = actionText
+                actionView.visibility = View.VISIBLE
+            }
+            when {
+                selected -> {
+                    trailing.setImageResource(R.drawable.ic_check_20)
+                    trailing.imageTintList = ColorStateList.valueOf(onSelectedColor)
+                    trailing.visibility = View.VISIBLE
+                    row.background = ContextCompat.getDrawable(this, R.drawable.bg_model_row_selected)
+                    titleView.setTextColor(onSelectedColor)
+                    detailView.setTextColor(onSelectedColor)
+                    detailView.alpha = 0.8f
                 }
-                contentDescription = if (selected) {
-                    "$label, ${getString(R.string.model_status_current)}"
-                } else {
-                    label
-                }
-                if (enabled) setOnClickListener {
-                    popup.dismiss()
-                    action()
+                chevron -> {
+                    trailing.setImageResource(R.drawable.ic_chevron_right_16)
+                    trailing.imageTintList = ColorStateList.valueOf(resolveThemeColor(R.attr.colorStatusText))
+                    trailing.visibility = View.VISIBLE
                 }
             }
-            row.addView(TextView(this).apply {
-                text = label
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-                setTextColor(if (!enabled) mutedColor else if (selected) accentColor else textColor)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-            }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            if (selected) {
-                row.addView(TextView(this).apply {
-                    text = "✓"
-                    setTextColor(accentColor)
-                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-                    setPadding(dp(8), 0, 0, 0)
-                })
+            row.isEnabled = enabled
+            row.alpha = if (enabled) 1f else 0.6f
+            row.contentDescription = if (selected) "$title, ${getString(R.string.model_status_current)}" else title
+            if (enabled) row.setOnClickListener {
+                popup.dismiss()
+                onClick()
             }
             options.addView(row)
         }
 
-        val availableModels = ModelRegistry.all.filter(modelFileResolver::isModelAvailable)
-        addHeading(getString(R.string.model_popup_text_heading))
+        fun initialsOf(descriptor: ModelDescriptor): String {
+            val name = descriptor.shortName()
+            val digit = name.firstOrNull { it.isDigit() }?.toString() ?: name.getOrNull(1)?.toString().orEmpty()
+            return name.take(1).uppercase(java.util.Locale.getDefault()) + digit
+        }
+
+        // Image input pills stay pinned above the list.
+        val pills: LinearLayout = content.findViewById(R.id.modelPickerPills)
+        fun addPill(label: String, hint: String, selected: Boolean, enabled: Boolean, onPick: () -> Unit) {
+            pills.addView(TextView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(54), 1f)
+                    .apply { if (pills.childCount > 0) marginStart = dp(8) }
+                gravity = Gravity.CENTER
+                setPadding(dp(8), 0, dp(8), 0)
+                val onFill = resolveThemeColor(com.google.android.material.R.attr.colorOnPrimary)
+                val main = if (selected) onFill else resolveThemeColor(R.attr.colorAssistantText)
+                text = android.text.SpannableStringBuilder().apply {
+                    append(label)
+                    setSpan(android.text.style.StyleSpan(Typeface.BOLD), 0, length, 0)
+                    setSpan(android.text.style.ForegroundColorSpan(main), 0, length, 0)
+                    val start = length + 1
+                    append('\n').append(hint)
+                    setSpan(android.text.style.RelativeSizeSpan(0.8f), start, length, 0)
+                    setSpan(android.text.style.ForegroundColorSpan(if (selected) onFill else resolveThemeColor(R.attr.colorStatusText)), start, length, 0)
+                }
+                textSize = 14f
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(27).toFloat()
+                    if (selected) setColor(accentColor) else setStroke(dp(1), resolveThemeColor(R.attr.colorPocketOutline))
+                }
+                alpha = if (enabled) 1f else 0.45f
+                isEnabled = enabled
+                if (enabled) setOnClickListener {
+                    popup.dismiss()
+                    onPick()
+                }
+            })
+        }
+        addPill(getString(R.string.model_sheet_pill_ocr), getString(R.string.model_sheet_pill_ocr_hint), currentImageInputMode == ImageInputMode.OCR, true) {
+            handleOcrImageModelSelection()
+        }
+        val nativeSupported = isGemmaDirectImageInputSupportedBySelectedModel()
+        addPill(
+            getString(R.string.model_sheet_pill_native),
+            getString(R.string.model_sheet_pill_native_hint),
+            nativeSupported && currentImageInputMode == ImageInputMode.GEMMA_DIRECT,
+            nativeSupported && isGemmaDirectImageInputAvailable()
+        ) { handleGemmaDirectImageModelSelection() }
+
+        // Downloaded chat models first, then the curated list to download, all in one scrolling list.
+        val (availableModels, notOnPhone) = ModelRegistry.all.partition(modelFileResolver::isModelAvailable)
+        val recommendedTier = ModelTier.recommendedFor(this)
+        val toDownload = notOnPhone.sortedBy { if (ModelTier.of(it) == recommendedTier) 0 else 1 }
+        fun addDownloadRow(descriptor: ModelDescriptor) {
+            val detail = listOfNotNull(
+                ModelTier.of(descriptor)?.let { getString(it.labelRes) },
+                descriptor.sizeLabel,
+                if (descriptor is GgufSpec) getString(R.string.pro_chip) else null
+            ).joinToString(" · ")
+            addRow(
+                descriptor.displayName,
+                detail,
+                initials = initialsOf(descriptor),
+                actionText = getString(R.string.model_action_download)
+            ) { startModelDownload(descriptor) }
+        }
         if (availableModels.isEmpty()) {
-            addOption(getString(R.string.model_popup_no_text), selected = false, enabled = false) {}
+            addHeading(getString(R.string.model_sheet_empty_recommended))
+            val suggested = ModelRegistry.gemma4E2B
+            addDownloadRow(suggested)
+            val rest = toDownload.filter { it.id != suggested.id }
+            if (rest.isNotEmpty()) {
+                addHeading(getString(R.string.model_sheet_more_models))
+                rest.forEach(::addDownloadRow)
+            }
         } else {
+            addHeading(getString(R.string.model_section_on_phone))
             availableModels.forEach { descriptor ->
-                addOption(
-                    descriptor.displayName,
-                    selected = descriptor.id == currentModel?.id && chatController != null
-                ) { handleModelSelection(descriptor) }
+                val loaded = descriptor.id == currentModel?.id && chatController != null
+                val tier = ModelTier.of(descriptor)?.let { getString(it.labelRes) }
+                val detail = listOfNotNull(
+                    if (loaded) getString(R.string.model_sheet_loaded) else null,
+                    tier,
+                    descriptor.sizeLabel
+                ).joinToString(" · ")
+                addRow(descriptor.displayName, detail, initials = initialsOf(descriptor), selected = loaded) {
+                    handleModelSelection(descriptor)
+                }
+            }
+            if (toDownload.isNotEmpty()) {
+                addHeading(getString(R.string.model_section_download))
+                toDownload.forEach(::addDownloadRow)
             }
         }
-        addHeading(getString(R.string.model_popup_image_heading))
-        addOption(
-            getString(R.string.ocr_image_model_name),
-            selected = currentImageInputMode == ImageInputMode.OCR
-        ) { handleOcrImageModelSelection() }
-        if (isGemmaDirectImageInputSupportedBySelectedModel()) {
-            addOption(
-                getString(R.string.gemma_direct_image_model_name),
-                selected = currentImageInputMode == ImageInputMode.GEMMA_DIRECT,
-                enabled = isGemmaDirectImageInputAvailable()
-            ) { handleGemmaDirectImageModelSelection() }
+
+        content.findViewById<View>(R.id.modelPickerImport).setOnClickListener {
+            popup.dismiss()
+            showCustomModelWarning()
         }
-        manageLink.setOnClickListener {
+        content.findViewById<View>(R.id.modelPickerHf).apply {
+            if (LlamaFeature.isAvailable) {
+                setOnClickListener {
+                    popup.dismiss()
+                    LlamaFeature.instance?.launchHfBrowser(this@PocketChatActivity, hfBrowserLauncher)
+                }
+            } else {
+                visibility = View.GONE
+            }
+        }
+
+        content.findViewById<View>(R.id.modelPickerManageLink).setOnClickListener {
             popup.dismiss()
             showManageModelsDialog()
         }
 
-        val anchorLocation = IntArray(2)
-        toolbarModelSelector.getLocationOnScreen(anchorLocation)
-        val visibleFrame = Rect()
-        window.decorView.getWindowVisibleDisplayFrame(visibleFrame)
-        val spaceAbove = (anchorLocation[1] - visibleFrame.top - dp(12)).coerceAtLeast(dp(120))
-        val optionsWidth = panelWidth - dp(20)
+        // Up to three quarters of the screen; the list scrolls inside, and a short list keeps the sheet small.
+        val halfScreen = (resources.displayMetrics.heightPixels * 0.75f).toInt()
         options.measure(
-            View.MeasureSpec.makeMeasureSpec(optionsWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(resources.displayMetrics.widthPixels, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         )
         scroll.layoutParams = scroll.layoutParams.apply {
-            height = minOf(options.measuredHeight, (spaceAbove - dp(64)).coerceAtLeast(dp(56)))
+            height = minOf(options.measuredHeight, halfScreen - dp(200))
         }
-        content.measure(
-            View.MeasureSpec.makeMeasureSpec(panelWidth, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        )
-        popup.height = content.measuredHeight
-        val x = (anchorLocation[0] + toolbarModelSelector.width - panelWidth)
-            .coerceIn(dp(12), (resources.displayMetrics.widthPixels - panelWidth - dp(12)).coerceAtLeast(dp(12)))
-        val y = (anchorLocation[1] - popup.height - dp(6)).coerceAtLeast(visibleFrame.top + dp(4))
-        popup.showAtLocation(toolbarModelSelector, Gravity.TOP or Gravity.START, x, y)
+        popup.setOnShowListener {
+            popup.behavior.skipCollapsed = true
+            popup.behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
+        }
+        popup.show()
     }
 
     private fun showManageModelsDialog() {
@@ -3512,6 +4206,24 @@ open class PocketChatActivity : AppCompatActivity() {
         val dialog = dialogBuilder
             .setView(dialogView)
             .create()
+        dialog.setOnShowListener {
+            dialog.window?.apply {
+                setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                val pageColor = resolveThemeColor(R.attr.colorAppBackground)
+                setBackgroundDrawable(ColorDrawable(pageColor))
+                setDimAmount(0f)
+                statusBarColor = pageColor
+                navigationBarColor = pageColor
+            }
+        }
+        dialogView.findViewById<View>(R.id.modelPickerBack).setOnClickListener { dialog.dismiss() }
+        dialogView.findViewById<View>(R.id.modelPickerHelp).setOnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.model_picker_title)
+                .setMessage(R.string.manage_models_intro)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
 
         val dialogUi = ModelDialogViews(
             dialog = dialog,
@@ -3519,8 +4231,17 @@ open class PocketChatActivity : AppCompatActivity() {
             listContainer = dialogView.findViewById(R.id.modelListContainer)
         )
 
-        dialogView.findViewById<Button>(R.id.importLocalModelButton).setOnClickListener {
+        dialogView.findViewById<View>(R.id.importLocalModelButton).setOnClickListener {
             showCustomModelWarning()
+        }
+        val addFromHuggingFaceButton = dialogView.findViewById<View>(R.id.addFromHuggingFaceButton)
+        if (LlamaFeature.isAvailable) {
+            addFromHuggingFaceButton.setOnClickListener {
+                dialog.dismiss()
+                LlamaFeature.instance?.launchHfBrowser(this, hfBrowserLauncher)
+            }
+        } else {
+            addFromHuggingFaceButton.visibility = View.GONE
         }
 
         dialog.setOnDismissListener {
@@ -3546,10 +4267,15 @@ open class PocketChatActivity : AppCompatActivity() {
             .setTitle(getString(R.string.model_recovery_title))
             .setMessage(
                 getString(
-                    if (record.failureReason?.contains("Some ops are not accelerated", ignoreCase = true) == true) {
-                        R.string.model_recovery_accelerator_message
-                    } else {
-                        R.string.model_recovery_message
+                    when {
+                        record.failureReason?.contains("Some ops are not accelerated", ignoreCase = true) == true ->
+                            R.string.model_recovery_accelerator_message
+                        else -> when (ModelLoadFailureKind.of(record.failureReason)) {
+                            ModelLoadFailureKind.UNSUPPORTED_ARCHITECTURE -> R.string.model_recovery_unsupported_message
+                            ModelLoadFailureKind.OUT_OF_MEMORY -> R.string.model_recovery_memory_message
+                            ModelLoadFailureKind.DAMAGED_FILE -> R.string.model_recovery_damaged_message
+                            ModelLoadFailureKind.OTHER -> R.string.model_recovery_message
+                        }
                     },
                     descriptor.displayName,
                     record.failureReason ?: getString(R.string.model_load_failed_generic)
@@ -3603,10 +4329,87 @@ open class PocketChatActivity : AppCompatActivity() {
         dialogUi.introView.text = getString(R.string.manage_models_intro)
 
         dialogUi.listContainer.removeAllViews()
+        downloadRowProgress = null
+        downloadRowModelId = null
         val inflater = LayoutInflater.from(this)
-        ModelRegistry.all.forEach { descriptor ->
-            addTextModelOption(inflater, dialogUi.listContainer, descriptor)
+        val (onPhone, notOnPhone) = ModelRegistry.all.partition(modelFileResolver::isModelAvailable)
+        // The recommended tier comes first, as in the mock-up; the rest keep the registry order.
+        val recommendedTier = ModelTier.recommendedFor(this)
+        val toDownload = notOnPhone.sortedBy { if (ModelTier.of(it) == recommendedTier) 0 else 1 }
+        if (onPhone.isNotEmpty()) {
+            addModelSectionHeader(dialogUi.listContainer, getString(R.string.model_section_on_phone))
+            modelCardTarget = newModelCard(dialogUi.listContainer)
+            onPhone.forEach { addTextModelOption(inflater, dialogUi.listContainer, it) }
         }
+        if (toDownload.isNotEmpty()) {
+            addModelSectionHeader(dialogUi.listContainer, getString(R.string.model_section_download))
+            modelCardTarget = newModelCard(dialogUi.listContainer)
+            toDownload.forEach { addTextModelOption(inflater, dialogUi.listContainer, it) }
+        }
+        if (ImageGenFeature.instance?.isCpuSupported() == true) {
+            addModelSectionHeader(dialogUi.listContainer, getString(R.string.image_gen_manage_heading))
+            modelCardTarget = newModelCard(dialogUi.listContainer)
+            ImageGenFeature.instance?.addDownloadableModelOptions(chatHost)
+        }
+        modelCardTarget = null
+    }
+
+    // Image mode: the composer creates pictures with the image model instead of sending a chat message.
+
+    /** Runs after every chat state update so image mode keeps control of the Send and Stop buttons. */
+    private fun applyImageModeComposer() {
+        ImageGenFeature.instance?.applyImageModeComposer(chatHost)
+    }
+
+    private fun showImageTurnActions(turn: ChatTurn) {
+        val path = turn.imagePath ?: return
+        MaterialAlertDialogBuilder(this)
+            .setItems(
+                arrayOf(
+                    getString(R.string.image_turn_attach),
+                    getString(R.string.image_turn_open),
+                    getString(R.string.image_turn_report)
+                )
+            ) { _, which ->
+                when (which) {
+                    0 -> attachSavedImageByPath(path)
+                    1 -> openImageViewer(path)
+                    else -> reportGeneratedImage(turn)
+                }
+            }
+            .show()
+    }
+
+    private fun reportGeneratedImage(turn: ChatTurn) {
+        ImageGenFeature.instance?.reportGeneratedImage(chatHost, turn)
+    }
+
+    private fun attachSavedImageByPath(path: String) {
+        val entry = savedImageStore.list()
+            .firstOrNull { it.filePath == path }
+            ?.let { savedImageStore.load(it.imageId) }
+        if (entry == null) {
+            showTransientMessage(getString(R.string.saved_image_missing))
+            return
+        }
+        if (ImageGenFeature.instance?.isImageModeActive() == true) ImageGenFeature.instance?.setImageMode(chatHost, false)
+        addPendingImageInput(entry)
+    }
+
+    private fun openModelCard(url: String) {
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+            .onFailure { showTransientMessage(url) }
+    }
+
+    private fun openImageGeneration(specId: String? = null, toolName: String? = null, photoPath: String? = null) {
+        ImageGenFeature.instance?.openImageGeneration(chatHost, specId, toolName, photoPath)
+    }
+
+    private fun magicActionsNote(): ChatAdapter.MagicNote {
+        if (ProUiFeature.isAvailable) {
+            return ProUiFeature.instance!!.magicActionsNote(this, proGate)
+        }
+        return ChatAdapter.MagicNote(getString(R.string.magic_note_pro), showPro = false)
     }
 
     private fun addModelSectionHeader(container: LinearLayout, title: String) {
@@ -3616,17 +4419,31 @@ open class PocketChatActivity : AppCompatActivity() {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    topMargin = dp(8)
-                    bottomMargin = dp(4)
+                    topMargin = if (container.childCount == 0) 0 else dp(18)
+                    bottomMargin = dp(8)
+                    marginStart = dp(2)
                 }
                 text = title
                 setTextColor(resolveThemeColor(R.attr.colorStatusText))
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                letterSpacing = 0f
+                letterSpacing = 0.02f
             }
         )
     }
+
+    /** One rounded card per section; its rows are separated by hairlines. */
+    private fun newModelCard(container: LinearLayout): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card_line)
+            setPadding(dp(12), dp(4), dp(12), dp(4))
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            container.addView(this)
+        }
 
     private fun addTextModelOption(
         inflater: LayoutInflater,
@@ -3649,160 +4466,213 @@ open class PocketChatActivity : AppCompatActivity() {
         isCurrentModel: Boolean,
         onUseModel: () -> Unit
     ) {
-        val itemView = inflater.inflate(R.layout.item_model_option, container, false)
-        val nameView: TextView = itemView.findViewById(R.id.modelName)
-        val metaView: TextView = itemView.findViewById(R.id.modelMeta)
-        val recommendationView: TextView = itemView.findViewById(R.id.modelRecommendation)
-        val statusTextView: TextView = itemView.findViewById(R.id.modelStatus)
-        val actionButton: Button = itemView.findViewById(R.id.modelActionButton)
-        val deleteButton: ImageButton = itemView.findViewById(R.id.modelDeleteButton)
-        val itemProgressBar: ProgressBar = itemView.findViewById(R.id.modelItemProgressBar)
-        val itemProgressText: TextView = itemView.findViewById(R.id.modelItemProgressText)
+        val parent = modelCardTarget ?: container
+        val itemView = inflater.inflate(R.layout.item_model_option, parent, false)
+        itemView.findViewById<View>(R.id.modelRowDivider).visibility =
+            if (parent.childCount == 0) View.GONE else View.VISIBLE
 
-        nameView.text = descriptor.displayName
-        val metaText = getString(
-            R.string.model_picker_meta_format,
-            descriptor.backendLabel,
-            descriptor.sizeLabel
-        )
-        metaView.text = metaText
+        val tier = ModelTier.of(descriptor)
         val isDownloadingThisModel = activeDownloadModelId == descriptor.id
         val isDownloaded = modelFileResolver.isModelDownloaded(descriptor)
         val isAvailable = modelFileResolver.isModelAvailable(descriptor)
+        val accent = resolveThemeColor(R.attr.colorSendFill)
+        val text = resolveThemeColor(R.attr.colorAssistantText)
 
-        val statusText = when {
+        // Icon, tier label and name
+        val iconBox: View = itemView.findViewById(R.id.modelIconBox)
+        val icon: ImageView = itemView.findViewById(R.id.modelIcon)
+        icon.setImageResource(
+            when (tier) {
+                ModelTier.FAST -> R.drawable.ic_tier_bolt
+                ModelTier.BALANCED -> R.drawable.ic_tier_balanced
+                ModelTier.BEST -> R.drawable.ic_tier_diamond
+                ModelTier.REASONING -> R.drawable.ic_tier_bulb
+                null -> R.drawable.ic_sparkle_20
+            }
+        )
+        iconBox.setBackgroundResource(if (isCurrentModel) R.drawable.bg_model_icon_acc else R.drawable.bg_model_icon)
+        icon.imageTintList = ColorStateList.valueOf(if (isCurrentModel) accent else text)
+
+        val recommended = tier != null && tier == ModelTier.recommendedFor(this) && !isAvailable
+        val labelParts = listOfNotNull(
+            tier?.let { getString(it.labelRes).uppercase() },
+            if (isCurrentModel) getString(R.string.model_section_in_use) else null,
+            if (recommended) getString(R.string.model_recommended_short) else null
+        )
+        itemView.findViewById<TextView>(R.id.modelTierLabel).apply {
+            visibility = if (labelParts.isEmpty()) View.GONE else View.VISIBLE
+            this.text = labelParts.joinToString(" · ")
+        }
+        itemView.findViewById<TextView>(R.id.modelName).text =
+            if (tier != null) descriptor.shortName() else descriptor.displayName
+
+        // Right side: size when in use, Use when on the phone, Get with the size otherwise, a ring while downloading
+        val actionButton: MaterialButton = itemView.findViewById(R.id.modelActionButton)
+        val metaView: TextView = itemView.findViewById(R.id.modelMeta)
+        val ring: ProgressBar = itemView.findViewById(R.id.modelItemProgressBar)
+        val progressText: TextView = itemView.findViewById(R.id.modelItemProgressText)
+        itemView.findViewById<TextView>(R.id.modelStatus).text = when {
             isDownloadingThisModel -> getString(R.string.model_status_downloading)
             isCurrentModel -> getString(R.string.model_status_current)
             isDownloaded -> getString(R.string.model_status_downloaded)
             isAvailable -> getString(R.string.model_status_bundled)
             else -> getString(R.string.model_status_not_downloaded)
         }
-        statusTextView.text = statusText
-        recommendationView.text = getString(
-            R.string.model_picker_compact_detail_format,
-            descriptor.backendLabel,
-            descriptor.sizeLabel,
-            descriptor.deviceRecommendation,
-            statusText
-        )
-
-        actionButton.text = when {
-            isDownloadingThisModel -> getString(R.string.stop_download)
-            isCurrentModel -> getString(R.string.model_action_current)
-            isAvailable -> getString(R.string.model_action_use)
-            else -> getString(R.string.model_action_download)
-        }
-        actionButton.isEnabled = when {
-            isDownloadingThisModel -> true
-            isAvailable -> true
-            else -> activeDownloadModelId == null
-        }
-        actionButton.setOnClickListener {
-            if (isDownloadingThisModel) {
-                cancelModelDownload()
-            } else {
-                onUseModel()
+        actionButton.visibility = View.GONE
+        metaView.visibility = View.GONE
+        ring.visibility = View.GONE
+        progressText.visibility = View.GONE
+        when {
+            isDownloadingThisModel -> {
+                ring.visibility = View.VISIBLE
+                progressText.visibility = View.VISIBLE
+                updateProgressBar(ring, activeDownloadBytes, activeDownloadTotalBytes)
+                progressText.text = formatDownloadProgressText(activeDownloadBytes, activeDownloadTotalBytes)
+                downloadRowProgress = ring to progressText
+                downloadRowModelId = descriptor.id
+            }
+            isCurrentModel -> {
+                metaView.visibility = View.VISIBLE
+                metaView.text = descriptor.sizeLabel
+            }
+            isAvailable -> {
+                actionButton.visibility = View.VISIBLE
+                actionButton.text = getString(R.string.model_action_use)
+                actionButton.icon = null
+                styleModelOption(actionButton, ModelOptionAction.USE)
+                actionButton.setOnClickListener { onUseModel() }
+            }
+            else -> {
+                actionButton.visibility = View.VISIBLE
+                actionButton.text = descriptor.sizeLabel
+                actionButton.setIconResource(R.drawable.ic_download_16)
+                actionButton.isEnabled = activeDownloadModelId == null
+                styleModelOption(actionButton, ModelOptionAction.DOWNLOAD)
+                actionButton.setOnClickListener {
+                    onUseModel()
+                    if (activeDownloadModelId == descriptor.id) showDownloadSheet(descriptor)
+                }
             }
         }
 
-        val canDeleteDownloadedModel = isDownloaded && !isDownloadingThisModel
-        deleteButton.visibility = if (canDeleteDownloadedModel) View.VISIBLE else View.GONE
-        deleteButton.isEnabled = true
-        deleteButton.setOnClickListener {
-            confirmDeleteModel(descriptor)
+        // Details open under the row on a tap; a running download opens its sheet instead.
+        val detailsBox: View = itemView.findViewById(R.id.modelDetailsBox)
+        val modelLicense = descriptor.license
+        itemView.findViewById<TextView>(R.id.modelDetailsText).text =
+            tier?.let { getString(it.blurbRes) } ?: descriptor.deviceRecommendation
+        itemView.findViewById<TextView>(R.id.modelDetailRunsOn).text = descriptor.backendLabel
+        itemView.findViewById<TextView>(R.id.modelLicense).apply {
+            if (modelLicense == null) {
+                itemView.findViewById<View>(R.id.modelLicenseLabel).visibility = View.GONE
+                visibility = View.GONE
+            } else {
+                this.text = getString(R.string.model_licence_value, modelLicense.summary().removePrefix("License: "))
+                modelLicense.url?.let { url -> setOnClickListener { openModelCard(url) } }
+            }
+        }
+        itemView.findViewById<TextView>(R.id.modelDeleteText).apply {
+            visibility = if (isDownloaded && !isDownloadingThisModel) View.VISIBLE else View.GONE
+            setOnClickListener { confirmDeleteModel(descriptor) }
+        }
+        // The recommended model opens its details by default, as in the mock-up.
+        if (recommended) detailsBox.visibility = View.VISIBLE
+        itemView.findViewById<View>(R.id.modelRowMain).setOnClickListener {
+            if (isDownloadingThisModel) {
+                showDownloadSheet(descriptor)
+            } else {
+                detailsBox.visibility = if (detailsBox.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            }
         }
 
-        itemProgressBar.visibility = if (isDownloadingThisModel) View.VISIBLE else View.GONE
-        updateProgressBar(itemProgressBar, activeDownloadBytes, activeDownloadTotalBytes)
-        itemProgressText.visibility = if (isDownloadingThisModel) View.VISIBLE else View.GONE
-        itemProgressText.text = formatDownloadProgressText(activeDownloadBytes, activeDownloadTotalBytes)
-
-        container.addView(itemView)
+        parent.addView(itemView)
     }
 
-    private fun addOcrImageModelOption(
-        inflater: LayoutInflater,
-        container: LinearLayout
-    ) {
-        val itemView = inflater.inflate(R.layout.item_model_option, container, false)
-        val nameView: TextView = itemView.findViewById(R.id.modelName)
-        val metaView: TextView = itemView.findViewById(R.id.modelMeta)
-        val recommendationView: TextView = itemView.findViewById(R.id.modelRecommendation)
-        val statusTextView: TextView = itemView.findViewById(R.id.modelStatus)
-        val actionButton: Button = itemView.findViewById(R.id.modelActionButton)
-        val deleteButton: ImageButton = itemView.findViewById(R.id.modelDeleteButton)
-        val itemProgressBar: ProgressBar = itemView.findViewById(R.id.modelItemProgressBar)
-        val itemProgressText: TextView = itemView.findViewById(R.id.modelItemProgressText)
-
-        val isCurrent = currentImageInputMode == ImageInputMode.OCR
-        val statusText = if (isCurrent) {
-            getString(R.string.model_status_current)
-        } else {
-            getString(R.string.model_status_bundled)
+    /** The mock-up's download sheet: a ring with time left, the details, and Cancel. */
+    private fun showDownloadSheet(descriptor: ModelDescriptor) {
+        downloadSheet?.dismiss()
+        val sheet = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.sheet_model_download, null)
+        val tier = ModelTier.of(descriptor)
+        view.findViewById<ImageView>(R.id.sheetIcon).setImageResource(
+            when (tier) {
+                ModelTier.FAST -> R.drawable.ic_tier_bolt
+                ModelTier.BALANCED -> R.drawable.ic_tier_balanced
+                ModelTier.BEST -> R.drawable.ic_tier_diamond
+                ModelTier.REASONING -> R.drawable.ic_tier_bulb
+                null -> R.drawable.ic_sparkle_20
+            }
+        )
+        view.findViewById<TextView>(R.id.sheetTier).apply {
+            visibility = if (tier == null) View.GONE else View.VISIBLE
+            text = tier?.let { getString(it.labelRes).uppercase() }
         }
-
-        nameView.text = getString(R.string.ocr_image_model_name)
-        metaView.text = getString(R.string.ocr_image_model_meta)
-        statusTextView.text = statusText
-        recommendationView.text = getString(R.string.ocr_image_model_detail, statusText)
-        actionButton.text = if (isCurrent) {
-            getString(R.string.model_action_current)
-        } else {
-            getString(R.string.model_action_use)
+        view.findViewById<TextView>(R.id.sheetName).text = if (tier != null) descriptor.shortName() else descriptor.displayName
+        view.findViewById<TextView>(R.id.sheetSize).text = descriptor.sizeLabel
+        view.findViewById<TextView>(R.id.sheetRunsOn).text = descriptor.backendLabel
+        val license = descriptor.license
+        view.findViewById<TextView>(R.id.sheetLicence).text = license?.summary()?.removePrefix("License: ").orEmpty()
+        view.findViewById<View>(R.id.sheetCardRow).apply {
+            visibility = if (license == null) View.GONE else View.VISIBLE
+            license?.url?.let { url -> setOnClickListener { openModelCard(url) } }
         }
-        actionButton.isEnabled = !isCurrent
-        actionButton.setOnClickListener {
-            handleOcrImageModelSelection()
+        val stop = View.OnClickListener {
+            cancelModelDownload()
+            sheet.dismiss()
         }
-
-        deleteButton.visibility = View.GONE
-        itemProgressBar.visibility = View.GONE
-        itemProgressText.visibility = View.GONE
-
-        container.addView(itemView)
+        view.findViewById<View>(R.id.sheetCancel).setOnClickListener(stop)
+        view.findViewById<View>(R.id.sheetRingBox).setOnClickListener(stop)
+        downloadSheetViews = DownloadSheetViews(
+            ring = view.findViewById(R.id.sheetRing),
+            title = view.findViewById(R.id.sheetTitle),
+            sub = view.findViewById(R.id.sheetSub)
+        )
+        sheet.setContentView(view)
+        sheet.setOnShowListener {
+            (view.parent as? View)?.setBackgroundColor(Color.TRANSPARENT)
+            sheet.behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
+        }
+        sheet.setOnDismissListener {
+            if (downloadSheet === sheet) {
+                downloadSheet = null
+                downloadSheetViews = null
+            }
+        }
+        downloadSheet = sheet
+        updateDownloadSheet()
+        sheet.show()
     }
 
-    private fun addGemmaDirectImageModelOption(
-        inflater: LayoutInflater,
-        container: LinearLayout
-    ) {
-        val itemView = inflater.inflate(R.layout.item_model_option, container, false)
-        val nameView: TextView = itemView.findViewById(R.id.modelName)
-        val metaView: TextView = itemView.findViewById(R.id.modelMeta)
-        val recommendationView: TextView = itemView.findViewById(R.id.modelRecommendation)
-        val statusTextView: TextView = itemView.findViewById(R.id.modelStatus)
-        val actionButton: Button = itemView.findViewById(R.id.modelActionButton)
-        val deleteButton: ImageButton = itemView.findViewById(R.id.modelDeleteButton)
-        val itemProgressBar: ProgressBar = itemView.findViewById(R.id.modelItemProgressBar)
-        val itemProgressText: TextView = itemView.findViewById(R.id.modelItemProgressText)
-
-        val isAvailable = isGemmaDirectImageInputAvailable()
-        val isCurrent = currentImageInputMode == ImageInputMode.GEMMA_DIRECT && isAvailable
-        val statusText = when {
-            isCurrent -> getString(R.string.model_status_current)
-            isAvailable -> getString(R.string.model_status_bundled)
-            else -> getString(R.string.model_status_unavailable)
+    private fun updateDownloadSheet() {
+        val views = downloadSheetViews ?: return
+        val total = activeDownloadTotalBytes
+        updateProgressBar(views.ring, activeDownloadBytes, total)
+        if (total != null && total > 0L) {
+            val percent = (activeDownloadBytes * 100L / total).toInt().coerceIn(0, 100)
+            views.title.text = getString(R.string.model_sheet_downloading, percent)
+            val left = downloadTimeLeftText(activeDownloadBytes, total)
+                ?.replaceFirstChar { it.uppercase() }
+                ?: formatDownloadProgressText(activeDownloadBytes, total)
+            views.sub.text = getString(R.string.model_sheet_sub, left)
+        } else {
+            views.title.text = getString(R.string.model_sheet_preparing)
+            views.sub.text = ""
         }
+    }
 
-        nameView.text = getString(R.string.gemma_direct_image_model_name)
-        metaView.text = getString(R.string.gemma_direct_image_model_meta)
-        statusTextView.text = statusText
-        recommendationView.text = getString(R.string.gemma_direct_image_model_detail, statusText)
-        actionButton.text = when {
-            isCurrent -> getString(R.string.model_action_current)
-            isAvailable -> getString(R.string.model_action_use)
-            else -> getString(R.string.model_action_unavailable)
+    private enum class ModelOptionAction { CURRENT, USE, DOWNLOAD, STOP }
+
+    private fun styleModelOption(button: MaterialButton, action: ModelOptionAction) {
+        val soft = resolveThemeColor(R.attr.colorUserBubble)
+        val text = resolveThemeColor(R.attr.colorAssistantText)
+        val outline = resolveThemeColor(R.attr.colorPocketOutline)
+        val (fill, stroke) = when (action) {
+            ModelOptionAction.DOWNLOAD -> soft to Color.TRANSPARENT
+            else -> Color.TRANSPARENT to outline
         }
-        actionButton.isEnabled = isAvailable && !isCurrent
-        actionButton.setOnClickListener {
-            handleGemmaDirectImageModelSelection()
-        }
-
-        deleteButton.visibility = View.GONE
-        itemProgressBar.visibility = View.GONE
-        itemProgressText.visibility = View.GONE
-
-        container.addView(itemView)
+        button.backgroundTintList = ColorStateList.valueOf(fill)
+        button.strokeColor = ColorStateList.valueOf(stroke)
+        button.setTextColor(text)
+        button.iconTint = ColorStateList.valueOf(text)
     }
 
     private fun configureDrawer() {
@@ -3817,20 +4687,65 @@ open class PocketChatActivity : AppCompatActivity() {
                     }
                 }
             },
-            onDeleteRequested = { session ->
-                confirmDeleteSession(session)
+            onMenuRequested = { session, anchor ->
+                showSessionMenu(session, anchor)
             }
         )
         drawerChatsRecyclerView.layoutManager = LinearLayoutManager(this)
         drawerChatsRecyclerView.adapter = drawerSessionsAdapter
+        findViewById<EditText>(R.id.drawerSearchChats).addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: android.text.Editable?) = refreshDrawerSessions()
+        })
 
-        findViewById<View>(R.id.drawerSettingsRow).setOnClickListener {
+        val settingsPage = findViewById<View>(R.id.settingsPage)
+        val backCallback = object : androidx.activity.OnBackPressedCallback(false) {
+            override fun handleOnBackPressed() {
+                settingsPage.visibility = View.GONE
+                settingsPageOpen = false
+                isEnabled = false
+            }
+        }
+        onBackPressedDispatcher.addCallback(this, backCallback)
+        fun openSettingsPage() {
+            refreshSettingsPage()
+            settingsPage.visibility = View.VISIBLE
+            settingsPageOpen = true
+            backCallback.isEnabled = true
+        }
+        findViewById<View>(R.id.drawerOpenSettingsRow).setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            openSettingsPage()
+        }
+        // The Play build has its own Pro row; the open-source build links to the Play version.
+        findViewById<View>(R.id.drawerGetPlayRow).apply {
+            visibility = if (resources.getBoolean(R.bool.show_rate_on_play)) View.GONE else View.VISIBLE
+            setOnClickListener {
+                drawerLayout.closeDrawer(GravityCompat.START)
+                openPlayStorePage()
+            }
+        }
+        findViewById<View>(R.id.settingsPageBack).setOnClickListener { backCallback.handleOnBackPressed() }
+        bindSettingsPage()
+        if (settingsPageOpen) openSettingsPage()
+
+        findViewById<View>(R.id.drawerProStatus).setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             drawerLayout.post {
-                showSettingsDialog()
+                proGate.showProPage(this) { refreshProBadges() }
             }
         }
 
+        drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+            override fun onDrawerOpened(drawerView: View) {
+                refreshProBadges()
+                if (proGate.isUnlocked()) ProUiFeature.instance?.playShine(findViewById<View>(R.id.drawerTitlePro))
+            }
+        })
+
+        findViewById<View>(R.id.drawerLanServerRow).visibility =
+            if (LanServerFeature.isAvailable) View.VISIBLE else View.GONE
         findViewById<View>(R.id.drawerLanServerRow).setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             drawerLayout.post {
@@ -3845,198 +4760,123 @@ open class PocketChatActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<View>(R.id.drawerModelSettingsRow).setOnClickListener {
+        findViewById<View>(R.id.drawerImageToolsRow).visibility =
+            if (ImageGenFeature.isAvailable) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.drawerImageToolsRow).setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             drawerLayout.post {
-                showModelSettingsDialog()
+                openImageGeneration()
             }
         }
 
-        findViewById<View>(R.id.drawerManageModelsRow).setOnClickListener {
-            drawerLayout.closeDrawer(GravityCompat.START)
-            drawerLayout.post { showManageModelsDialog() }
-        }
-
-        findViewById<View>(R.id.drawerAboutRow).setOnClickListener {
+        findViewById<View>(R.id.drawerWebSearchRow).visibility =
+            if (WebSearchFeature.isAvailable) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.drawerWebSearchRow).setOnClickListener {
             drawerLayout.closeDrawer(GravityCompat.START)
             drawerLayout.post {
-                showAboutDialog()
+                requireProOrTrial(ProFeature.WEB_SEARCH) { showManageWebSearchDialog() }
             }
         }
+
+        findViewById<View>(R.id.drawerTranslatorRow).visibility =
+            if (TranslatorFeature.isAvailable) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.drawerTranslatorRow).setOnClickListener {
+            drawerLayout.closeDrawer(GravityCompat.START)
+            drawerLayout.post {
+                openTranslator()
+            }
+        }
+
+    }
+
+    /** Menu A for free users (PRO tags, free tries, lock when used up), Menu C for owners (gold icons, live status). */
+    private fun refreshProBadges() {
+        if (ProUiFeature.isAvailable) {
+            ProUiFeature.instance!!.refreshProBadges(this, proGate)
+        } else {
+            findViewById<View>(R.id.drawerProStatus).visibility = View.GONE
+            findViewById<View>(R.id.drawerTitlePro).visibility = View.GONE
+            listOf(
+                R.id.drawerImageToolsProChip, R.id.drawerImageToolsLock,
+                R.id.drawerWebSearchProChip, R.id.drawerWebSearchLock,
+                R.id.drawerTranslatorProChip, R.id.drawerTranslatorLock
+            ).forEach { findViewById<View>(it).visibility = View.GONE }
+
+            val lan = LanServerFeature.instance?.drawerState(this)
+            val lanStatus = when (lan) {
+                LanServerFeature.DrawerState.RUNNING -> getString(R.string.drawer_lan_running)
+                LanServerFeature.DrawerState.STARTING -> getString(R.string.drawer_lan_starting)
+                else -> null
+            }
+            val webStatus = if (WebSearchFeature.instance?.isUsable(this) == true) getString(R.string.drawer_web_search_on) else null
+
+            fun updateRow(statusId: Int, status: String?, live: Boolean) {
+                val statusView = findViewById<TextView>(statusId)
+                statusView.text = status
+                statusView.visibility = if (status == null) View.GONE else View.VISIBLE
+                statusView.setTextColor(if (live) getColor(R.color.status_running) else resolveThemeColor(R.attr.colorStatusText))
+            }
+            updateRow(R.id.drawerLanServerStatus, lanStatus, live = true)
+            updateRow(R.id.drawerImageToolsStatus, null, live = false)
+            updateRow(R.id.drawerWebSearchStatus, webStatus, live = false)
+        }
+        updateWebSearchButton()
+        updateChatToolChips()
+        if (ImageGenFeature.instance?.isImageModeActive() != true) {
+            createImageModeButton.text = proLabel(R.string.image_tools, ProFeature.IMAGE_GENERATION)
+        }
+        if (::chatAdapter.isInitialized) chatAdapter.setMagicNote(magicActionsNote())
+    }
+
+    /** Button text with a small "3 free" or "PRO" tag while Pro is locked. */
+    private fun proLabel(@StringRes label: Int, feature: ProFeature): CharSequence {
+        if (ProUiFeature.isAvailable) {
+            return ProUiFeature.instance!!.proLabel(this, proGate, label, feature)
+        }
+        return getString(label)
+    }
+
+    /** Runs [action] when Pro is unlocked or a free try of [feature] is left, otherwise shows the offer. */
+    private fun requireProOrTrial(feature: ProFeature, action: () -> Unit) {
+        if (ProUiFeature.isAvailable) {
+            ProUiFeature.instance!!.requireProOrTrial(this, proGate, feature) {
+                refreshProBadges()
+                action()
+            }
+        } else {
+            proGate.requireUnlocked(this, feature) {
+                refreshProBadges()
+                action()
+            }
+        }
+    }
+
+    /** Links from the Welcome to Pro page. */
+    override fun openProFeature(feature: ProFeature) {
+        when (feature) {
+            ProFeature.IMAGE_GENERATION -> openImageGeneration()
+            ProFeature.WEB_SEARCH -> showManageWebSearchDialog()
+            ProFeature.TRANSLATOR -> openTranslator()
+            ProFeature.PRO_MENU -> Unit
+        }
+    }
+
+    private val lanHost = object : LanServerFeature.Host {
+        override val activity: AppCompatActivity get() = this@PocketChatActivity
+        override val currentModel: ModelDescriptor? get() = this@PocketChatActivity.currentModel
+        override val chatController: PersistentChatController? get() = this@PocketChatActivity.chatController
+        override val proGate: ProGate get() = this@PocketChatActivity.proGate
+        override fun showTransientMessage(message: String) = this@PocketChatActivity.showTransientMessage(message)
+        override fun resolveThemeColor(attrId: Int): Int = this@PocketChatActivity.resolveThemeColor(attrId)
+        override fun updateKeepScreenOn() = this@PocketChatActivity.updateKeepScreenOn()
+        override val installedModels: List<ModelDescriptor>
+            get() = ModelRegistry.all.filter(modelFileResolver::isModelAvailable)
+        override fun selectModel(descriptor: ModelDescriptor) = handleModelSelection(descriptor)
+        override fun openManageModels() = showManageModelsDialog()
     }
 
     private fun showLanServerDialog() {
-        val dialogBuilder = MaterialAlertDialogBuilder(this)
-        val dialogView = LayoutInflater.from(dialogBuilder.context)
-            .inflate(R.layout.dialog_lan_server, null)
-        val statusView: TextView = dialogView.findViewById(R.id.lanServerStatus)
-        val endpointView: TextView = dialogView.findViewById(R.id.lanServerEndpoint)
-        val apiEndpointView: TextView = dialogView.findViewById(R.id.lanServerApiEndpoint)
-        val copyApiUrlLink: TextView = dialogView.findViewById(R.id.lanServerCopyApiUrlLink)
-        val passwordInput: EditText = dialogView.findViewById(R.id.lanServerPasswordInput)
-        val passwordVisibilityButton: ImageButton = dialogView.findViewById(R.id.lanServerPasswordVisibilityButton)
-        val savePasswordButton: MaterialButton = dialogView.findViewById(R.id.lanServerSavePasswordButton)
-        val copyUrlLink: TextView = dialogView.findViewById(R.id.lanServerCopyUrlLink)
-        val startButton: MaterialButton = dialogView.findViewById(R.id.lanServerStartButton)
-        val closeButton: MaterialButton = dialogView.findViewById(R.id.lanServerCloseButton)
-        var savedPassword = LanServerStateStore.getPassword(this)
-        var passwordVisible = false
-        passwordInput.setText(savedPassword.orEmpty())
-        passwordInput.hint = if (LanServerStateStore.hasPassword(this)) {
-            getString(R.string.lan_server_password_change_hint)
-        } else {
-            getString(R.string.lan_server_password_hint)
-        }
-        copyUrlLink.paintFlags = copyUrlLink.paintFlags or Paint.UNDERLINE_TEXT_FLAG
-        copyApiUrlLink.paintFlags = copyApiUrlLink.paintFlags or Paint.UNDERLINE_TEXT_FLAG
-        val dialog = dialogBuilder
-            .setView(dialogView)
-            .create()
-
-        fun renderState() {
-            val storedState = LanServerStateStore.read(this)
-            if (storedState.isActive && !LanServerService.isRunning()) {
-                LanServerStateStore.markStopped(this)
-            }
-            val state = LanServerStateStore.read(this)
-            statusView.text = when (state.status) {
-                LanServerStatus.STOPPED -> getString(R.string.lan_server_status_stopped)
-                LanServerStatus.STARTING -> getString(R.string.lan_server_status_starting)
-                LanServerStatus.RUNNING -> getString(R.string.lan_server_status_running)
-                LanServerStatus.FAILED -> getString(R.string.lan_server_status_failed) +
-                    ": " + state.errorMessage.orEmpty()
-            }
-            endpointView.text = state.endpoint ?: "—"
-            apiEndpointView.text = state.endpoint?.let(::lanApiBaseUrl) ?: "—"
-            val modelReady = chatController?.state?.value?.isReady == true
-            closeButton.isEnabled = state.isActive
-            closeButton.alpha = if (state.isActive) 1f else 0.4f
-            startButton.isEnabled = !state.isActive && modelReady &&
-                LanServerStateStore.hasPassword(this) &&
-                passwordInput.text.toString() == savedPassword.orEmpty()
-            val webUiAvailable = state.status == LanServerStatus.RUNNING && !state.endpoint.isNullOrBlank()
-            copyUrlLink.isEnabled = webUiAvailable
-            copyApiUrlLink.isEnabled = webUiAvailable
-            passwordInput.isEnabled = !state.isActive
-            savePasswordButton.visibility = if (!state.isActive &&
-                passwordInput.text.toString() != savedPassword.orEmpty()
-            ) View.VISIBLE else View.GONE
-        }
-
-        passwordVisibilityButton.setOnClickListener {
-            passwordVisible = !passwordVisible
-            passwordInput.transformationMethod = if (passwordVisible) {
-                HideReturnsTransformationMethod.getInstance()
-            } else {
-                PasswordTransformationMethod.getInstance()
-            }
-            passwordInput.setSelection(passwordInput.text.length)
-            passwordVisibilityButton.setImageResource(
-                if (passwordVisible) R.drawable.ic_visibility_off else R.drawable.ic_visibility
-            )
-            passwordVisibilityButton.contentDescription = getString(
-                if (passwordVisible) R.string.lan_server_hide_password else R.string.lan_server_show_password
-            )
-        }
-        passwordInput.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = renderState()
-            override fun afterTextChanged(s: Editable?) = Unit
-        })
-        savePasswordButton.setOnClickListener {
-            val password = passwordInput.text.toString()
-            if (password.length < LanServerStateStore.MIN_PASSWORD_LENGTH) {
-                showTransientMessage(getString(
-                    R.string.lan_server_password_too_short,
-                    LanServerStateStore.MIN_PASSWORD_LENGTH
-                ))
-                return@setOnClickListener
-            }
-            if (runCatching { LanServerStateStore.setPassword(this, password) }.isFailure) {
-                showTransientMessage(getString(R.string.lan_server_password_save_failed))
-                return@setOnClickListener
-            }
-            savedPassword = password
-            renderState()
-        }
-
-        val refreshRunnable = object : Runnable {
-            override fun run() {
-                if (!dialog.isShowing) return
-                renderState()
-                dialogView.postDelayed(this, 500L)
-            }
-        }
-
-        startButton.setOnClickListener {
-            val model = currentModel
-            val controller = chatController
-            if (model == null || controller?.state?.value?.isReady != true) {
-                showTransientMessage(getString(R.string.model_required_message))
-                return@setOnClickListener
-            }
-            if (controller.state.value.isGenerating) {
-                showTransientMessage(getString(R.string.lan_server_generation_blocked))
-                return@setOnClickListener
-            }
-            if (passwordInput.text.toString() != savedPassword.orEmpty()) {
-                showTransientMessage(getString(R.string.lan_server_password_save_first))
-                return@setOnClickListener
-            }
-            if (!LanServerStateStore.hasPassword(this)) {
-                showTransientMessage(getString(R.string.lan_server_password_required))
-                return@setOnClickListener
-            }
-            LanServerControllerRegistry.register(model.id, controller)
-            LanServerService.start(this, model.id)
-            renderState()
-        }
-        copyUrlLink.setOnClickListener {
-            val endpoint = LanServerStateStore.read(this).endpoint
-            if (endpoint.isNullOrBlank()) {
-                showTransientMessage(getString(R.string.lan_server_not_running))
-                return@setOnClickListener
-            }
-            getSystemService(ClipboardManager::class.java)?.setPrimaryClip(
-                ClipData.newPlainText(getString(R.string.lan_server_url_label), endpoint)
-            )
-            showTransientMessage(getString(R.string.lan_server_url_copied))
-        }
-        copyApiUrlLink.setOnClickListener {
-            val apiEndpoint = LanServerStateStore.read(this).endpoint?.let(::lanApiBaseUrl)
-            if (apiEndpoint.isNullOrBlank()) {
-                showTransientMessage(getString(R.string.lan_server_not_running))
-                return@setOnClickListener
-            }
-            getSystemService(ClipboardManager::class.java)?.setPrimaryClip(
-                ClipData.newPlainText(getString(R.string.lan_server_api_url_label), apiEndpoint)
-            )
-            showTransientMessage(getString(R.string.lan_server_api_url_copied))
-        }
-        closeButton.setOnClickListener {
-            if (LanServerStateStore.read(this).isActive) {
-                LanServerService.stop(this)
-            }
-            dialog.dismiss()
-        }
-        dialog.setOnShowListener {
-            renderState()
-            dialogView.post(refreshRunnable)
-        }
-        dialog.setOnDismissListener {
-            dialogView.removeCallbacks(refreshRunnable)
-        }
-        dialog.show()
-        renderState()
-    }
-
-    private fun lanApiBaseUrl(webUiUrl: String): String {
-        val normalized = webUiUrl.trimEnd('/')
-        return if (normalized.endsWith("/ui")) {
-            normalized.removeSuffix("/ui") + "/v1"
-        } else {
-            "$normalized/v1"
-        }
+        LanServerFeature.instance?.showDialog(lanHost)
     }
 
     private fun refreshDrawerSessions() {
@@ -4044,9 +4884,54 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
-        val sessions = chatSessionStore.list()
+        val query = findViewById<EditText>(R.id.drawerSearchChats).text.toString().trim()
+        val all = chatSessionStore.list()
+        val sessions = if (query.isEmpty()) all else all.filter { it.title.contains(query, ignoreCase = true) }
         drawerSessionsAdapter.submitList(sessions)
+        drawerChatsEmptyView.setText(if (query.isEmpty()) R.string.no_saved_chats else R.string.drawer_search_no_match)
         drawerChatsEmptyView.visibility = if (sessions.isEmpty()) View.VISIBLE else View.GONE
+    }
+
+    private var pendingExportSessionId: String? = null
+
+    private val exportTextLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        uri?.let { writeSessionExport(it, asJson = false) }
+    }
+    private val exportJsonLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let { writeSessionExport(it, asJson = true) }
+    }
+
+    /** The row menu: export as text or JSON, or delete (which still asks first). */
+    private fun showSessionMenu(session: ChatSessionSummary, anchor: View) {
+        val menu = android.widget.PopupMenu(this, anchor)
+        menu.menu.add(0, 1, 0, R.string.chat_export_text)
+        menu.menu.add(0, 2, 1, R.string.chat_export_json)
+        menu.menu.add(0, 3, 2, R.string.delete)
+        menu.setOnMenuItemClickListener { item ->
+            val name = session.title.replace(Regex("[^\\p{L}\\p{N} _-]"), "").trim().ifBlank { "chat" }.take(40)
+            when (item.itemId) {
+                1 -> { pendingExportSessionId = session.sessionId; exportTextLauncher.launch("$name.txt") }
+                2 -> { pendingExportSessionId = session.sessionId; exportJsonLauncher.launch("$name.json") }
+                else -> confirmDeleteSession(session)
+            }
+            true
+        }
+        menu.show()
+    }
+
+    private fun writeSessionExport(uri: Uri, asJson: Boolean) {
+        val sessionId = pendingExportSessionId ?: return
+        pendingExportSessionId = null
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    val content = (if (asJson) chatSessionStore.exportJson(sessionId) else chatSessionStore.exportText(sessionId))
+                        ?: error("missing session")
+                    contentResolver.openOutputStream(uri, "wt")?.use { it.write(content.toByteArray(Charsets.UTF_8)) } ?: error("no stream")
+                }.isSuccess
+            }
+            showTransientMessage(getString(if (ok) R.string.chat_export_done else R.string.chat_export_failed))
+        }
     }
 
     private fun confirmDeleteSession(session: ChatSessionSummary) {
@@ -4223,7 +5108,9 @@ open class PocketChatActivity : AppCompatActivity() {
             .setNegativeButton(android.R.string.cancel, null)
             .setPositiveButton(getString(R.string.delete)) { _, _ ->
                 if (modelFileResolver.deleteDownloadedModel(descriptor)) {
-                    if (descriptor is CustomLiteRtSpec) ModelRegistry.loadCustomModels(this)
+                    // Custom and Hugging Face entries live in their model folder, so deleting removes them.
+                    ModelRegistry.loadCustomModels(this)
+                    ImageGenFeature.instance?.loadCustomModels(this)
                     if (isFailedModel) {
                         controllerStateJob?.cancel()
                         chatController?.close()
@@ -4265,7 +5152,7 @@ open class PocketChatActivity : AppCompatActivity() {
 
         val isAvailable = modelFileResolver.isModelAvailable(descriptor)
         if (isAvailable) {
-            if (LanServerService.isRunning()) {
+            if (LanServerFeature.isRunning()) {
                 showTransientMessage(getString(R.string.lan_server_model_switch_blocked))
                 return
             }
@@ -4325,6 +5212,14 @@ open class PocketChatActivity : AppCompatActivity() {
         modelDialogViews?.dialog?.dismiss()
     }
 
+    /** Asks the same question again: sends the last typed prompt once more as a new turn. */
+    private fun retryLastResponse() {
+        val controller = chatController ?: return
+        val last = controller.state.value.transcript.lastOrNull { it.isUser && !it.isImage && !it.isAttachment } ?: return
+        if (controller.state.value.isGenerating) return
+        controller.sendPrompt(last.text, last.displayText ?: last.text)
+    }
+
     private fun updateImageInputButtonDescriptions() {
         if (!::galleryOcrButton.isInitialized || !::cameraOcrButton.isInitialized) {
             return
@@ -4358,6 +5253,7 @@ open class PocketChatActivity : AppCompatActivity() {
         activeDownloadModelName = descriptor.displayName
         activeDownloadFileName = null
         activeDownloadBytes = 0L
+        downloadSpeedStartMs = 0L
         activeDownloadTotalBytes = descriptor.approxDownloadBytes
         modelOperationStatusMessage = getString(R.string.model_download_preparing, descriptor.displayName)
 
@@ -4417,6 +5313,8 @@ open class PocketChatActivity : AppCompatActivity() {
         activeDownloadFileName = null
         activeDownloadBytes = 0L
         activeDownloadTotalBytes = null
+        downloadSpeedStartMs = 0L
+        downloadSheet?.dismiss()
     }
 
     private fun startNewChatFromUi() {
@@ -4439,145 +5337,295 @@ open class PocketChatActivity : AppCompatActivity() {
         refreshDrawerSessions()
     }
 
-    private fun showSettingsDialog() {
-        val dialogBuilder = MaterialAlertDialogBuilder(this)
-        val dialogContext = dialogBuilder.context
-        val dialogView = LayoutInflater.from(dialogContext)
-            .inflate(R.layout.dialog_settings, null)
-        val previewState = settingsDialogPreviewState
-        val originalSettings = previewState?.originalSettings ?: currentSettings
-        var draftSettings = previewState?.draftSettings ?: currentSettings
-        val accentOptions = AppAccentOption.entries.toList()
-        val appearanceModeGroup: RadioGroup = dialogView.findViewById(R.id.appearanceModeGroup)
-        val accentColorSpinner: AppCompatSpinner = dialogView.findViewById(R.id.accentColorSpinner)
-        val fontSizeValue: TextView = dialogView.findViewById(R.id.fontSizeValue)
-        val fontSizePreview: TextView = dialogView.findViewById(R.id.fontSizePreview)
-        val fontSizeSeekBar: SeekBar = dialogView.findViewById(R.id.fontSizeSeekBar)
-        val cancelButton: Button = dialogView.findViewById(R.id.settingsCancelButton)
-        val saveButton: Button = dialogView.findViewById(R.id.settingsSaveButton)
-
-        val accentAdapter = ArrayAdapter(
-            dialogContext,
-            R.layout.item_instruction_preset_spinner,
-            accentOptions.map { dialogContext.getString(it.labelResId) }
-        ).apply {
-            setDropDownViewResource(R.layout.item_instruction_preset_dropdown)
-        }
-        accentColorSpinner.adapter = accentAdapter
-
-        when (draftSettings.appearance) {
-            AppAppearanceMode.LIGHT -> appearanceModeGroup.check(R.id.appearanceLight)
-            AppAppearanceMode.DARK -> appearanceModeGroup.check(R.id.appearanceDark)
-        }
-        val initialAccentIndex = accentOptions.indexOf(draftSettings.accent).coerceAtLeast(0)
-        accentColorSpinner.setSelection(initialAccentIndex, false)
-
-        val initialProgress = (draftSettings.chatFontSizeSp - 13f).toInt().coerceIn(0, 11)
-        fontSizeSeekBar.progress = initialProgress
-        updateFontSizePreview(fontSizeValue, fontSizePreview, draftSettings.chatFontSizeSp)
-
-        appearanceModeGroup.setOnCheckedChangeListener { _, checkedId ->
-            val selectedAppearance = when (checkedId) {
-                R.id.appearanceLight -> AppAppearanceMode.LIGHT
-                else -> AppAppearanceMode.DARK
-            }
-            if (draftSettings.appearance == selectedAppearance) {
-                return@setOnCheckedChangeListener
-            }
-            draftSettings = draftSettings.copy(appearance = selectedAppearance)
-            previewSettingsFromDialog(originalSettings, draftSettings)
-        }
-
-        var ignoreInitialAccentSelection = true
-        accentColorSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
-            ) {
-                if (ignoreInitialAccentSelection && position == initialAccentIndex) {
-                    ignoreInitialAccentSelection = false
-                    return
-                }
-                ignoreInitialAccentSelection = false
-                val selectedAccent = accentOptions.getOrNull(position) ?: return
-                if (draftSettings.accent == selectedAccent) {
-                    return
-                }
-                draftSettings = draftSettings.copy(accent = selectedAccent)
-                previewSettingsFromDialog(originalSettings, draftSettings)
-            }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-        }
-
-        fontSizeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val updatedFontSize = 13f + progress
-                draftSettings = draftSettings.copy(chatFontSizeSp = updatedFontSize)
-                updateFontSizePreview(fontSizeValue, fontSizePreview, updatedFontSize)
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
-
-            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
-        })
-
-        val dialog = dialogBuilder
-            .setView(dialogView)
-            .create()
-        var saveConfirmed = false
-
-        cancelButton.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialog.setOnDismissListener {
-            if (!saveConfirmed && !isRecreatingForSettingsPreview && !isChangingConfigurations) {
-                rollbackSettingsPreviewIfNeeded()
-            }
-        }
-
-        saveButton.setOnClickListener {
-            val selectedAccent = accentOptions
-                .getOrNull(accentColorSpinner.selectedItemPosition)
-                ?: draftSettings.accent
-            val updatedSettings = draftSettings.copy(
-                accent = selectedAccent,
-                chatFontSizeSp = 13f + fontSizeSeekBar.progress
-            )
-            val visualThemeChanged = updatedSettings.accent != currentSettings.accent ||
-                updatedSettings.appearance != currentSettings.appearance
-            saveConfirmed = true
-            settingsDialogPreviewState = null
-            currentSettings = updatedSettings
-            settingsStore.save(updatedSettings)
-            dialog.dismiss()
-            if (visualThemeChanged) {
-                recreate()
-            } else {
-                chatAdapter.updateFontSize(updatedSettings.chatFontSizeSp)
-                drawerSessionsAdapter.updateFontSize(updatedSettings.chatFontSizeSp)
-                applyTypography(
-                    findViewById(R.id.statusView),
-                    findViewById(R.id.sendButton),
-                    findViewById(R.id.stopButton)
-                )
-            }
-        }
-
-        showPanelDialog(dialog)
+    /** A start icon at the mock-up's chip size (20dp), tinted like the chip text. */
+    private fun TextView.setChipIcon(res: Int) {
+        val icon = ContextCompat.getDrawable(this@PocketChatActivity, res)!!.mutate()
+        icon.setBounds(0, 0, dp(20), dp(20))
+        setCompoundDrawablesRelative(icon, null, null, null)
+        compoundDrawableTintList = ColorStateList.valueOf(resolveThemeColor(R.attr.colorAssistantText))
     }
 
+    /**
+     * Icon-only chip for free users: "3 free" in gold while tries are left, a small gold lock once they are used.
+     * Nothing for Pro users.
+     */
+    private fun TextView.setProBadge(feature: ProFeature) {
+        val left = if (proGate.isUnlocked()) Int.MAX_VALUE
+            else ProUiFeature.instance?.triesLeft(this@PocketChatActivity, proGate, feature) ?: 0
+        when {
+            left == Int.MAX_VALUE -> {
+                text = ""
+                compoundDrawablePadding = 0
+            }
+            left > 0 -> {
+                text = getString(R.string.chat_chip_tries_left, left)
+                textSize = 11f
+                // Bright gold on dark themes, deeper gold on light ones for contrast.
+                setTextColor(getColor(if (androidx.core.graphics.ColorUtils.calculateLuminance(resolveThemeColor(R.attr.colorAssistantText)) > 0.5) R.color.pro_gold else R.color.pro_gold_dark))
+                compoundDrawablePadding = dp(4)
+            }
+            else -> {
+                val lock = ContextCompat.getDrawable(this@PocketChatActivity, R.drawable.ic_lock_gold_12)!!.mutate()
+                lock.setBounds(0, 0, dp(12), dp(12))
+                text = SpannableString("￼").apply {
+                    setSpan(ImageSpan(lock, ImageSpan.ALIGN_CENTER), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                compoundDrawablePadding = dp(4)
+            }
+        }
+    }
+
+    private fun updateChatToolChips() {
+        val button = findViewById<TextView>(R.id.toolsButton)
+        button.visibility = if (ImageGenFeature.isAvailable || TranslatorFeature.isAvailable) View.VISIBLE else View.GONE
+        val label = getString(R.string.chat_tools)
+        if (proGate.isUnlocked()) {
+            button.text = label
+            return
+        }
+        val pro = ProUiFeature.instance
+        val left = maxOf(
+            if (ImageGenFeature.isAvailable) pro?.triesLeft(this, proGate, ProFeature.IMAGE_GENERATION) ?: 0 else 0,
+            if (TranslatorFeature.isAvailable) pro?.triesLeft(this, proGate, ProFeature.TRANSLATOR) ?: 0 else 0
+        )
+        val gold = getColor(if (androidx.core.graphics.ColorUtils.calculateLuminance(resolveThemeColor(R.attr.colorAssistantText)) > 0.5) R.color.pro_gold else R.color.pro_gold_dark)
+        val text = SpannableStringBuilder(label).append("  ")
+        if (left > 0) {
+            val start = text.length
+            text.append(getString(R.string.chat_chip_tries_left, left))
+            text.setSpan(ForegroundColorSpan(gold), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            text.setSpan(RelativeSizeSpan(0.85f), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        } else {
+            val lock = ContextCompat.getDrawable(this, R.drawable.ic_lock_gold_12)!!.mutate()
+            lock.setBounds(0, 0, dp(12), dp(12))
+            val start = text.length
+            text.append("￼")
+            text.setSpan(ImageSpan(lock, ImageSpan.ALIGN_CENTER), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        button.text = text
+    }
+
+    /** "Open tools": a bottom sheet of tiles (Create, Enhance, Remove, Translator, LAN server), as in the mock-up. */
+    private fun showToolsMenu(anchor: View) {
+        val sheet = BottomSheetDialog(this)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(4), dp(20), dp(24))
+        }
+        root.addView(TextView(this).apply {
+            setText(R.string.tools_sheet_title)
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_TitleLarge)
+            setTextColor(resolveThemeColor(R.attr.colorAssistantText))
+            setPadding(dp(4), dp(8), 0, dp(12))
+        })
+        val tiles = mutableListOf<View>()
+        fun tile(@DrawableRes icon: Int, @StringRes label: Int, @StringRes hint: Int, feature: ProFeature?, action: () -> Unit) {
+            val view = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = ContextCompat.getDrawable(this@PocketChatActivity, R.drawable.bg_card_line)
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                isClickable = true
+                isFocusable = true
+                foreground = ContextCompat.getDrawable(this@PocketChatActivity, android.R.drawable.list_selector_background)
+                minimumHeight = dp(120)
+            }
+            val top = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            top.addView(ImageView(this).apply {
+                setImageResource(icon)
+                imageTintList = ColorStateList.valueOf(resolveThemeColor(R.attr.colorSendFill))
+                layoutParams = LinearLayout.LayoutParams(dp(24), dp(24))
+            })
+            top.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+            if (feature != null && !proGate.isUnlocked()) {
+                val left = ProUiFeature.instance?.triesLeft(this, proGate, feature) ?: 0
+                top.addView(TextView(this).apply {
+                    background = ContextCompat.getDrawable(this@PocketChatActivity, R.drawable.bg_pro_chip)
+                    setPadding(dp(6), dp(1), dp(6), dp(1))
+                    setTextSize(TypedValue.COMPLEX_UNIT_SP, 10f)
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(ContextCompat.getColor(this@PocketChatActivity, R.color.pro_chip_on))
+                    text = if (left > 0) getString(R.string.chat_chip_tries_left, left) else getString(R.string.pro_chip)
+                })
+            }
+            view.addView(top)
+            view.addView(TextView(this).apply {
+                setText(label)
+                setTextColor(resolveThemeColor(R.attr.colorAssistantText))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                setTypeface(typeface, Typeface.BOLD)
+                setPadding(0, dp(10), 0, 0)
+            })
+            view.addView(TextView(this).apply {
+                setText(hint)
+                setTextColor(resolveThemeColor(R.attr.colorStatusText))
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+            })
+            view.setOnClickListener {
+                sheet.dismiss()
+                action()
+            }
+            tiles.add(view)
+        }
+        if (ImageGenFeature.isAvailable) {
+            tile(R.drawable.ic_sparkle_20, R.string.plus_menu_create, R.string.tools_hint_create, ProFeature.IMAGE_GENERATION) {
+                openImageGeneration(toolName = ImageTool.CREATE.name)
+            }
+            tile(R.drawable.ic_tune_20, R.string.image_tool_enhance, R.string.tools_hint_enhance, ProFeature.IMAGE_GENERATION) {
+                openImageGeneration(toolName = ImageTool.ENHANCE.name)
+            }
+            tile(R.drawable.ic_erase_20, R.string.image_tool_remove, R.string.tools_hint_remove, ProFeature.IMAGE_GENERATION) {
+                openImageGeneration(toolName = ImageTool.REMOVE_OBJECT.name)
+            }
+        }
+        if (TranslatorFeature.isAvailable) {
+            tile(R.drawable.ic_translate_24, R.string.translator_menu, R.string.tools_hint_translator, ProFeature.TRANSLATOR) { openTranslator() }
+        }
+        if (LanServerFeature.isAvailable) {
+            tile(R.drawable.ic_network_20, R.string.lan_server_menu, R.string.tools_hint_lan, null) { showLanServerDialog() }
+        }
+        tiles.chunked(3).forEach { chunk ->
+            val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            repeat(3) { i ->
+                val cell = chunk.getOrNull(i) ?: View(this)
+                line.addView(cell, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    setMargins(dp(4), dp(4), dp(4), dp(4))
+                })
+            }
+            root.addView(line)
+        }
+        sheet.setContentView(root)
+        sheet.show()
+    }
+
+    private var stopGlowAnimator: android.animation.ValueAnimator? = null
+
+    /** Finished-answer count when a web search answer was sent; null when no web search try is pending. */
+    private var webSearchTryFrom: Int? = null
+    private var webSearchTryStarted = false
+
+    /** Uses the web search try once the answer it was sent with finishes; a stopped or failed answer keeps it. */
+    private fun settleWebSearchTry(state: ChatUiState) {
+        val from = webSearchTryFrom ?: return
+        if (state.isGenerating) {
+            webSearchTryStarted = true
+            return
+        }
+        if (!webSearchTryStarted) return
+        webSearchTryFrom = null
+        webSearchTryStarted = false
+        if (state.finishedAnswers > from) {
+            ProUiFeature.instance?.useTrial(this, proGate, ProFeature.WEB_SEARCH)
+            refreshProBadges()
+        }
+    }
+
+    /** A weak accent glow on the stop button while the model answers; the only glow besides the orb. */
+    private fun setStopGlow(on: Boolean) {
+        stopGlowAnimator?.cancel()
+        stopGlowAnimator = null
+        stopButton.elevation = 0f
+        if (!on) return
+        stopButton.outlineSpotShadowColor = resolveThemeColor(R.attr.colorSendFill)
+        stopButton.outlineAmbientShadowColor = resolveThemeColor(R.attr.colorSendFill)
+        stopGlowAnimator = android.animation.ValueAnimator.ofFloat(2f, 7f).apply {
+            duration = 1100L
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            repeatMode = android.animation.ValueAnimator.REVERSE
+            addUpdateListener { stopButton.elevation = dp(1) * (it.animatedValue as Float) }
+            start()
+        }
+    }
+
+    /** Send and stop swap with a short scale and fade instead of popping in. */
+    private fun morphIn(view: View) {
+        view.animate().cancel()
+        view.alpha = 0f
+        view.scaleX = 0.6f
+        view.scaleY = 0.6f
+        view.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(160L).start()
+    }
+
+    /** Empty chat with a model ready: one greeting line. */
+    private var lastChatState: ChatUiState? = null
+
+    private fun updateChatGreeting(state: ChatUiState) {
+        lastChatState = state
+        val greeting = findViewById<View>(R.id.chatGreeting) ?: return
+        // Only after the loading card (and its progress bar) has completely faded out.
+        val loadingGone = !::modelLoadingCard.isInitialized || modelLoadingCard.visibility != View.VISIBLE
+        val show = state.isReady && !state.isGenerating && state.transcript.isEmpty() && loadingGone
+        greeting.visibility = if (show) View.VISIBLE else View.GONE
+        if (!show) return
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        val hello = when {
+            hour < 12 -> R.string.chat_greeting_morning
+            hour < 18 -> R.string.chat_greeting_afternoon
+            else -> R.string.chat_greeting_evening
+        }
+        findViewById<TextView>(R.id.chatGreetingHello).apply {
+            text = getString(hello)
+            applyThemeGradient(this)
+        }
+    }
+
+    /** Left-to-right gradient across the measured text, from the theme's three gradient colours. */
+    private fun applyThemeGradient(view: TextView) {
+        val width = view.paint.measureText(view.text.toString()).coerceAtLeast(1f)
+        view.paint.shader = android.graphics.LinearGradient(
+            0f, 0f, width, 0f,
+            intArrayOf(
+                resolveThemeColor(R.attr.pocketGradient1),
+                resolveThemeColor(R.attr.pocketGradient2),
+                resolveThemeColor(R.attr.pocketGradient3)
+            ),
+            floatArrayOf(0f, 0.55f, 1f),
+            android.graphics.Shader.TileMode.CLAMP
+        )
+        view.invalidate()
+    }
+
+    private fun updateWebSearchButton() {
+        if (!::webSearchButton.isInitialized) return
+        val supported = chatController?.supportsNativeToolCalling() == true
+        val on = supported && WebSearchFeature.instance?.isUsable(this) == true
+        // M3 filter chip, like Image and Translate: outlined when off, secondaryContainer when on.
+        val onColor = resolveThemeColor(R.attr.colorToolActive)
+        val text = resolveThemeColor(R.attr.colorAssistantText)
+        webSearchButton.alpha = if (supported) 1f else 0.45f
+        webSearchButton.backgroundTintList = ColorStateList.valueOf(Color.TRANSPARENT)
+        webSearchButton.strokeWidth = 0
+        webSearchButton.setTextColor(if (on) onColor else text)
+        webSearchButton.iconTint = ColorStateList.valueOf(if (on) onColor else text)
+        webSearchButton.setProBadge(ProFeature.WEB_SEARCH)
+        // "Web" label next to the icon, followed by the free-tries or lock badge for free users.
+        val badge = webSearchButton.text
+        val label = SpannableStringBuilder(getString(R.string.chat_chip_web))
+        label.setSpan(ForegroundColorSpan(if (on) onColor else text), 0, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        if (badge.isNotEmpty()) {
+            val start = label.length + 2
+            label.append("  ").append(badge)
+            label.setSpan(RelativeSizeSpan(0.85f), start, label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        webSearchButton.textSize = 13f
+        webSearchButton.compoundDrawablePadding = 0
+        webSearchButton.text = label
+        webSearchButton.contentDescription = getString(R.string.chat_chip_web)
+    }
+
+    private fun onWebSearchChipClicked() {
+        WebSearchFeature.instance?.onWebSearchChipClicked(webSearchHost)
+    }
+
+    private fun showManageWebSearchDialog() {
+        WebSearchFeature.instance?.showManageDialog(webSearchHost)
+    }
     private fun showAboutDialog() {
         val dialogBuilder = MaterialAlertDialogBuilder(this)
         val dialogView = LayoutInflater.from(dialogBuilder.context)
             .inflate(R.layout.dialog_about, null)
         val versionView: TextView = dialogView.findViewById(R.id.aboutVersion)
-        val githubLinkView: TextView = dialogView.findViewById(R.id.aboutGithubLink)
-        val privacyLinkView: TextView = dialogView.findViewById(R.id.aboutPrivacyLink)
-        val termsLinkView: TextView = dialogView.findViewById(R.id.aboutTermsLink)
+        val privacyLinkView: View = dialogView.findViewById(R.id.aboutPrivacyLink)
+        val termsLinkView: View = dialogView.findViewById(R.id.aboutTermsLink)
         val okButton: Button = dialogView.findViewById(R.id.aboutOkButton)
         privacyLinkView.setOnClickListener {
             LegalDialogs.showDocument(this, LegalDocument.PRIVACY_POLICY)
@@ -4585,10 +5633,22 @@ open class PocketChatActivity : AppCompatActivity() {
         termsLinkView.setOnClickListener {
             LegalDialogs.showDocument(this, LegalDocument.TERMS_OF_USE)
         }
+        dialogView.findViewById<View>(R.id.aboutModelLicensesLink).setOnClickListener {
+            showModelLicensesDialog()
+        }
 
-        versionView.text = getString(R.string.about_version_format, currentVersionName())
-        githubLinkView.movementMethod = LinkMovementMethod.getInstance()
-        Linkify.addLinks(githubLinkView, Linkify.WEB_URLS)
+        versionView.text = getString(R.string.about_version_by, currentVersionName())
+        dialogView.findViewById<View>(R.id.aboutProBadge).visibility =
+            if (ProUiFeature.isAvailable && proGate.isUnlocked()) View.VISIBLE else View.GONE
+        val showRate = resources.getBoolean(R.bool.show_rate_on_play)
+        dialogView.findViewById<View>(R.id.aboutRateRow).visibility = if (showRate) View.VISIBLE else View.GONE
+        dialogView.findViewById<View>(R.id.aboutRateDivider).visibility = if (showRate) View.VISIBLE else View.GONE
+        dialogView.findViewById<View>(R.id.aboutRateRow).setOnClickListener { openPlayStorePage() }
+        dialogView.findViewById<View>(R.id.aboutFeedbackRow).setOnClickListener {
+            val mail = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + getString(R.string.about_feedback_email)))
+                .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.about_feedback_subject) + " " + currentVersionName())
+            runCatching { startActivity(mail) }.onFailure { showTransientMessage(getString(R.string.about_feedback_email)) }
+        }
 
         val dialog = dialogBuilder
             .setView(dialogView)
@@ -4599,6 +5659,53 @@ open class PocketChatActivity : AppCompatActivity() {
         }
 
         showPanelDialog(dialog)
+    }
+
+    /** Opens the app's Google Play page: the Play Store app if present, else the browser. */
+    private fun openPlayStorePage() {
+        val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$PLAY_PACKAGE"))
+        runCatching { startActivity(market) }.onFailure {
+            runCatching {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$PLAY_PACKAGE")))
+            }
+        }
+    }
+
+    private fun showModelLicensesDialog() {
+        val builder = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.about_model_licenses)
+            .setMessage(R.string.model_licenses_text)
+            .setPositiveButton(android.R.string.ok, null)
+        val plamoLicense = plamoLicenseResId()
+        if (resources.getBoolean(R.bool.show_pro_model_licenses) && plamoLicense != 0) {
+            builder.setNeutralButton(R.string.plamo_license_button) { _, _ -> showPlamoLicenseDialog(plamoLicense) }
+        }
+        val dialog = builder.show()
+        dialog.findViewById<TextView>(android.R.id.message)?.let {
+            Linkify.addLinks(it, Linkify.WEB_URLS)
+            it.movementMethod = LinkMovementMethod.getInstance()
+        }
+    }
+
+    /** The PLaMo license file ships only in the Play build (src/play/res/raw), so it is looked up by name. */
+    @android.annotation.SuppressLint("DiscouragedApi")
+    private fun plamoLicenseResId(): Int =
+        resources.getIdentifier("plamo_community_license", "raw", packageName)
+
+    /** The PLaMo Community License text, shipped with the app as its Article 4 asks. */
+    private fun showPlamoLicenseDialog(resId: Int) {
+        val text = resources.openRawResource(resId).bufferedReader().use { it.readText() }
+        val body = TextView(this).apply {
+            this.text = text
+            setTextIsSelectable(true)
+            val pad = (24 * resources.displayMetrics.density).toInt()
+            setPadding(pad, 0, pad, 0)
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.plamo_license_title)
+            .setView(android.widget.ScrollView(this).apply { addView(body) })
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     @Suppress("DEPRECATION")
@@ -4649,7 +5756,7 @@ open class PocketChatActivity : AppCompatActivity() {
             return
         }
 
-        if (editingActiveModel && LanServerService.isRunning()) {
+        if (editingActiveModel && LanServerFeature.isRunning()) {
             showTransientMessage(getString(R.string.model_settings_lan_blocked))
             return
         }
@@ -4665,7 +5772,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val modelNameView: TextView = dialogView.findViewById(R.id.modelSettingsModelName)
         val contextLengthInput: EditText = dialogView.findViewById(R.id.modelContextLengthInput)
         val contextLengthHelp: TextView = dialogView.findViewById(R.id.modelContextLengthHelp)
-        val presetSpinner: AppCompatSpinner = dialogView.findViewById(R.id.modelInstructionPresetSpinner)
+        val presetChipGroup: ChipGroup = dialogView.findViewById(R.id.modelInstructionPresetChips)
         val instructionInput: EditText = dialogView.findViewById(R.id.modelInstructionInput)
         val cancelButton: Button = dialogView.findViewById(R.id.modelSettingsCancelButton)
         val saveButton: Button = dialogView.findViewById(R.id.modelSettingsSaveButton)
@@ -4676,21 +5783,43 @@ open class PocketChatActivity : AppCompatActivity() {
         val maxContextLength = ModelRuntimeSettingsLimits.maxFor(descriptor)
         contextLengthInput.setText(runtimeSettings.contextLengthTokens.toString())
         contextLengthInput.setSelection(contextLengthInput.text.length)
+        val contextMemoryGuard = ContextMemoryGuard(this)
+        val contextDecision = contextMemoryGuard.decide(descriptor, runtimeSettings.contextLengthTokens)
         contextLengthHelp.text = getString(
             R.string.model_context_length_help,
             minContextLength,
             maxContextLength
         )
-        val presets = InstructionPreset.entries.toList()
-        val presetLabels = presets.map { it.label }
-        val presetAdapter = ArrayAdapter(
-            this,
-            R.layout.item_instruction_preset_spinner,
-            presetLabels
-        ).apply {
-            setDropDownViewResource(R.layout.item_instruction_preset_dropdown)
+        val deviceContextLimit = minOf(
+            contextDecision.deviceLimitTokens,
+            contextDecision.learnedLimitTokens ?: Int.MAX_VALUE,
+            maxContextLength
+        )
+        // Saving a new value clears the crash-learned limit, so warn against the estimate alone.
+        val estimatedDeviceLimit = minOf(contextDecision.deviceLimitTokens, maxContextLength)
+        if (descriptor !is OnnxQwenSpec) {
+            val limitText = if (contextDecision.deviceLimitMeasured) {
+                R.string.model_context_length_measured_limit
+            } else {
+                R.string.model_context_length_device_limit
+            }
+            contextLengthHelp.append(" " + getString(limitText, deviceContextLimit))
+            val loadedDecision = chatController?.contextDecision?.takeIf { editingActiveModel }
+            if (loadedDecision != null && loadedDecision.isCapped) {
+                contextLengthHelp.append(
+                    " " + getString(R.string.model_context_length_loaded_with, loadedDecision.effectiveTokens)
+                )
+            }
         }
-        presetSpinner.adapter = presetAdapter
+        val presets = InstructionPreset.entries.toList()
+        val presetChipInflater = LayoutInflater.from(dialogView.context)
+        val presetChipIds = presets.map { preset ->
+            val chip = presetChipInflater.inflate(R.layout.item_preset_chip, presetChipGroup, false) as Chip
+            chip.id = View.generateViewId()
+            chip.text = preset.label
+            presetChipGroup.addView(chip)
+            chip.id
+        }
 
         var selectedPreset = modelInstructionStore.loadPreset(descriptor)
         var applyingPresetText = false
@@ -4703,43 +5832,32 @@ open class PocketChatActivity : AppCompatActivity() {
         } else {
             InstructionPreset.CUSTOM.instruction
         }
-        var ignoreInitialPresetSelection = true
-        presetSpinner.setSelection(selectedPresetIndex, false)
+        presetChipGroup.check(presetChipIds[selectedPresetIndex])
         applyingPresetText = true
         instructionInput.setText(currentInstruction)
-        instructionInput.setSelection(currentInstruction.length)
+        instructionInput.setSelection(0)
         applyingPresetText = false
 
-        presetSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
-            ) {
-                val preset = presets.getOrNull(position) ?: return
-                if (ignoreInitialPresetSelection && position == selectedPresetIndex) {
-                    ignoreInitialPresetSelection = false
-                    return
-                }
-                ignoreInitialPresetSelection = false
-                selectedPreset = preset
-                if (switchingToCustomFromEdit) {
-                    return
-                }
-
-                applyingPresetText = true
-                val presetInstruction = if (preset == InstructionPreset.CUSTOM) {
-                    customInstructionText
-                } else {
-                    preset.instruction
-                }
-                instructionInput.setText(presetInstruction)
-                instructionInput.setSelection(instructionInput.text.length)
-                applyingPresetText = false
+        presetChipGroup.setOnCheckedStateChangeListener { _, checkedIds ->
+            val position = presetChipIds.indexOf(checkedIds.firstOrNull() ?: return@setOnCheckedStateChangeListener)
+            val preset = presets.getOrNull(position) ?: return@setOnCheckedStateChangeListener
+            if (preset == selectedPreset) {
+                return@setOnCheckedStateChangeListener
+            }
+            selectedPreset = preset
+            if (switchingToCustomFromEdit) {
+                return@setOnCheckedStateChangeListener
             }
 
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            applyingPresetText = true
+            val presetInstruction = if (preset == InstructionPreset.CUSTOM) {
+                customInstructionText
+            } else {
+                preset.instruction
+            }
+            instructionInput.setText(presetInstruction)
+            instructionInput.setSelection(instructionInput.text.length)
+            applyingPresetText = false
         }
 
         instructionInput.addTextChangedListener(object : TextWatcher {
@@ -4775,9 +5893,10 @@ open class PocketChatActivity : AppCompatActivity() {
                 customInstructionText = editedInstruction
                 selectedPreset = InstructionPreset.CUSTOM
                 val customPresetIndex = presets.indexOf(InstructionPreset.CUSTOM)
-                if (presetSpinner.selectedItemPosition != customPresetIndex) {
+                val customChipId = presetChipIds[customPresetIndex]
+                if (presetChipGroup.checkedChipId != customChipId) {
                     switchingToCustomFromEdit = true
-                    presetSpinner.setSelection(customPresetIndex)
+                    presetChipGroup.check(customChipId)
                     switchingToCustomFromEdit = false
                 }
             }
@@ -4786,6 +5905,68 @@ open class PocketChatActivity : AppCompatActivity() {
         val dialog = dialogBuilder
             .setView(dialogView)
             .create()
+        dialog.setOnShowListener {
+            dialog.window?.apply {
+                setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                val pageColor = resolveThemeColor(R.attr.colorAppBackground)
+                setBackgroundDrawable(ColorDrawable(pageColor))
+                statusBarColor = pageColor
+                navigationBarColor = pageColor
+                setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+            }
+        }
+        dialogView.findViewById<View>(R.id.modelSettingsBack).setOnClickListener { dialog.dismiss() }
+
+        // Chat memory in plain words; the exact token count stays in Advanced.
+        val advancedToggle: TextView = dialogView.findViewById(R.id.modelAdvancedToggle)
+        val advancedSection: View = dialogView.findViewById(R.id.modelAdvancedSection)
+        fun renderAdvancedToggle() {
+            val open = advancedSection.visibility == View.VISIBLE
+            val tokens = contextLengthInput.text.toString().trim().toIntOrNull()
+            val summary = if (tokens != null) getString(R.string.model_advanced_tokens, tokens) else ""
+            advancedToggle.text = getString(R.string.model_advanced_label) + " " + summary.trim() + if (open) " ‹" else " ›"
+        }
+        advancedToggle.setOnClickListener {
+            advancedSection.visibility = if (advancedSection.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            renderAdvancedToggle()
+        }
+        renderAdvancedToggle()
+        val memoryGroup: MaterialButtonToggleGroup = dialogView.findViewById(R.id.modelMemoryGroup)
+        val memoryShortValue = 2048.coerceIn(minContextLength, maxContextLength)
+        val memoryStandardValue = minOf(8192, deviceContextLimit).coerceIn(minContextLength, maxContextLength)
+        val memoryLongValue = deviceContextLimit.coerceIn(minContextLength, maxContextLength)
+        val memoryButtons = listOf(
+            R.id.modelMemoryShort to memoryShortValue,
+            R.id.modelMemoryStandard to memoryStandardValue,
+            R.id.modelMemoryLong to memoryLongValue
+        )
+        var syncingMemory = false
+        fun syncMemoryGroup() {
+            syncingMemory = true
+            val typed = contextLengthInput.text.toString().trim().toIntOrNull()
+            val match = memoryButtons.lastOrNull { it.second == typed }
+            if (match != null) memoryGroup.check(match.first) else memoryGroup.clearChecked()
+            syncingMemory = false
+        }
+        memoryGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (syncingMemory || !isChecked) return@addOnButtonCheckedListener
+            memoryButtons.firstOrNull { it.first == checkedId }?.let {
+                contextLengthInput.setText(it.second.toString())
+            }
+        }
+        contextLengthInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) = Unit
+            override fun afterTextChanged(t: Editable?) { if (!syncingMemory) syncMemoryGroup(); renderAdvancedToggle() }
+        })
+        syncMemoryGroup()
+        val editInstruction: TextView = dialogView.findViewById(R.id.modelInstructionEdit)
+        editInstruction.setOnClickListener {
+            instructionInput.maxLines = 12
+            instructionInput.requestFocus()
+            instructionInput.setSelection(instructionInput.text.length)
+            editInstruction.visibility = View.GONE
+        }
 
         fun saveModelSettings(
             instruction: String,
@@ -4799,6 +5980,8 @@ open class PocketChatActivity : AppCompatActivity() {
             )
             val runtimeSettingsChanged =
                 updatedRuntimeSettings.contextLengthTokens != runtimeSettings.contextLengthTokens
+            // A new explicit choice replaces the limit learned from an earlier crash.
+            if (runtimeSettingsChanged) contextMemoryGuard.clearLearnedLimit(descriptor.id)
             dialog.dismiss()
             if (runtimeSettingsChanged) {
                 if (editingActiveModel) {
@@ -4809,6 +5992,22 @@ open class PocketChatActivity : AppCompatActivity() {
                 }
             } else {
                 showTransientMessage(getString(R.string.model_instruction_saved))
+            }
+        }
+
+        val contextTestButton: Button = dialogView.findViewById(R.id.modelContextTestButton)
+        contextTestButton.visibility = if (ContextProbeFeature.isAvailable && descriptor !is OnnxQwenSpec && descriptor !is GgufSpec) View.VISIBLE else View.GONE
+        contextTestButton.setOnClickListener {
+            if (LanServerFeature.isRunning()) {
+                showTransientMessage(getString(R.string.model_settings_lan_blocked))
+                return@setOnClickListener
+            }
+            if (chatController?.state?.value?.isGenerating == true) {
+                showTransientMessage(getString(R.string.model_settings_generation_blocked))
+                return@setOnClickListener
+            }
+            ContextProbeFeature.instance?.onContextTestButtonClicked(contextProbeHost, descriptor) {
+                dialog.dismiss()
             }
         }
 
@@ -4851,11 +6050,19 @@ open class PocketChatActivity : AppCompatActivity() {
                 val warningDialog = MaterialAlertDialogBuilder(this)
                     .setTitle(R.string.model_context_length_warning_title)
                     .setMessage(
-                        getString(
-                            R.string.model_context_length_warning_message,
-                            ModelRuntimeSettingsLimits.HIGH_CONTEXT_WARNING_THRESHOLD,
-                            requestedContextLength
-                        )
+                        if (descriptor !is OnnxQwenSpec && requestedContextLength > estimatedDeviceLimit) {
+                            getString(
+                                R.string.model_context_length_over_device_limit_message,
+                                estimatedDeviceLimit,
+                                requestedContextLength
+                            )
+                        } else {
+                            getString(
+                                R.string.model_context_length_warning_message,
+                                ModelRuntimeSettingsLimits.HIGH_CONTEXT_WARNING_THRESHOLD,
+                                requestedContextLength
+                            )
+                        }
                     )
                     .setNegativeButton(android.R.string.cancel, null)
                     .setPositiveButton(R.string.model_context_length_warning_continue) { _, _ ->
@@ -4882,7 +6089,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val controller = chatController ?: return
         val activeChatSnapshot = controller.snapshotActiveChat()
         controllerStateJob?.cancel()
-        LanServerControllerRegistry.clearIf(controller)
+        SharedChatControllerRegistry.clearIf(controller)
         chatController = null
         retainedState.chatController = null
         controller.close()
@@ -4890,77 +6097,185 @@ open class PocketChatActivity : AppCompatActivity() {
         requestModelLoad(descriptor, activeChatSnapshot)
     }
 
+    /** Settings pages open as a full page in the app's own background instead of a floating card. */
+    private fun showFullScreenDialog(dialog: AlertDialog) {
+        dialog.setOnShowListener {
+            dialog.window?.apply {
+                setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                val pageColor = resolveThemeColor(R.attr.colorAppBackground)
+                setBackgroundDrawable(ColorDrawable(pageColor))
+                statusBarColor = pageColor
+                navigationBarColor = pageColor
+            }
+        }
+        dialog.show()
+    }
+
     private fun showPanelDialog(dialog: AlertDialog) {
         dialog.show()
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
     }
 
-    private fun previewSettingsFromDialog(
-        originalSettings: AppSettings,
-        draftSettings: AppSettings
-    ) {
-        settingsDialogPreviewState = SettingsDialogPreviewState(
-            originalSettings = originalSettings,
-            draftSettings = draftSettings
-        )
-        val previewThemeSettings = settingsDialogPreviewState?.previewThemeSettings() ?: return
-        val visualThemeChanged = previewThemeSettings.accent != currentSettings.accent ||
-            previewThemeSettings.appearance != currentSettings.appearance
-        if (!visualThemeChanged) {
-            return
+    /** Fills the single Settings page: rows open the detail screens, Appearance is live. */
+    private fun bindSettingsPage() {
+        findViewById<View>(R.id.settingsPersonalityRow).setOnClickListener { showModelSettingsDialog() }
+        findViewById<View>(R.id.settingsContextRow).setOnClickListener { showModelSettingsDialog() }
+        findViewById<View>(R.id.settingsAboutRow).setOnClickListener { showAboutDialog() }
+        findViewById<View>(R.id.settingsWebSearchHeader).visibility = if (WebSearchFeature.isAvailable) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.settingsWebSearchRow).apply {
+            visibility = if (WebSearchFeature.isAvailable) View.VISIBLE else View.GONE
+            setOnClickListener { requireProOrTrial(ProFeature.WEB_SEARCH) { showManageWebSearchDialog() } }
         }
-        currentSettings = previewThemeSettings
-        isRecreatingForSettingsPreview = true
+        findViewById<MaterialSwitch>(R.id.settingsThinkDefault).setOnCheckedChangeListener { _, checked ->
+            settingsStore.saveThinkByDefault(checked)
+        }
+
+        // Appearance mode.
+        val modeGroup: RadioGroup = findViewById(R.id.appearanceModeGroup)
+        modeGroup.check(
+            when (currentSettings.appearance) {
+                AppAppearanceMode.SYSTEM -> R.id.appearanceSystem
+                AppAppearanceMode.LIGHT -> R.id.appearanceLight
+                AppAppearanceMode.DARK -> R.id.appearanceDark
+            }
+        )
+        modeGroup.setOnCheckedChangeListener { _, checkedId ->
+            val mode = when (checkedId) {
+                R.id.appearanceSystem -> AppAppearanceMode.SYSTEM
+                R.id.appearanceLight -> AppAppearanceMode.LIGHT
+                else -> AppAppearanceMode.DARK
+            }
+            if (mode != currentSettings.appearance) applyVisualSettings(currentSettings.copy(appearance = mode))
+        }
+
+        // Accent swatches.
+        val accentRow: LinearLayout = findViewById(R.id.accentSwatchRow)
+        val ringColor = resolveThemeColor(R.attr.colorAssistantText)
+        AppAccentOption.entries.forEachIndexed { index, accent ->
+            val selected = accent == currentSettings.accent
+            accentRow.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(dp(36), dp(36)).apply { if (index > 0) marginStart = dp(10) }
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(ContextCompat.getColor(this@PocketChatActivity, accent.swatchColorRes))
+                    if (selected) setStroke(dp(3), ringColor)
+                }
+                contentDescription = getString(accent.labelResId)
+                setOnClickListener {
+                    if (accent != currentSettings.accent) applyVisualSettings(currentSettings.copy(accent = accent))
+                }
+            })
+        }
+
+        // Background chips.
+        val backgroundRow: LinearLayout = findViewById(R.id.backgroundRow)
+        val activeColor = resolveThemeColor(androidx.appcompat.R.attr.colorPrimary)
+        val lineColor = resolveThemeColor(R.attr.colorPocketOutline)
+        AppBackgroundOption.entries.forEachIndexed { index, option ->
+            val selected = option == currentSettings.background
+            backgroundRow.addView(TextView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(36))
+                    .apply { if (index > 0) marginStart = dp(8) }
+                gravity = Gravity.CENTER
+                setPadding(dp(14), 0, dp(14), 0)
+                text = getString(option.labelResId)
+                textSize = 13f
+                setTextColor(ringColor)
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(18).toFloat()
+                    setStroke(if (selected) dp(2) else dp(1), if (selected) activeColor else lineColor)
+                }
+                setOnClickListener {
+                    if (option != currentSettings.background) applyVisualSettings(currentSettings.copy(background = option))
+                }
+            })
+        }
+
+        // Text size.
+        val fontValue: TextView = findViewById(R.id.fontSizeValue)
+        val fontPreview: TextView = findViewById(R.id.fontSizePreview)
+        val fontSeek: SeekBar = findViewById(R.id.fontSizeSeekBar)
+        fontSeek.progress = (currentSettings.chatFontSizeSp - 13f).toInt().coerceIn(0, 11)
+        updateFontSizePreview(fontValue, fontPreview, currentSettings.chatFontSizeSp)
+        fontSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                updateFontSizePreview(fontValue, fontPreview, 13f + progress)
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                currentSettings = currentSettings.copy(chatFontSizeSp = 13f + fontSeek.progress)
+                settingsStore.save(currentSettings)
+                chatAdapter.updateFontSize(currentSettings.chatFontSizeSp)
+                drawerSessionsAdapter.updateFontSize(currentSettings.chatFontSizeSp)
+                applyTypography(findViewById(R.id.statusView), findViewById(R.id.sendButton), findViewById(R.id.stopButton))
+            }
+        })
+
+        // Speech language.
+        val speechSpinner: Spinner = findViewById(R.id.speechLanguageSpinner)
+        val speechStore = SpeechLanguageStore(this)
+        val speechCodes = listOf(SpeechLanguages.SETTING_PHONE, SpeechLanguages.SETTING_AUTO) +
+            SpeechLanguages.languages.map(SpeechLanguageOption::code)
+        val speechLabels = listOf(
+            getString(R.string.speech_language_phone, Locale.getDefault().displayLanguage),
+            getString(R.string.speech_language_auto)
+        ) + SpeechLanguages.languages.map(SpeechLanguageOption::label)
+        val spinnerTextColor = ringColor
+        speechSpinner.adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, speechLabels) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
+                (super.getView(position, convertView, parent) as TextView).apply { setTextColor(spinnerTextColor) }
+
+            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View =
+                (super.getDropDownView(position, convertView, parent) as TextView).apply { setTextColor(spinnerTextColor) }
+        }
+        speechSpinner.setSelection(speechCodes.indexOf(speechStore.load()).coerceAtLeast(0))
+        val speechHint: View = findViewById(R.id.speechLanguageHint)
+        speechHint.visibility = if (speechCodes.getOrNull(speechSpinner.selectedItemPosition) == SpeechLanguages.SETTING_AUTO) View.VISIBLE else View.GONE
+        speechSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val code = speechCodes.getOrNull(position) ?: return
+                speechHint.visibility = if (code == SpeechLanguages.SETTING_AUTO) View.VISIBLE else View.GONE
+                if (code != speechStore.load()) speechStore.save(code)
+            }
+
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+        }
+    }
+
+    /** Values that change while the app runs: think default, personality and context summaries. */
+    private fun refreshSettingsPage() {
+        findViewById<MaterialSwitch>(R.id.settingsThinkDefault).isChecked = settingsStore.loadThinkByDefault()
+        val state = chatController?.state?.value
+        val contextTokens = state?.contextWindowTokens ?: 0
+        // Small windows (the ONNX models use 512) would round down to "0K".
+        findViewById<TextView>(R.id.settingsContextValue).text = when {
+            contextTokens >= 1024 -> getString(R.string.settings_context_value, contextTokens / 1024)
+            contextTokens > 0 -> getString(R.string.settings_context_value_small, contextTokens)
+            else -> getString(R.string.settings_context_none)
+        }
+        findViewById<TextView>(R.id.settingsPersonalityValue).text =
+            currentModel?.displayName ?: getString(R.string.model_picker_empty_subtitle)
+    }
+
+    /** Saves a theme change and rebuilds the screen; the Settings page opens again afterwards. */
+    private fun applyVisualSettings(updated: AppSettings) {
+        currentSettings = updated
+        settingsStore.save(updated)
+        recreateWithoutFlash()
+    }
+
+    /** Recreates for a theme change with no window transition, so the screen does not flash. */
+    private fun recreateWithoutFlash() {
+        if (Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
         recreate()
-    }
-
-    private fun rollbackSettingsPreviewIfNeeded() {
-        val previewState = settingsDialogPreviewState ?: return
-        settingsDialogPreviewState = null
-        reopenSettingsDialogOnStart = false
-        val originalSettings = previewState.originalSettings
-        val visualThemeChanged = currentSettings.accent != originalSettings.accent ||
-            currentSettings.appearance != originalSettings.appearance
-        currentSettings = originalSettings
-        if (visualThemeChanged) {
-            recreate()
-        }
-    }
-
-    private fun restoreSettingsDialogPreviewState(savedInstanceState: Bundle?): SettingsDialogPreviewState? {
-        savedInstanceState ?: return null
-        val originalSettings = restoreAppSettings(savedInstanceState, SETTINGS_STATE_ORIGINAL_PREFIX)
-            ?: return null
-        val draftSettings = restoreAppSettings(savedInstanceState, SETTINGS_STATE_DRAFT_PREFIX)
-            ?: return null
-        return SettingsDialogPreviewState(
-            originalSettings = originalSettings,
-            draftSettings = draftSettings
-        )
-    }
-
-    private fun saveAppSettings(
-        outState: Bundle,
-        prefix: String,
-        settings: AppSettings
-    ) {
-        outState.putString("${prefix}_accent", settings.accent.name)
-        outState.putString("${prefix}_appearance", settings.appearance.name)
-        outState.putFloat("${prefix}_font_size", settings.chatFontSizeSp)
-    }
-
-    private fun restoreAppSettings(savedInstanceState: Bundle, prefix: String): AppSettings? {
-        val accentName = savedInstanceState.getString("${prefix}_accent") ?: return null
-        val appearanceName = savedInstanceState.getString("${prefix}_appearance") ?: return null
-        return AppSettings(
-            accent = AppAccentOption.fromStoredName(accentName),
-            appearance = runCatching {
-                AppAppearanceMode.valueOf(appearanceName)
-            }.getOrDefault(AppAppearanceMode.DARK),
-            chatFontSizeSp = savedInstanceState
-                .getFloat("${prefix}_font_size", 16f)
-                .coerceIn(13f, 24f)
-        )
     }
 
     private fun resolveThemeColor(attrId: Int): Int {
@@ -4986,8 +6301,17 @@ open class PocketChatActivity : AppCompatActivity() {
         fontSizePreview: TextView,
         fontSizeSp: Float
     ) {
-        fontSizeValue.text = "${fontSizeSp.toInt()} sp"
+        fontSizeValue.setText(
+            when {
+                fontSizeSp <= 14f -> R.string.font_size_small
+                fontSizeSp <= 17f -> R.string.font_size_default
+                else -> R.string.font_size_large
+            }
+        )
         fontSizePreview.textSize = fontSizeSp
+        (fontSizePreview.parent as? View)
+            ?.findViewById<TextView>(R.id.fontSizePreviewReply)
+            ?.textSize = fontSizeSp
     }
 
     private fun updateProgressBar(
@@ -5007,13 +6331,38 @@ open class PocketChatActivity : AppCompatActivity() {
             .coerceIn(0, 1000)
     }
 
+    private var downloadSpeedStartMs = 0L
+    private var downloadSpeedStartBytes = 0L
+
+    /** Rough time left from the average speed since the first reading; null until it is meaningful. */
+    private fun downloadTimeLeftText(downloadedBytes: Long, totalBytes: Long): String? {
+        val now = SystemClock.elapsedRealtime()
+        if (downloadSpeedStartMs == 0L || downloadedBytes < downloadSpeedStartBytes) {
+            downloadSpeedStartMs = now
+            downloadSpeedStartBytes = downloadedBytes
+            return null
+        }
+        val elapsedMs = now - downloadSpeedStartMs
+        val movedBytes = downloadedBytes - downloadSpeedStartBytes
+        if (elapsedMs < 5_000L || movedBytes <= 0L) return null
+        val secondsLeft = (totalBytes - downloadedBytes).coerceAtLeast(0L) * elapsedMs / movedBytes / 1000L
+        return if (secondsLeft < 60L) {
+            getString(R.string.model_download_time_left_short)
+        } else {
+            getString(R.string.model_download_time_left, ((secondsLeft + 59L) / 60L).toInt())
+        }
+    }
+
     private fun formatDownloadProgressText(downloadedBytes: Long, totalBytes: Long?): String {
         return if (totalBytes != null && totalBytes > 0L) {
-            getString(
-                R.string.model_download_progress_bytes,
-                formatFileSize(downloadedBytes),
-                formatFileSize(totalBytes)
-            )
+            val percent = (downloadedBytes * 100L / totalBytes).toInt().coerceIn(0, 100)
+            val timeLeft = downloadTimeLeftText(downloadedBytes, totalBytes)
+                ?: getString(
+                    R.string.model_download_progress_bytes,
+                    formatFileSize(downloadedBytes),
+                    formatFileSize(totalBytes)
+                )
+            getString(R.string.model_download_progress_percent, percent, timeLeft)
         } else {
             getString(
                 R.string.download_notification_progress_unknown,
@@ -5027,12 +6376,14 @@ open class PocketChatActivity : AppCompatActivity() {
     }
 
     private fun applyStatusBackground(message: String) {
-        val backgroundRes = when (message) {
-            MODEL_LOADING_STATUS_MESSAGE -> R.drawable.bg_status_loading
-            MODEL_READY_STATUS_MESSAGE -> R.drawable.bg_status_ready
-            else -> R.drawable.bg_status_chip
+        // Plain italic text rather than a chip, so the status never reads as a button.
+        val textColor = when (message) {
+            MODEL_LOADING_STATUS_MESSAGE -> ContextCompat.getColor(this, R.color.status_loading_background)
+            MODEL_READY_STATUS_MESSAGE -> ContextCompat.getColor(this, R.color.status_ready_background)
+            else -> resolveThemeColor(R.attr.colorStatusText)
         }
-        statusView.setBackgroundResource(backgroundRes)
+        statusView.background = null
+        statusView.setTextColor(textColor)
     }
 
     private fun updateMicRecordingState(active: Boolean) {
@@ -5043,7 +6394,7 @@ open class PocketChatActivity : AppCompatActivity() {
         val backgroundColor = if (active) {
             resolveThemeColor(R.attr.colorStopFill)
         } else {
-            resolveThemeColor(R.attr.colorFrameBackground)
+            Color.TRANSPARENT
         }
         val strokeColor = if (active) {
             resolveThemeColor(R.attr.colorStopStroke)

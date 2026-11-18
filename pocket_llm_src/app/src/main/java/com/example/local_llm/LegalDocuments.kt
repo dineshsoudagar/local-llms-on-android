@@ -9,7 +9,7 @@ enum class LegalDocument(val assetPath: String) {
 
 object LegalDocuments {
     // Bump when the terms or privacy policy change materially; users are asked to accept again.
-    const val CURRENT_VERSION = 1
+    const val CURRENT_VERSION = 3
 
     const val PLACEHOLDER_DEVELOPER_NAME = "DEVELOPER_NAME"
     const val PLACEHOLDER_POSTAL_ADDRESS = "POSTAL_ADDRESS"

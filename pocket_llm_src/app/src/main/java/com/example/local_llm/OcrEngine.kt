@@ -7,8 +7,7 @@ import android.net.Uri
  * On-device text recognition backend.
  *
  * Each distribution flavor provides a top-level `createOcrEngine(context, statusListener)`:
- * the GitHub and Play builds use Google ML Kit (src/mlkit), the F-Droid build uses
- * Tesseract (src/fdroid), so no proprietary library ends up in the F-Droid APK.
+ * Google ML Kit in the Play and GitHub builds, Tesseract in the F-Droid build.
  */
 interface OcrEngine {
     /**

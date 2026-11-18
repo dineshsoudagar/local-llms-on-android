@@ -1,130 +1,305 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:background="@drawable/bg_dialog_panel"
-    android:orientation="vertical"
-    android:padding="20dp">
+    android:layout_height="match_parent"
+    android:background="?attr/colorAppBackground"
+    android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/modelSettingsDialogTitle"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/model_settings_title"
-        android:textColor="?attr/colorAssistantText"
-        android:textSize="18sp"
-        android:textStyle="bold" />
+        android:layout_height="56dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="4dp">
 
-    <TextView
-        android:id="@+id/modelSettingsModelName"
+        <ImageButton
+            android:id="@+id/modelSettingsBack"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/model_picker_back"
+            android:src="@drawable/ic_arrow_back_24"
+            app:tint="?attr/colorAssistantText" />
+
+        <TextView
+            android:id="@+id/modelSettingsDialogTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:includeFontPadding="false"
+            android:text="@string/model_settings_title"
+            android:textColor="?attr/colorAssistantText"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/modelSettingsModelName"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:textColor="?attr/colorStatusText"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:textColor="?attr/colorStatusText"
-        android:textSize="14sp"
-        android:textStyle="bold" />
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="false"
+        android:overScrollMode="ifContentScrolls"
+        android:scrollbars="none">
 
-    <TextView
-        android:id="@+id/modelContextLengthLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/model_context_length_label"
-        android:textColor="?attr/colorAssistantText"
-        android:textSize="16sp"
-        android:textStyle="bold" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="8dp">
 
-    <EditText
-        android:id="@+id/modelContextLengthInput"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:background="@drawable/rounded_edittext"
-        android:hint="@string/model_context_length_hint"
-        android:inputType="number"
-        android:padding="12dp"
-        android:selectAllOnFocus="true"
-        android:textColor="?attr/colorInputText"
-        android:textColorHint="?attr/colorInputHint"
-        android:textSize="15sp" />
 
-    <TextView
-        android:id="@+id/modelContextLengthHelp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:text="@string/model_context_length_help"
-        android:textColor="?attr/colorStatusText"
-        android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/modelInstructionPresetLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/model_instruction_preset_label"
+                    android:textColor="?attr/colorStatusText"
+                    android:textSize="13sp" />
 
-    <TextView
-        android:id="@+id/modelInstructionPresetLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/model_instruction_preset_label"
-        android:textColor="?attr/colorAssistantText"
-        android:textSize="16sp"
-        android:textStyle="bold" />
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/modelInstructionPresetChips"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    app:chipSpacingHorizontal="6dp"
+                    app:chipSpacingVertical="0dp"
+                    app:selectionRequired="true"
+                    app:singleSelection="true" />
 
-    <androidx.appcompat.widget.AppCompatSpinner
-        android:id="@+id/modelInstructionPresetSpinner"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:layout_marginTop="10dp"
-        android:background="@drawable/rounded_edittext"
-        android:paddingHorizontal="12dp"
-        android:popupBackground="?attr/colorFrameBackground"
-        android:spinnerMode="dropdown" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="@string/model_memory_label"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="13sp"
+                android:textStyle="bold" />
 
-    <TextView
-        android:id="@+id/modelInstructionLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/model_instruction_label"
-        android:textColor="?attr/colorAssistantText"
-        android:textSize="16sp"
-        android:textStyle="bold" />
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/modelMemoryGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:selectionRequired="false"
+                app:singleSelection="true">
 
-    <EditText
-        android:id="@+id/modelInstructionInput"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:background="@drawable/rounded_edittext"
-        android:gravity="top|start"
-        android:inputType="textMultiLine|textCapSentences"
-        android:maxLines="12"
-        android:minLines="7"
-        android:padding="12dp"
-        android:scrollbars="vertical"
-        android:textColor="?attr/colorInputText"
-        android:textColorHint="?attr/colorInputHint"
-        android:textSize="15sp" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/modelMemoryShort"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:text="@string/model_memory_short"
+                    android:textAllCaps="false" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/modelMemoryStandard"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:text="@string/model_memory_standard"
+                    android:textAllCaps="false" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/modelMemoryLong"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:text="@string/model_memory_long"
+                    android:textAllCaps="false" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
+            <TextView
+                android:id="@+id/modelMemoryHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/model_memory_hint"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="12.5sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/modelInstructionLabel"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:labelFor="@id/modelInstructionInput"
+                    android:text="@string/model_instruction_label"
+                    android:textColor="?attr/colorStatusText"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/modelInstructionEdit"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:padding="6dp"
+                    android:text="@string/model_instruction_edit"
+                    android:textColor="?attr/colorSendFill"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <EditText
+                android:id="@+id/modelInstructionInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_preview_box"
+                android:ellipsize="end"
+                android:gravity="top|start"
+                android:inputType="textMultiLine|textCapSentences"
+                android:lineSpacingExtra="3dp"
+                android:maxLines="3"
+                android:minLines="3"
+                android:padding="12dp"
+                android:scrollbars="vertical"
+                android:textColor="?attr/colorAssistantText"
+                android:textColorHint="?attr/colorInputHint"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/modelAdvancedToggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card"
+                android:padding="14dp"
+                android:text="@string/model_advanced_show"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/modelAdvancedSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/modelContextLengthLabel"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:labelFor="@id/modelContextLengthInput"
+                        android:text="@string/model_context_length_label"
+                        android:textColor="?attr/colorStatusText"
+                        android:textSize="13sp" />
+
+                    <EditText
+                        android:id="@+id/modelContextLengthInput"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_preview_box"
+                        android:gravity="end|center_vertical"
+                        android:hint="@string/model_context_length_hint"
+                        android:inputType="number"
+                        android:minWidth="96dp"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="6dp"
+                        android:selectAllOnFocus="true"
+                        android:textColor="?attr/colorAssistantText"
+                        android:textColorHint="?attr/colorInputHint"
+                        android:textSize="22sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/model_context_length_unit"
+                        android:textColor="?attr/colorStatusText"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/modelContextLengthHelp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:lineSpacingExtra="2dp"
+                    android:text="@string/model_context_length_help"
+                    android:textColor="?attr/colorStatusText"
+                    android:textSize="12.5sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/modelContextTestButton"
+                    style="@style/DialogSecondaryButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="10dp"
+                    android:minHeight="0dp"
+                    android:text="@string/context_probe_button"
+                    android:textSize="14sp" />
+            </LinearLayout>
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="16dp" />
+        </LinearLayout>
+    </ScrollView>
 
     <LinearLayout
         android:id="@+id/modelSettingsActions"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="18dp"
-        android:gravity="end"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="12dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/modelSettingsCancelButton"
             style="@style/DialogSecondaryButton"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
             android:layout_marginEnd="10dp"
-            android:layout_weight="1"
             android:text="@android:string/cancel" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/modelSettingsSaveButton"
             style="@style/DialogPrimaryButton"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_weight="1"
             android:text="@string/save" />
     </LinearLayout>

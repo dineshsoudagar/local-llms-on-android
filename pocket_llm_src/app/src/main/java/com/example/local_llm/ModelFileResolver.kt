@@ -27,11 +27,17 @@ class ModelFileResolver(private val context: Context) {
         return expectedBytes == null || file.length() == expectedBytes
     }
 
+    // Bundled assets cannot change while the app runs. Looking one up opens it and, when it is missing,
+    // walks the whole asset tree, which is too slow to repeat for every model row on the main thread.
+    private val bundledAssetCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
     fun hasBundledAsset(fileName: String): Boolean {
-        return runCatching {
-            AssetLocator.resolvePath(context, fileName)
-            true
-        }.getOrDefault(false)
+        return bundledAssetCache.getOrPut(fileName) {
+            runCatching {
+                AssetLocator.resolvePath(context, fileName)
+                true
+            }.getOrDefault(false)
+        }
     }
 
     fun isModelDownloaded(descriptor: ModelDescriptor): Boolean {

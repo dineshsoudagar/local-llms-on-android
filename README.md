@@ -3,120 +3,84 @@
 Turn your Android phone into a **local LLM server for your home network**, or chat privately on-device with text, images, PDFs, audio, and offline speech-to-text.
 
 <p>
-  <img src="https://img.shields.io/badge/🔒_Testing_closed-Pro_coming_soon-gray?style=for-the-badge" alt="Testing closed, Pro coming soon">
+  <a href="https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.7.0/pocket_llm_v1.7.0.apk"><img src="https://img.shields.io/badge/GitHub_APK-v1.7.0-2ea44f?style=for-the-badge&logo=github&logoColor=white&labelColor=24292f" alt="GitHub APK v1.7.0"></a>&nbsp;<a href="https://github.com/dineshsoudagar/local-llms-on-android/releases"><img src="https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/total?style=for-the-badge&label=&color=0969da&labelColor=555&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggZD0iTTEyIDN2MTIiLz48cGF0aCBkPSJNNyAxMGw1IDUgNS01Ii8%2BPHBhdGggZD0iTTQgMTd2M2gxNnYtMyIvPjwvc3ZnPg%3D%3D" alt="Total APK downloads"></a>&nbsp;&nbsp;<a href="https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.7.0/pocket_llm_v1.7.0.apk"><b>⬇️ Download APK</b></a>
+</p>
+<p>
+  <a href="https://play.google.com/store/apps/details?id=io.github.dineshsoudagar.pocketllm"><img src="https://img.shields.io/badge/Google_Play-v1.7.5-34A853?style=for-the-badge&logo=googleplay&logoColor=white&labelColor=1A73E8" alt="Google Play v1.7.5"></a>&nbsp;<img src="https://img.shields.io/badge/-new_release-f28c28?style=for-the-badge&labelColor=555&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggZD0iTTEyIDN2MTIiLz48cGF0aCBkPSJNNyAxMGw1IDUgNS01Ii8%2BPHBhdGggZD0iTTQgMTd2M2gxNnYtMyIvPjwvc3ZnPg%3D%3D" alt="New release on Google Play">&nbsp;&nbsp;<a href="https://play.google.com/store/apps/details?id=io.github.dineshsoudagar.pocketllm"><b>⬇️ Get it on Google Play</b></a>
 </p>
 
-**Testing is closed.** Thanks to everyone who tested! Pocket LLM Pro is coming soon to Google Play.
+
+**More apps from me**
+
+<p><img src="data/smart_todo_icon.png" alt="" width="44" align="left">&nbsp;<b>Smart To Do</b> · <a href="https://play.google.com/store/apps/details?id=dev.paths100.smarttodo"><b>⬇️ Get it on Google Play</b></a><br>&nbsp;A to-do list that understands what you type. Completely free, no ads.</p>
+
+<p><img src="data/cloud_tidy_icon.png" alt="" width="44" align="left">&nbsp;<b>Cloud Tidy</b> · ⏳ Coming next week<br>&nbsp;Clean up your cloud storage in minutes.</p>
 
 ---
 
-## ⭐ GitHub vs Google Play
-
-Pocket LLM Pro is an optional one-time purchase that unlocks the features marked ⭐.
-
-| Feature | GitHub | Google Play |
-|---|:---:|:---:|
-| Offline, private chat | ✅ | ✅ |
-| Built-in models (Qwen, DeepSeek, Gemma) | ✅ | ✅ |
-| Custom `.litertlm` model import | ✅ | ✅ |
-| Thinking mode | ✅ | ✅ |
-| Documents, PDFs and OCR | ✅ | ✅ |
-| Image input and camera | ✅ | ✅ |
-| Offline dictation (Whisper) | ✅ | ✅ |
-| New app design | 🔜 Planned | ✅ |
-| Context size fitted to your phone's memory | 🔜 Planned | ✅ |
-| Long chats: old messages summarized, not dropped | 🔜 Planned | ✅ |
-| LAN server, Web UI and OpenAI-compatible API | ✅ | ⭐ Pro |
-| llama.cpp engine: run GGUF models | ❌ | ✅ |
-| Browse and download models from Hugging Face | ❌ | ✅ |
-| Import GGUF and safetensors models | ❌ | ✅ |
-| Find your phone's maximum context size | ❌ | ✅ |
-| Dictation with the model's own audio input | ❌ | ✅ |
-| Web search in chat | ❌ | ⭐ Pro |
-| Image tools: create images, remove background | ❌ | ⭐ Pro |
-| Offline translator: text and camera overlay | ❌ | ⭐ Pro |
-
-Free users of the Google Play version get 3 tries of the image tools.
-
-**Pro costs €2.99, once. It helps me keep building free apps as an indie developer. Thank you for your support!**
-
-More free apps from me, coming soon: **Smart To Do** and **Cloud Tidy**.
-
-Feedback or ideas? Email me at [dinesh@100paths.de](mailto:dinesh@100paths.de).
-
----
-
-[![Total APK downloads](https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/total?logo=github&label=Total%20APK%20downloads)](https://github.com/dineshsoudagar/local-llms-on-android/releases)
-
----
-
-## 🆕 New in v1.6.0
-
-Changes since v1.5.0:
-
-### New features
-
-#### 🏠 Make your phone a local LLM server
-
-Run the model on your phone and use it from other devices on your home network; [see the demo](#lan-server-demo) or [client guide](docs/lan/README.md).
-
-- 🌐 **[LAN and browser chat](#lan-api-and-web-ui):** Open the phone's password-protected Web UI on your PC while inference stays on the phone.
-- 🗂️ **[Browser history and uploads](#browser-web-ui):** Save, reopen, or delete chats on the phone, and upload PDFs or images from your PC.
-- 🔌 **[OpenAI-compatible API](docs/lan/README.md#openai-compatible-endpoints):** Connect Open WebUI, [example scripts](docs/lan/README.md#python-client), or compatible harnesses; [OpenCode](docs/lan/README.md#opencode-coding-agent-backend) tool-call round trips tested.
-- ⚙️ **[Context settings](#context-length-setting):** Adjust context length per LiteRT model.
-
-#### 🧩 Models, documents and voice
-
-- 🧩 **[Your own model (beta)](#use-your-own-model-beta):** Import a local `.litertlm` file for text chat, with native image and audio input attempted when supported.
-- 📄 **[Documents](#document-and-audio-attachments):** Attach text files and PDFs, including scanned pages read with OCR.
-- 🔎 **[Document answers](#document-and-audio-attachments):** Use simple BM25 retrieval for questions or process all source chunks for summaries.
-- 🎙️ **[Speech-to-text](#document-and-audio-attachments):** Transcribe offline with multilingual Whisper, including German, and edit before sending.
-- 🔊 **[Audio attachments](#document-and-audio-attachments):** Upload or record audio for native understanding on compatible models or Whisper transcription.
-
-### Improvements
-
-- ⏳ **Long inputs:** Added segmented audio processing and cancellable attachment jobs with progress.
-- 🎨 **Browser controls:** Added light/dark themes, Enter to send, and Shift+Enter for a new line.
-- ⚡ **Runtime:** Updated and pinned LiteRT-LM to **0.17.1**.
-
-### Fixes and cleanup
-
-- 🛡️ **Model loading:** Improved file validation, downloads, cancellation, and recovery after failed initialization.
-- 🖼️ **Image input:** Removed FastVLM descriptions; images now use OCR or native Gemma vision.
-
-### Limitations and next steps
-
-- 🧩 **Custom models:** Beta compatibility varies by model and phone; native tool calling is unavailable.
-- ⚠️ **Memory:** Large models and contexts can still fail to load or crash, including during long OpenCode sessions.
-- 🖼️ **Browser images:** Direct image uploads require a compatible model.
-- 🚀 **Coming next:** Improved document retrieval; this release uses lightweight BM25.
-
-#### ➡️ [See all releases](https://github.com/dineshsoudagar/local-llms-on-android/releases)
-
----
-
-## 📸 Inference Preview
+## 📸 Preview
 
 <table align="center">
   <tr>
     <td align="center">
-      <img src="data/Chat.gif" alt="Model Output 1" width="260"/><br/>
-      <sub><b>Chat Inference</b></sub>
+      <img src="data/pocket_llm_v1.7_chat.gif" alt="Pocket LLM loading a model and answering a chat message" width="260"/><br/>
+      <sub><b>Load a model and chat</b></sub>
     </td>
     <td align="center">
-      <img src="data/Image support.gif" alt="Model Output 2" width="260"/><br/>
-      <sub><b>Image Support</b></sub>
+      <img src="data/pocket_llm_v1.7_image_input.gif" alt="Gemma 4 E2B describing a photo on the phone" width="260"/><br/>
+      <sub><b>Gemma 4 describes a photo</b></sub>
     </td>
     <td align="center">
-      <img src="data/New ui.gif" alt="Chat UI Preview" width="260"/><br/>
-      <sub><b>New UI</b></sub>
+      <img src="data/pocket_llm_v1.7_themes.gif" alt="Switching accent colors, backgrounds and light or dark mode" width="260"/><br/>
+      <sub><b>Themes and accent colors</b></sub>
     </td>
   </tr>
 </table>
 
 <p align="center">
-  <em>Figure: Pocket LLM showing offline chat, image input, and the updated Android UI.</em>
+  <em>Waits are sped up in places.</em>
 </p>
+
+---
+
+## 🆚 GitHub vs Google Play
+
+| | GitHub (v1.7.0) | Google Play (v1.7.5) |
+|---|:---:|:---:|
+| 💬 Offline chat with history | ✅ | ✅ |
+| 🧠 Gemma 4, Qwen3, DeepSeek R1, own `.litertlm` | ✅ | ✅ |
+| 📄 Documents, PDFs and images, with OCR and camera | ✅ | ✅ |
+| 🎙️ Offline dictation and audio files | ✅ | ✅ |
+| 📝 Context fitted to your phone, auto-compact | ✅ | ✅ |
+| 🌐 LAN server, Web UI, OpenAI API | ✅ | ⭐ now, free in the next update |
+| 🦙 GGUF models and Hugging Face import | ❌ | ✅ free |
+| **⭐ Pro, €2.99 once** | | |
+| 🔎 Web search | ❌ | ⭐ |
+| 🪄 Image tools: create, enhance, upscale, remove | ❌ | ⭐ |
+| 🌍 Offline translator | ❌ | ⭐ |
+| 🔜 Agent mode: tools, skills like deep research | ❌ | ⭐ soon |
+
+**Pro costs €2.99, once.** Free users of the Google Play version get 3 tries of the image tools. Thank you for supporting an indie developer!
+
+Feedback or ideas? Email me at [dinesh@100paths.de](mailto:dinesh@100paths.de).
+
+---
+
+## 🆕 New in v1.7.0
+
+Changes since v1.6.0:
+
+- 🎨 **New look:** New logo, drawer, model sheet and one Settings page; light, dark or system mode, six accent colors and six backgrounds.
+- 📝 **Auto-compact:** When a chat gets long, older messages are summarized instead of dropped.
+- 📊 **Context use:** A ring in the chat shows how full the context is.
+- 🧠 **Context fitted to your phone:** The context size is capped by your phone's memory and learns from native crashes.
+- 🔢 **Better token estimate:** Fixes overflows on long inputs ([#34](https://github.com/dineshsoudagar/local-llms-on-android/issues/34)).
+- 🛡️ **Load crashes:** Caught, with a message that explains why the model failed to load ([#14](https://github.com/dineshsoudagar/local-llms-on-android/issues/14), [#15](https://github.com/dineshsoudagar/local-llms-on-android/issues/15)).
+- 🔆 **Long tasks:** The screen stays on while a long reply or attachment job runs.
+- 🌐 **LAN server:** Updated, fixes [#31](https://github.com/dineshsoudagar/local-llms-on-android/issues/31) to [#34](https://github.com/dineshsoudagar/local-llms-on-android/issues/34). Free here, and free on Google Play from the next update.
+- ⚡ **Performance and stability fixes.**
+
+#### ⬇️ [Download the v1.7.0 APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.7.0/pocket_llm_v1.7.0.apk) · [All releases](https://github.com/dineshsoudagar/local-llms-on-android/releases)
 
 ---
 
@@ -127,7 +91,7 @@ Run the model on your phone and use it from other devices on your home network; 
 - 📱 **Local inference:** Run models on your phone with ONNX or LiteRT, offline after installation.
 - 💬 **Chat:** Stream replies, keep multi-turn history, render Markdown, and copy responses.
 - 🗂️ **History:** Reopen or delete saved conversations in the Android app or browser.
-- 🎨 **Appearance:** Choose light/dark mode, accent colors, and chat font size in the Android app.
+- 🎨 **Appearance:** Choose light, dark or system mode, six accent colors, six backgrounds, and the chat text size.
 - 🔐 **Privacy:** Keep inference and chat data on your phone, with no telemetry.
 
 ### Models and settings
@@ -178,11 +142,11 @@ Run the model on your phone and use it from other devices on your home network; 
 
 ---
 
-## 📦 Download APK - v1.6.0
+## 📦 Download APK - v1.7.0
 
-The app ships as a **single smaller base APK**.
+One APK for all phones.
 
-#### ➡️ [Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.6.0/pocket_llm_v1.6.0.apk)
+#### ➡️ [Download APK](https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.7.0/pocket_llm_v1.7.0.apk)
 
 Models are **not bundled inside the APK**. After installation, choose and download the models you want directly on device.
 
@@ -199,7 +163,7 @@ You can download **multiple models**, switch between them inside the app, and de
 
 ### Use your own model (beta)
 
-- Open **Manage Models → use your own model (beta)** and choose a local `.litertlm` file.
+- Open the model sheet, tap **Import file** and choose a local `.litertlm` file.
 - The app copies the file into private storage and adds it to the model picker.
 - The app detects declared inputs and attempts native image and audio support when available. The ready message reports availability on the current device/backend; declared support is not a compatibility guarantee.
 - Text chat is required. Images can use OCR or **Native image input** when available; audio uses native input when available or optional Whisper transcription otherwise.
@@ -235,8 +199,8 @@ You can download **multiple models**, switch between them inside the app, and de
 
 ## LAN API and Web UI
 
-1. Load a model, open **LAN Server** in the Android app, enter a password of at least eight characters, and tap **Save password**.
-2. Tap **Start**, then open the displayed `/ui` URL on a computer on the same Wi-Fi or LAN.
+1. Pick a model, open **LAN Server** in the Android app, enter a password of at least eight characters, and tap **Save password**.
+2. Tap **Start server** (it loads the selected model), then open the displayed `/ui` URL on a computer on the same Wi-Fi or LAN.
 3. For API clients, use `http://PHONE_IP:8080/v1` and the same password.
 
 ### Browser Web UI
@@ -250,7 +214,7 @@ You can download **multiple models**, switch between them inside the app, and de
 
 ### Context-length setting
 
-LiteRT models expose a context-length field in the Android app's model settings. This is a device-memory trade-off: a larger context can require substantially more native and GPU memory.
+LiteRT models expose a context-length field in the Android app's model settings. This is a device-memory trade-off: a larger context can require substantially more native and GPU memory. Since v1.7.0 the app caps the context by your phone's memory and lowers the cap after a native crash, so a too-large value is not kept.
 
 - **Recommended tested baseline:** 8K tokens.
 - **Limited manual testing:** 10K to 15K worked on the tested device, but this is not broad device validation.
@@ -290,12 +254,10 @@ This app supports **ONNX-based Qwen models** and **LiteRT-based Qwen 3 and Gemma
 
 ## ⚙️ Requirements
 
-- [Android Studio](https://developer.android.com/studio)
-- A physical Android device for deployment and testing
-- 4 GB or more RAM for smaller models
-- More RAM is recommended for larger models such as **Gemma 4 E2B** and **Gemma 4 E4B**
-- A temporary internet connection for downloading models inside the app
-- Real hardware is preferred; emulators are mainly useful for UI checks
+- An Android phone with 4 GB or more RAM for the smaller models
+- More RAM for larger models such as **Gemma 4 E2B** and **Gemma 4 E4B**
+- Internet only to download models inside the app
+- To build from source: [Android Studio](https://developer.android.com/studio) and a real phone (emulators are mainly useful for UI checks)
 
 ### Safe model loading and recovery
 

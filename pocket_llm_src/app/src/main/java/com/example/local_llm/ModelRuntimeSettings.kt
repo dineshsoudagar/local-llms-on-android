@@ -11,9 +11,15 @@ object ModelRuntimeSettingsLimits {
     const val LITERT_DEFAULT_CONTEXT_LENGTH = 2_048
     const val LITERT_CONTEXT_LENGTH = 40_000
     const val GEMMA_CONTEXT_LENGTH = 128_000
+    const val GGUF_DEFAULT_CONTEXT_LENGTH = 4_096
+    const val GGUF_CONTEXT_LENGTH = 32_768
     const val HIGH_CONTEXT_WARNING_THRESHOLD = 8_192
 
-    fun defaultFor(descriptor: ModelDescriptor): Int = if (descriptor is OnnxQwenSpec) ONNX_CONTEXT_LENGTH else LITERT_DEFAULT_CONTEXT_LENGTH
+    fun defaultFor(descriptor: ModelDescriptor): Int = when (descriptor) {
+        is OnnxQwenSpec -> ONNX_CONTEXT_LENGTH
+        is GgufSpec -> GGUF_DEFAULT_CONTEXT_LENGTH
+        else -> LITERT_DEFAULT_CONTEXT_LENGTH
+    }
 
     fun minFor(descriptor: ModelDescriptor): Int {
         return if (descriptor is OnnxQwenSpec) 256 else 512
@@ -25,6 +31,8 @@ object ModelRuntimeSettingsLimits {
             is GemmaLiteRtSpec -> GEMMA_CONTEXT_LENGTH
             is QwenLiteRtSpec -> LITERT_CONTEXT_LENGTH
             is CustomLiteRtSpec -> LITERT_CONTEXT_LENGTH
+            is ImageGenSpec -> ONNX_CONTEXT_LENGTH
+            is GgufSpec -> GGUF_CONTEXT_LENGTH
         }
     }
 

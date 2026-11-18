@@ -1,67 +1,242 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@drawable/bg_dialog_panel"
+    android:gravity="center_horizontal"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:paddingTop="24dp"
+    android:paddingBottom="16dp">
+
+    <com.example.local_llm.NodeLogoView
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:importantForAccessibility="no" />
 
     <TextView
         android:id="@+id/aboutAppName"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
         android:text="@string/toolbar_app_title"
         android:textColor="?attr/colorAssistantText"
-        android:textSize="22sp"
+        android:textSize="20sp"
         android:textStyle="bold" />
 
     <TextView
         android:id="@+id/aboutVersion"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="2dp"
         android:textColor="?attr/colorStatusText"
-        android:textSize="15sp" />
+        android:textSize="13sp" />
 
     <TextView
-        android:id="@+id/aboutGithubLink"
-        android:layout_width="match_parent"
+        android:id="@+id/aboutProBadge"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
-        android:autoLink="web"
-        android:linksClickable="true"
-        android:text="@string/about_github_link"
-        android:textColor="?attr/colorAssistantText"
-        android:textSize="15sp" />
+        android:background="@drawable/bg_pro_gold"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="3dp"
+        android:text="@string/about_pro_unlocked"
+        android:textColor="@color/pro_on_gold"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
-    <TextView
-        android:id="@+id/aboutPrivacyLink"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:background="?attr/selectableItemBackground"
-        android:paddingVertical="6dp"
-        android:text="@string/legal_privacy_policy"
-        android:textColor="?attr/colorAssistantText"
-        android:textSize="15sp"
-        android:textStyle="bold" />
+        android:layout_marginTop="16dp"
+        android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/aboutTermsLink"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="?attr/selectableItemBackground"
-        android:paddingVertical="6dp"
-        android:text="@string/legal_terms_of_use"
-        android:textColor="?attr/colorAssistantText"
-        android:textSize="15sp"
-        android:textStyle="bold" />
+        <LinearLayout
+            android:id="@+id/aboutRateRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:minHeight="52dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_star_20"
+                app:tint="?attr/colorStatusText" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:text="@string/about_rate"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="15sp" />
+        </LinearLayout>
+
+        <View
+            android:id="@+id/aboutRateDivider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginHorizontal="16dp"
+            android:background="?attr/colorPocketOutline" />
+
+        <LinearLayout
+            android:id="@+id/aboutFeedbackRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:minHeight="52dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_mail_20"
+                app:tint="?attr/colorStatusText" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:text="@string/about_feedback"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/about_feedback_email"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginHorizontal="16dp"
+            android:background="?attr/colorPocketOutline" />
+
+        <LinearLayout
+            android:id="@+id/aboutPrivacyLink"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:minHeight="52dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_shield_20"
+                app:tint="?attr/colorStatusText" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:text="@string/legal_privacy_policy"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="15sp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginHorizontal="16dp"
+            android:background="?attr/colorPocketOutline" />
+
+        <LinearLayout
+            android:id="@+id/aboutTermsLink"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:minHeight="52dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_doc_20"
+                app:tint="?attr/colorStatusText" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:text="@string/legal_terms_of_use"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="15sp" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginHorizontal="16dp"
+            android:background="?attr/colorPocketOutline" />
+
+        <LinearLayout
+            android:id="@+id/aboutModelLicensesLink"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:minHeight="52dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_list_20"
+                app:tint="?attr/colorStatusText" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:text="@string/about_model_licenses"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="15sp" />
+        </LinearLayout>
+    </LinearLayout>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/aboutOkButton"
         style="@style/DialogPrimaryButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
+        android:layout_width="wrap_content"
+        android:layout_height="44dp"
+        android:layout_marginTop="12dp"
+        android:paddingHorizontal="36dp"
         android:text="@android:string/ok" />
 </LinearLayout>

@@ -29,12 +29,25 @@ import kotlin.math.roundToInt
 class ChatAdapter(
     private var fontSizeSp: Float = 16f,
     private val onImageTurnSelected: (ChatTurn) -> Unit = {},
+    private val onImageTurnLongPressed: (ChatTurn) -> Unit = {},
+    private val onImageTurnReported: (ChatTurn) -> Unit = {},
     private val onAttachmentTurnSelected: (ChatTurn) -> Unit = {},
-    private val onReportResponse: (String) -> Unit = {}
+    private val onReportResponse: (String) -> Unit = {},
+    /** Null when the build has no Translator; the reply's translate button is then hidden. */
+    private val onTranslateResponse: ((String) -> Unit)? = null,
+    private val onShareResponse: (String) -> Unit = {},
+    private val onRetryResponse: () -> Unit = {},
+    private val onMagicAction: (ChatTurn, ImageTool) -> Unit = { _, _ -> }
 ) : ListAdapter<ChatTurn, ChatAdapter.MessageViewHolder>(DiffCallback) {
 
     private val expandedThoughtIds = mutableSetOf<String>()
     private val markwonByTextSize = mutableMapOf<Int, Markwon>()
+
+    /** Line under the gold photo actions: free tries left, or "runs offline" for Pro owners. */
+    data class MagicNote(val text: String, val showPro: Boolean)
+
+    private var magicNote: MagicNote? = null
+    private var lastUserImageId: String? = null
 
     companion object {
         private const val USER_BUBBLE_LEFT_SPACE_FRACTION = 0.15f
@@ -60,9 +73,24 @@ class ChatAdapter(
         val text: String
     )
 
+    /** Ids of messages that arrived after the chat was shown; they rise in once. */
+    private val enterAnimationIds = mutableSetOf<String>()
+
     fun submitTurns(turns: List<ChatTurn>) {
+        if (currentList.isNotEmpty()) {
+            val known = currentList.mapTo(mutableSetOf<String>()) { it.id }
+            turns.filter { it.id !in known }.forEach { enterAnimationIds.add(it.id) }
+        }
         expandedThoughtIds.retainAll(turns.mapTo(mutableSetOf<String>()) { it.id })
+        lastUserImageId = turns.lastOrNull { it.isUser && it.isImage }?.id
         submitList(turns.toList())
+    }
+
+    fun setMagicNote(note: MagicNote) {
+        if (note == magicNote) return
+        magicNote = note
+        val index = currentList.indexOfFirst { it.id == lastUserImageId }
+        if (index >= 0) notifyItemChanged(index)
     }
 
     fun updateFontSize(fontSizeSp: Float) {
@@ -78,6 +106,18 @@ class ChatAdapter(
 
     override fun onBindViewHolder(holder: MessageViewHolder, position: Int) {
         val turn = getItem(position)
+        if (enterAnimationIds.remove(turn.id) && holder.itemView.context.animationsEnabled()) {
+            val rise = 12 * holder.itemView.resources.displayMetrics.density
+            holder.itemView.alpha = 0f
+            holder.itemView.translationY = rise
+            holder.itemView.animate().alpha(1f).translationY(0f).setDuration(220)
+                .setInterpolator(android.view.animation.PathInterpolator(0.05f, 0.7f, 0.1f, 1f)).start()
+        } else {
+            holder.itemView.animate().cancel()
+            holder.itemView.alpha = 1f
+            holder.itemView.translationY = 0f
+        }
+        holder.magicActions.visibility = View.GONE
         val markwon = markwonFor(holder.textView.context)
         val bubbleBackground = if (turn.isUser) R.drawable.bg_bubble_user else R.drawable.bg_bubble_bot
         val textColorAttr = if (turn.isUser) R.attr.colorUserText else R.attr.colorAssistantText
@@ -89,6 +129,12 @@ class ChatAdapter(
         holder.textView.setBackgroundResource(bubbleBackground)
         holder.messageImage.setBackgroundResource(bubbleBackground)
         holder.textView.setTextColor(resolveThemeColor(holder.textView, textColorAttr))
+        val tokensPerSecond = turn.tokensPerSecond
+            ?.takeIf { !turn.isUser && !turn.isStreaming && !turn.isImage && !turn.isAttachment }
+        holder.speedView.visibility = if (tokensPerSecond == null) View.GONE else View.VISIBLE
+        holder.speedView.text = tokensPerSecond?.let {
+            holder.speedView.context.getString(R.string.tokens_per_second_format, it)
+        }
         holder.textView.setTextSize(TypedValue.COMPLEX_UNIT_SP, fontSizeSp)
         holder.preResponseStatusView.setTextColor(resolveThemeColor(holder.preResponseStatusView, R.attr.colorStatusText))
         holder.preResponseStatusView.setTextSize(TypedValue.COMPLEX_UNIT_SP, (fontSizeSp - 2f).coerceAtLeast(12f))
@@ -159,15 +205,13 @@ class ChatAdapter(
         holder.bubbleFrame.setOnClickListener(
             if (turn.isAttachment) View.OnClickListener { onAttachmentTurnSelected(turn) } else null
         )
+        holder.bubbleFrame.setOnLongClickListener(null)
         holder.bubbleFrame.visibility = if (hasBubbleText) View.VISIBLE else View.GONE
         holder.textView.visibility = if (hasBubbleText) View.VISIBLE else View.GONE
         holder.textView.setPaddingRelative(
             dp(holder.textView, BUBBLE_HORIZONTAL_PADDING_DP),
             dp(holder.textView, BUBBLE_VERTICAL_PADDING_DP),
-            dp(
-                holder.textView,
-                if (canCopyResponse) COPY_BUTTON_RESERVED_END_PADDING_DP else BUBBLE_HORIZONTAL_PADDING_DP
-            ),
+            dp(holder.textView, BUBBLE_HORIZONTAL_PADDING_DP),
             dp(holder.textView, BUBBLE_VERTICAL_PADDING_DP)
         )
         if (holder.textView.visibility == View.VISIBLE && !turn.isUser && turn.renderAsMarkdown) {
@@ -176,20 +220,39 @@ class ChatAdapter(
             setMessagePlainText(holder, turn.id, bubbleText)
         }
 
-        holder.copyButton.visibility = if (canCopyResponse) View.VISIBLE else View.GONE
-        holder.reportButton.visibility = if (canCopyResponse) View.VISIBLE else View.GONE
-        // Copy (top) and report (bottom) share the reserved end column, so keep room for both.
-        holder.textView.minHeight = if (canCopyResponse) dp(holder.textView, ACTION_COLUMN_MIN_HEIGHT_DP) else 0
+        // Text replies: a row of small icons under the bubble. The in-bubble buttons are only for pictures.
+        holder.copyButton.visibility = View.GONE
+        holder.reportButton.visibility = View.GONE
+        holder.textView.minHeight = 0
+        holder.replyActions.visibility = if (canCopyResponse) View.VISIBLE else View.GONE
         if (canCopyResponse) {
-            holder.copyButton.setOnClickListener { view ->
-                copyResponseToClipboard(view.context, bubbleText)
-            }
-            holder.reportButton.setOnClickListener {
-                onReportResponse(bubbleText)
-            }
+            val isLast = holder.bindingAdapterPosition == itemCount - 1
+            holder.replyRetry.visibility = if (isLast) View.VISIBLE else View.GONE
+            holder.replyCopy.setOnClickListener { view -> copyResponseToClipboard(view.context, bubbleText) }
+            val translate = onTranslateResponse
+            holder.replyTranslate.visibility = if (translate != null) View.VISIBLE else View.GONE
+            holder.replyTranslate.setOnClickListener(translate?.let { t -> View.OnClickListener { t(bubbleText) } })
+            holder.replyShare.setOnClickListener { onShareResponse(bubbleText) }
+            holder.replyRetry.setOnClickListener { onRetryResponse() }
+            holder.replyReport.setOnClickListener { onReportResponse(bubbleText) }
         } else {
-            holder.copyButton.setOnClickListener(null)
-            holder.reportButton.setOnClickListener(null)
+            listOf(holder.replyCopy, holder.replyTranslate, holder.replyShare, holder.replyRetry, holder.replyReport)
+                .forEach { it.setOnClickListener(null) }
+        }
+    }
+
+    /** Gold Upscale, Cut out and Restyle buttons under the latest photo the user sent. */
+    private fun bindMagicActions(holder: MessageViewHolder, turn: ChatTurn) {
+        val note = magicNote
+        if (!turn.isUser || turn.id != lastUserImageId || note == null) return
+        if (ImageGenFeature.isAvailable) {
+            holder.magicActions.visibility = View.VISIBLE
+            holder.magicProChip.visibility = if (note.showPro) View.VISIBLE else View.GONE
+            holder.magicNote.text = note.text
+            holder.magicCutout.setOnClickListener { onMagicAction(turn, ImageTool.REMOVE_BACKGROUND) }
+            holder.magicRestyle.visibility = View.GONE
+        } else {
+            holder.magicActions.visibility = View.GONE
         }
     }
 
@@ -198,10 +261,12 @@ class ChatAdapter(
         turn: ChatTurn,
         bubbleBackground: Int
     ) {
+        holder.replyActions.visibility = View.GONE
         holder.copyButton.visibility = View.GONE
         holder.copyButton.setOnClickListener(null)
-        holder.reportButton.visibility = View.GONE
-        holder.reportButton.setOnClickListener(null)
+        // Generated pictures (assistant side) can be reported like text answers.
+        holder.reportButton.visibility = if (turn.isUser) View.GONE else View.VISIBLE
+        holder.reportButton.setOnClickListener(if (turn.isUser) null else View.OnClickListener { onImageTurnReported(turn) })
         holder.bubbleFrame.visibility = View.VISIBLE
         holder.messageImage.visibility = View.VISIBLE
         holder.textView.visibility = View.GONE
@@ -249,8 +314,13 @@ class ChatAdapter(
         }
 
         holder.messageImage.setImageBitmap(previewBitmap)
+        bindMagicActions(holder, turn)
         holder.bubbleFrame.setOnClickListener {
             onImageTurnSelected(turn)
+        }
+        holder.bubbleFrame.setOnLongClickListener {
+            onImageTurnLongPressed(turn)
+            true
         }
     }
 
@@ -373,6 +443,9 @@ class ChatAdapter(
         if (turn.isAttachment) {
             return "📎 ${turn.attachmentName ?: "Attachment"}"
         }
+        if (turn.isImagePrompt) {
+            return "🎨 ${turn.text}"
+        }
         if (turn.isUser) {
             return turn.transcriptText
         }
@@ -459,6 +532,18 @@ class ChatAdapter(
         val textView: TextView = view.findViewById(R.id.messageText)
         val copyButton: ImageButton = view.findViewById(R.id.copyResponseButton)
         val reportButton: ImageButton = view.findViewById(R.id.reportResponseButton)
+        val replyActions: View = view.findViewById(R.id.replyActions)
+        val replyCopy: ImageButton = view.findViewById(R.id.replyCopy)
+        val replyTranslate: ImageButton = view.findViewById(R.id.replyTranslate)
+        val replyShare: ImageButton = view.findViewById(R.id.replyShare)
+        val replyRetry: ImageButton = view.findViewById(R.id.replyRetry)
+        val replyReport: ImageButton = view.findViewById(R.id.replyReport)
+        val speedView: TextView = view.findViewById(R.id.messageSpeed)
+        val magicActions: View = view.findViewById(R.id.magicActions)
+        val magicCutout: View = view.findViewById(R.id.magicCutout)
+        val magicRestyle: View = view.findViewById(R.id.magicRestyle)
+        val magicProChip: View = view.findViewById(R.id.magicProChip)
+        val magicNote: TextView = view.findViewById(R.id.magicNote)
         var messageTextRenderKey: TextRenderKey? = null
         var thoughtTextRenderKey: TextRenderKey? = null
 

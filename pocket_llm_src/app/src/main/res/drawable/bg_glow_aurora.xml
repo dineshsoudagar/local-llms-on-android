@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Aurora background: accent glow top right, secondary glow bottom left, over the surface colour. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="?attr/colorSurface" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:centerX="0.95"
+                android:centerY="0.0"
+                android:gradientRadius="75%p"
+                android:startColor="?attr/pocketGlowA"
+                android:endColor="@android:color/transparent" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:centerX="0.0"
+                android:centerY="1.0"
+                android:gradientRadius="65%p"
+                android:startColor="?attr/pocketGlowB"
+                android:endColor="@android:color/transparent" />
+        </shape>
+    </item>
+</layer-list>

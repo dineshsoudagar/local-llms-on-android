@@ -3,23 +3,56 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
-    android:background="@drawable/bg_saved_chat_item"
-    android:orientation="vertical"
-    android:paddingHorizontal="12dp"
-    android:paddingVertical="10dp">
+    android:orientation="vertical">
+
+    <View
+        android:id="@+id/modelRowDivider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/colorPocketOutline" />
 
     <LinearLayout
+        android:id="@+id/modelRowMain"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        android:paddingVertical="8dp">
+
+        <FrameLayout
+            android:id="@+id/modelIconBox"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:background="@drawable/bg_model_icon">
+
+            <ImageView
+                android:id="@+id/modelIcon"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_gravity="center"
+                android:importantForAccessibility="no" />
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
             android:layout_weight="1"
             android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/modelTierLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:includeFontPadding="false"
+                android:letterSpacing="0.04"
+                android:maxLines="1"
+                android:textColor="?attr/colorSendFill"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/modelName"
@@ -33,21 +66,26 @@
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/modelMeta"
+                android:id="@+id/modelItemProgressText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:includeFontPadding="false"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/modelRecommendation"
                 android:layout_width="0dp"
                 android:layout_height="0dp"
                 android:visibility="gone" />
 
             <TextView
-                android:id="@+id/modelRecommendation"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:ellipsize="end"
-                android:includeFontPadding="false"
-                android:maxLines="2"
-                android:textColor="?attr/colorStatusText"
-                android:textSize="12sp" />
+                android:id="@+id/modelRecommendedBadge"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/modelStatus"
@@ -56,56 +94,122 @@
                 android:visibility="gone" />
         </LinearLayout>
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/modelMeta"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:textColor="?attr/colorStatusText"
+            android:textSize="13sp"
+            android:visibility="gone" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/modelActionButton"
-                style="@style/ModelItemActionButton"
-                android:layout_width="64dp"
-                android:layout_height="40dp"
-                android:textColor="@color/white"
-                app:backgroundTint="?attr/colorSendFill"
-                app:rippleColor="?attr/colorSendStroke"
-                app:strokeColor="?attr/colorSendStroke"
-                app:strokeWidth="1dp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/modelActionButton"
+            style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="30dp"
+            android:layout_marginStart="10dp"
+            android:insetLeft="0dp"
+            android:insetTop="0dp"
+            android:insetRight="0dp"
+            android:insetBottom="0dp"
+            android:letterSpacing="0"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="0dp"
+            android:textAllCaps="false"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            app:cornerRadius="15dp"
+            app:iconGravity="textStart"
+            app:iconPadding="4dp"
+            app:iconSize="14dp"
+            app:strokeWidth="1dp" />
 
-            <ImageButton
-                android:id="@+id/modelDeleteButton"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginStart="6dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/delete_model"
-                android:padding="8dp"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_delete_20"
-                app:tint="@color/delete_red"
-                android:visibility="gone" />
-        </LinearLayout>
+        <ImageButton
+            android:id="@+id/modelDeleteButton"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone" />
+
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/modelItemProgressBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:max="1000"
+            android:visibility="gone"
+            app:indicatorColor="?attr/colorSendFill"
+            app:indicatorInset="0dp"
+            app:indicatorSize="26dp"
+            app:trackColor="?attr/colorPocketOutline"
+            app:trackThickness="3dp" />
     </LinearLayout>
 
-    <ProgressBar
-        android:id="@+id/modelItemProgressBar"
-        style="?android:attr/progressBarStyleHorizontal"
+    <LinearLayout
+        android:id="@+id/modelDetailsBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:max="1000"
-        android:visibility="gone" />
+        android:layout_marginStart="40dp"
+        android:layout_marginBottom="6dp"
+        android:background="@drawable/bg_surface2_12"
+        android:orientation="vertical"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="8dp"
+        android:visibility="gone">
 
-    <TextView
-        android:id="@+id/modelItemProgressText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:includeFontPadding="false"
-        android:textColor="?attr/colorStatusText"
-        android:textSize="11sp"
-        android:visibility="gone" />
+        <TextView
+            android:id="@+id/modelDetailsText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:lineSpacingExtra="2dp"
+            android:textColor="?attr/colorStatusText"
+            android:textSize="12sp" />
 
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:columnCount="2">
+
+            <TextView
+                android:layout_marginBottom="3dp"
+                android:text="@string/model_detail_runs_on"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/modelDetailRunsOn"
+                android:layout_marginStart="12dp"
+                android:layout_marginBottom="3dp"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/modelLicenseLabel"
+                android:text="@string/model_detail_licence"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/modelLicense"
+                android:layout_marginStart="12dp"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="12sp" />
+        </GridLayout>
+
+        <TextView
+            android:id="@+id/modelDeleteText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="?attr/selectableItemBackground"
+            android:paddingVertical="4dp"
+            android:text="@string/model_delete_action"
+            android:textColor="@color/delete_red"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </LinearLayout>
 </LinearLayout>

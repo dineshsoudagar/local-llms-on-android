@@ -23,11 +23,30 @@ Pocket LLM is a tool that runs AI language models on your own phone. The develop
 
 ## 4. Acceptable use
 
-Do not use the app to break the law or to harm others, including creating content that is illegal where you live. If you start the LAN server, use it only on networks you trust, choose a strong password and stop it when you do not need it.
+Do not use the app to break the law or to harm others, including creating content that is illegal where you live.
+
+Each model comes with use restrictions from its maker, and they are part of these terms. You agree to follow them for every model you use and for everything you create with it, including:
+
+- Stable Diffusion 1.5 and SDXS: the use restrictions in Attachment A of the CreativeML Open RAIL-M and CreativeML Open RAIL++-M licenses.
+- SD-Turbo: the Stability AI Acceptable Use Policy (https://stability.ai/use-policy).
+- Gemma: the Gemma Prohibited Use Policy (https://ai.google.dev/gemma/prohibited_use_policy).
+- Any other model: the license and use policy on its model page.
+
+In particular, you must not use any model or its output to:
+
+- create or share content that sexualises or exploits minors, or any other illegal content;
+- harass, threaten, defame or bully people, or create sexual or intimate images of real people without their consent;
+- impersonate people or create disinformation meant to deceive or cause harm;
+- discriminate against people or groups, or promote violence, terrorism or self-harm;
+- give medical advice or medical results interpretation, or make automated decisions that affect people's legal rights;
+- generate personal information about people to harm them;
+- train other foundation AI models with the output of SD-Turbo.
+
+The app blocks some prompts for image generation. You must not try to get around this. Images you create are yours, and you are responsible for them. Images made in the app are AI-generated; do not present them as real photos. If you start the LAN server, use it only on networks you trust, choose a strong password and stop it when you do not need it.
 
 ## 5. Software license and source code
 
-The app's source code is published under the MIT License at https://github.com/dineshsoudagar/local-llms-on-android. Third-party components and models keep their own licenses.
+The app's source code is published under the MIT License at https://github.com/dineshsoudagar/local-llms-on-android. Third-party components and models keep their own licenses. The full licenses and notices are in the app under About, Model licenses. Model files are downloaded directly from Hugging Face; some are third-party conversions (GGUF, quantized) of the original models.
 
 ## 6. Liability
 

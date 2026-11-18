@@ -6,7 +6,6 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -22,6 +21,8 @@
     </queries>
 
     <application
+        android:name=".PocketApplication"
+        android:enableOnBackInvokedCallback="true"
         android:allowBackup="true"
         android:largeHeap="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -31,7 +32,7 @@
         android:roundIcon="@mipmap/ic_launcher_2_round"
         android:supportsRtl="true"
 
-        android:theme="@style/Theme.local_llm"
+        android:theme="@style/Theme.local_llm.Light"
         tools:targetApi="31">
         <uses-native-library
             android:name="libvndksupport.so"
@@ -45,15 +46,6 @@
             android:foregroundServiceType="dataSync"
             android:stopWithTask="false" />
         <service
-            android:name=".LanServerService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse"
-            android:stopWithTask="false">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="User-started LAN HTTP server for local on-device model access" />
-        </service>
-        <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
@@ -61,10 +53,11 @@
             android:name=".ImageViewerActivity"
             android:exported="false"
             android:theme="@style/Theme.local_llm" />
+
         <activity
             android:name=".PocketChatActivity"
             android:exported="true"
-            android:theme="@style/Theme.local_llm"
+            android:theme="@style/Theme.local_llm.Light"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -72,6 +65,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/tool_photo_paths" />
+        </provider>
     </application>
 
 </manifest>

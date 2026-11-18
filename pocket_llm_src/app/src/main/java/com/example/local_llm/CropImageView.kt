@@ -57,9 +57,9 @@ class CropImageView @JvmOverloads constructor(
         style = Paint.Style.FILL
     }
 
-    private val handleTouchRadius = 28f * density
+    private val handleTouchRadius = 24f * density
     private val handleDrawRadius = 5f * density
-    private val minimumCropSizePx = 80f * density
+    private val minimumCropSizePx = 24f * density
     private var bitmap: Bitmap? = null
     private var activeHandle = DragHandle.NONE
     private var lastTouchX = 0f
@@ -76,6 +76,17 @@ class CropImageView @JvmOverloads constructor(
         imageRect.setEmpty()
         cropRect.setEmpty()
         invalidate()
+    }
+
+    /** The crop box as fractions (0..1) of the image's width and height, or null when no image is set. */
+    fun cropFractions(): RectF? {
+        if (imageRect.width() <= 0f || imageRect.height() <= 0f || cropRect.width() <= 0f || cropRect.height() <= 0f) return null
+        return RectF(
+            ((cropRect.left - imageRect.left) / imageRect.width()).coerceIn(0f, 1f),
+            ((cropRect.top - imageRect.top) / imageRect.height()).coerceIn(0f, 1f),
+            ((cropRect.right - imageRect.left) / imageRect.width()).coerceIn(0f, 1f),
+            ((cropRect.bottom - imageRect.top) / imageRect.height()).coerceIn(0f, 1f)
+        )
     }
 
     fun cropBitmap(): Bitmap {

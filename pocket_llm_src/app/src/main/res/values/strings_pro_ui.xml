@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Menu -->
+    <string name="drawer_lan_running">Running</string>
+    <string name="drawer_lan_starting">Starting</string>
+    <string name="drawer_web_search_on">On</string>
+    <string name="pro_locked_description">Pro, free tries used</string>
+
+    <!-- Out of free tries sheet -->
+
+    <!-- Image tools sheet and plus menu in chat -->
+    <string name="tools_tile_edit">Edit photo</string>
+    <string name="tools_tile_cutout">Remove background</string>
+    <string name="plus_menu_add">Add to message</string>
+    <string name="plus_menu_camera">Camera</string>
+    <string name="plus_menu_photo">Photo</string>
+    <string name="plus_menu_document">Document</string>
+    <string name="plus_menu_audio">Audio file</string>
+    <string name="plus_menu_tools">Image tools</string>
+    <string name="plus_menu_create">Create image</string>
+    <string name="plus_menu_open">Add to message</string>
+    <string name="plus_menu_close">Close add menu</string>
+
+    <!-- Magic actions under a photo in chat -->
+    <string name="magic_cutout">Cut out</string>
+    <string name="magic_restyle">Restyle</string>
+    <string name="magic_note_pro">Runs offline</string>
+
+    <!-- Image tools page -->
+
+    <!-- Result screen -->
+
+    <!-- About -->
+    <string name="about_version_by">Version %1$s</string>
+    <string name="about_rate">Rate on Google Play</string>
+    <string name="drawer_get_play">Get the Play Store version</string>
+    <string name="about_feedback">Send feedback</string>
+    <string name="about_feedback_email" translatable="false">@string/legal_contact_email</string>
+    <string name="about_pro_unlocked">Pro unlocked</string>
+    <string name="about_feedback_subject">Pocket LLM feedback</string>
+</resources>

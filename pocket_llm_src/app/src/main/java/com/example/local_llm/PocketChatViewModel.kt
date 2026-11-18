@@ -8,8 +8,8 @@ class PocketChatViewModel : ViewModel() {
     var pendingModelLoadSnapshot: ActiveChatSnapshot? = null
 
     override fun onCleared() {
-        if (!LanServerService.isRunning()) {
-            LanServerControllerRegistry.clearIf(chatController)
+        if (!LanServerFeature.isRunning()) {
+            SharedChatControllerRegistry.clearIf(chatController)
             chatController?.close()
         }
         chatController = null

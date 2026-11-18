@@ -6,6 +6,11 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="chat_attachments/" />
+        <!-- Downloaded models and speech files are large and can be downloaded again. -->
+        <exclude domain="file" path="models/" />
+        <exclude domain="file" path="asr/" />
+        <!-- The Pro unlock is restored from Google Play, never from a backup. -->
+        <exclude domain="sharedpref" path="pocket_pro.xml" />
         <!-- Use <include> and <exclude> to control what is backed up.
         <include .../>
         <exclude .../>
@@ -13,5 +18,10 @@
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="chat_attachments/" />
+        <!-- Downloaded models and speech files are large and can be downloaded again. -->
+        <exclude domain="file" path="models/" />
+        <exclude domain="file" path="asr/" />
+        <!-- The Pro unlock is restored from Google Play, never from a backup. -->
+        <exclude domain="sharedpref" path="pocket_pro.xml" />
     </device-transfer>
 </data-extraction-rules>

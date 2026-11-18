@@ -3,38 +3,53 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="2dp"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground"
-    android:gravity="center_vertical"
-    android:minHeight="44dp"
-    android:orientation="horizontal"
-    android:paddingStart="14dp"
-    android:paddingEnd="10dp"
-    android:paddingTop="0dp"
-    android:paddingBottom="0dp">
+    android:orientation="vertical">
 
-    <TextView
-        android:id="@+id/drawerSessionTitle"
-        android:layout_width="0dp"
+    <View
+        android:id="@+id/drawerSessionDivider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="?attr/colorPocketOutline" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:textColor="?attr/colorAssistantText"
-        android:textSize="15sp"
-        android:textStyle="bold" />
+        android:gravity="center_vertical"
+        android:minHeight="44dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="2dp">
 
-    <ImageButton
-        android:id="@+id/drawerSessionDeleteButton"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_marginStart="8dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/delete_chat"
-        android:padding="8dp"
-        android:scaleType="centerInside"
-        android:src="@drawable/ic_delete_20"
-        app:tint="@color/delete_red" />
+        <TextView
+            android:id="@+id/drawerSessionTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="?attr/colorAssistantText"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/drawerSessionTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textColor="?attr/colorStatusText"
+            android:textSize="13sp" />
+
+        <ImageView
+            android:id="@+id/drawerSessionMenu"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/chat_menu"
+            android:focusable="true"
+            android:padding="10dp"
+            android:src="@drawable/ic_more_vert_20"
+            app:tint="?attr/colorStatusText" />
+    </LinearLayout>
 </LinearLayout>

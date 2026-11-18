@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <bool name="show_no_model_hint">false</bool>
+    <bool name="show_rate_on_play">false</bool>
+    <bool name="show_pro_model_licenses">false</bool>
+</resources>

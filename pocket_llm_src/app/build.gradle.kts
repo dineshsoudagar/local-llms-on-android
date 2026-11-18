@@ -15,6 +15,9 @@ plugins {
 
 val liteRtLmVersion = "0.17.1"
 
+// LAN server / OpenAI-compatible API, compiled when src/lan exists.
+val hasLanServer = file("src/lan").isDirectory
+
 android {
     namespace = "com.example.local_llm"
     compileSdk = 36
@@ -23,8 +26,8 @@ android {
         applicationId = "io.github.dineshsoudagar.pocketllm"
         minSdk = 24
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.6.0"
+        versionCode = 16
+        versionName = "1.7.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "LITERT_LM_RUNTIME_VERSION", "\"$liteRtLmVersion\"")
@@ -38,6 +41,8 @@ android {
     productFlavors {
         create("github") {
             dimension = "store"
+            // Same ID as the v1.6.0 GitHub APK, so existing installs update in place and keep their chats.
+            applicationId = "com.example.local_llm"
             buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"github\"")
         }
         create("fdroid") {
@@ -80,10 +85,26 @@ android {
         compose = true
         viewBinding = true
     }
+
+    if (hasLanServer) {
+        sourceSets.getByName("main") {
+            java.srcDir("src/lan/java")
+            kotlin.srcDir("src/lan/java")
+            res.directories.add("src/lan/res")
+            assets.directories.add("src/lan/assets")
+        }
+        sourceSets.getByName("test") {
+            java.srcDir("src/lanTest/java")
+            kotlin.srcDir("src/lanTest/java")
+        }
+    }
 }
 
 // Debug builds of each channel install side by side so all three can be tested on one phone.
 androidComponents {
+    if (hasLanServer) {
+        onVariants { variant -> variant.sources.manifests.addStaticManifestFile("src/lan/AndroidManifest.xml") }
+    }
     onVariants(selector().withBuildType("debug")) { variant ->
         val channel = variant.flavorName ?: return@onVariants
         variant.applicationId.set("io.github.dineshsoudagar.pocketllm.debug.$channel")

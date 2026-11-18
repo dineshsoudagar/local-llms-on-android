@@ -6,7 +6,7 @@
     android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorAppBackground"
+    android:background="?attr/pocketPageBackground"
     android:fitsSystemWindows="true"
     tools:context=".PocketChatActivity">
 
@@ -19,7 +19,7 @@
             android:id="@+id/topToolbar"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_chat_surface"
+            android:background="@android:color/transparent"
             android:minHeight="56dp"
             app:contentInsetEnd="0dp"
             app:contentInsetLeft="0dp"
@@ -36,77 +36,92 @@
                 android:layout_height="match_parent"
                 android:layout_gravity="fill"
                 android:minHeight="56dp"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="3dp">
+                android:paddingHorizontal="6dp"
+                android:paddingVertical="4dp">
 
                 <ImageButton
                     android:id="@+id/toolbarMenuButton"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="@string/open_navigation_menu"
-                    android:padding="8dp"
+                    android:padding="10dp"
                     android:src="@drawable/ic_drawer_menu_24"
                     app:tint="?attr/colorAssistantText"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent" />
 
+                <!-- Logo mark and the app name, centred; never changes. -->
                 <LinearLayout
                     android:id="@+id/toolbarBranding"
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:paddingHorizontal="52dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintHorizontal_bias="0.5"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent">
+
+                    <com.example.local_llm.NodeLogoView
+                        android:id="@+id/toolbarLogo"
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:importantForAccessibility="no" />
 
                     <TextView
                         android:id="@+id/toolbarTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:fontFamily="@font/space_grotesk_medium"
                         android:includeFontPadding="false"
                         android:text="@string/toolbar_app_title"
-                        android:textAlignment="center"
-                        android:textColor="?attr/colorAssistantText"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
+                        android:textColor="?attr/colorOnSurface"
+                        android:textSize="18sp" />
 
                     <TextView
                         android:id="@+id/toolbarSubtitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:gravity="center"
-                        android:includeFontPadding="false"
-                        android:maxLines="1"
-                        android:maxWidth="180dp"
-                        android:textAlignment="center"
-                        android:textColor="?attr/colorStatusText"
-                        android:textSize="12sp"
-                        android:textStyle="bold"
+                        android:visibility="gone"
                         tools:text="Qwen3 0.6B LiteRT" />
                 </LinearLayout>
 
-                <ImageView
-                    android:id="@+id/toolbarLogo"
+
+                <ImageButton
+                    android:id="@+id/toolbarNewChat"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
-                    android:adjustViewBounds="true"
-                    android:background="@drawable/bg_toolbar_logo_white"
-                    android:clipToOutline="true"
-                    android:contentDescription="@string/toolbar_app_title"
-                    android:padding="0dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/new_chat_description"
+                    android:padding="10dp"
                     android:scaleType="centerInside"
-                    android:src="@drawable/toolbar_logo_white"
-                    tools:ignore="ContentDescription"
+                    android:src="@drawable/ic_new_chat_24"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toStartOf="@id/contextUsageIndicator"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:tint="?attr/colorAssistantText" />
+
+                <com.google.android.material.progressindicator.CircularProgressIndicator
+                    android:id="@+id/contextUsageIndicator"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/context_usage_description"
+                    android:max="100"
+                    android:padding="8dp"
+                    android:visibility="gone"
+                    app:indicatorColor="?attr/colorSendFill"
+                    app:indicatorInset="0dp"
+                    app:indicatorSize="26dp"
                     app:layout_constraintBottom_toBottomOf="parent"
                     app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="parent" />
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:trackColor="?attr/colorPocketOutline"
+                    app:trackCornerRadius="2dp"
+                    app:trackThickness="3dp" />
             </androidx.constraintlayout.widget.ConstraintLayout>
         </com.google.android.material.appbar.MaterialToolbar>
 
@@ -114,8 +129,7 @@
             android:id="@+id/chatFrame"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/bg_chat_surface"
+            android:background="@android:color/transparent"
             app:layout_constraintBottom_toTopOf="@id/chatControlsRow"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -127,19 +141,71 @@
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
                 android:overScrollMode="always"
-                android:padding="10dp" />
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="8dp" />
+
+            <LinearLayout
+                android:id="@+id/chatGreeting"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center_horizontal"
+                android:orientation="vertical"
+                android:paddingHorizontal="28dp"
+                android:paddingBottom="40dp"
+                android:visibility="gone">
+
+                <!-- Greeting in the theme gradient (set in code), M3 display small in Outfit. -->
+                <TextView
+                    android:id="@+id/chatGreetingHello"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/space_grotesk_medium"
+                    android:gravity="center"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textSize="36sp" />
+
+                <TextView
+                    android:id="@+id/chatGreetingSub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:text="@string/chat_greeting_sub"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="16sp" />
+            </LinearLayout>
+
+            <com.example.local_llm.ModelLoadingCard
+                android:id="@+id/modelLoadingCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center" />
+
+            <TextView
+                android:id="@+id/noModelHint"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:background="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:padding="16dp"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="15sp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/statusView"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
+                android:layout_gravity="bottom|center_horizontal"
+                android:layout_marginBottom="16dp"
                 android:gravity="center"
-                android:paddingHorizontal="20dp"
-                android:paddingVertical="8dp"
-                android:textColor="@color/white"
-                android:textSize="16sp"
-                android:textStyle="bold"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="6dp"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="14sp"
+                android:textStyle="italic"
                 android:visibility="gone"
                 tools:text="Model is ready" />
 
@@ -154,7 +220,7 @@
                 android:maxWidth="260dp"
                 android:paddingHorizontal="18dp"
                 android:paddingVertical="8dp"
-                android:textColor="?attr/colorStatusText"
+                android:textColor="?attr/colorAssistantText"
                 android:textSize="14sp"
                 android:textStyle="bold"
                 android:visibility="gone"
@@ -165,298 +231,346 @@
             android:id="@+id/chatControlsRow"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="1dp"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingHorizontal="2dp"
-            android:paddingVertical="1dp"
+            android:paddingStart="17dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="2dp"
+            app:layout_constraintBottom_toTopOf="@id/inputRow"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/chatFrame">
 
             <LinearLayout
-                android:id="@+id/newChatButton"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_marginHorizontal="2dp"
-                android:layout_weight="1"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:contentDescription="@string/new_chat"
-                android:focusable="true"
-                android:gravity="center"
-                android:orientation="horizontal"
-                android:paddingHorizontal="4dp">
-
-                <TextView
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
-                    android:background="@drawable/bg_new_chat_plus"
-                    android:gravity="center"
-                    android:includeFontPadding="false"
-                    android:text="+"
-                    android:textColor="@color/white"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:ellipsize="end"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:text="@string/new_chat"
-                    android:textColor="?attr/colorStatusText"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
+            android:id="@+id/modelSelector"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+                        android:clickable="true"
+            android:contentDescription="@string/change_model_hint"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="4dp"
+            android:paddingEnd="12dp">
+            <View
+            android:id="@+id/modelStateDot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:background="@drawable/bg_state_dot"
+            android:backgroundTint="@color/pocket_faint" />
+            <TextView
+            android:id="@+id/selectedModelLabel"
+            android:maxWidth="170dp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:text="@string/model_picker_empty_subtitle"
+            android:textColor="?attr/colorAssistantText"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+            <ImageView
+            android:layout_width="15dp"
+            android:layout_height="15dp"
+            android:layout_marginStart="6dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_chevron_down_16"
+            app:tint="?attr/colorStatusText" />
             </LinearLayout>
 
-            <LinearLayout
-                android:id="@+id/modelSelector"
+            <View
                 android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_marginHorizontal="2dp"
-                android:layout_weight="1"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:contentDescription="@string/change_model_hint"
-                android:focusable="true"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/toolsButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_pill_line"
+                android:contentDescription="@string/chat_tools"
+                android:drawableStart="@drawable/ic_tools_24"
+                android:drawablePadding="6dp"
+                android:drawableTint="?attr/colorAssistantText"
+                android:foreground="?attr/selectableItemBackgroundBorderless"
                 android:gravity="center"
-                android:orientation="horizontal"
-                android:paddingHorizontal="4dp">
-
-                <TextView
-                    android:id="@+id/selectedModelLabel"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:text="@string/model_picker_empty_subtitle"
-                    android:textColor="?attr/colorStatusText"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:includeFontPadding="false"
-                    android:text="@string/dropdown_arrow"
-                    android:textColor="?attr/colorStatusText"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/thinkingToggleContainer"
-                android:layout_width="0dp"
-                android:layout_height="36dp"
-                android:layout_marginHorizontal="2dp"
-                android:layout_weight="1"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:clickable="true"
-                android:focusable="true"
-                android:gravity="center"
-                android:orientation="horizontal"
-                android:paddingHorizontal="4dp"
-                android:visibility="gone">
-
-                <CheckBox
-                    android:id="@+id/thinkingToggle"
-                    android:layout_width="22dp"
-                    android:layout_height="22dp"
-                    android:buttonTint="?attr/colorSendFill"
-                    android:checked="false"
-                    android:clickable="false"
-                    android:focusable="false"
-                    android:minHeight="0dp"
-                    android:minWidth="0dp"
-                    android:padding="0dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:ellipsize="end"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:text="@string/enable_thinking_mode"
-                    android:textColor="?attr/colorStatusText"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
+                android:includeFontPadding="false"
+                android:paddingHorizontal="10dp"
+                android:text="@string/chat_tools"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="13sp" />
         </LinearLayout>
 
         <LinearLayout
             android:id="@+id/inputRow"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:layout_marginBottom="4dp"
             android:background="@drawable/bg_input_panel"
-            android:gravity="center_vertical"
             android:orientation="vertical"
-            android:paddingHorizontal="8dp"
-            android:paddingVertical="7dp"
+            android:paddingHorizontal="12dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="12dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/chatControlsRow">
+            app:layout_constraintStart_toStartOf="parent">
 
             <LinearLayout
-                android:id="@+id/inputComposer"
+                android:id="@+id/imageModePanel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/rounded_edittext"
+                android:layout_marginBottom="6dp"
                 android:orientation="vertical"
-                android:paddingHorizontal="8dp"
-                android:paddingTop="8dp"
-                android:paddingBottom="6dp">
-
-                <EditText
-                    android:id="@+id/userInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@android:color/transparent"
-                    android:gravity="top|start"
-                    android:hint="@string/enter_your_prompt"
-                    android:imeOptions="actionSend"
-                    android:inputType="textMultiLine"
-                    android:maxLines="8"
-                    android:minLines="2"
-                    android:paddingHorizontal="0dp"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp"
-                    android:textColor="?attr/colorInputText"
-                    android:textColorHint="?attr/colorInputHint"
-                    android:textSize="16sp" />
-
-                <HorizontalScrollView
-                    android:id="@+id/pendingImageInputsScroll"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:clipToPadding="false"
-                    android:fillViewport="false"
-                    android:overScrollMode="never"
-                    android:scrollbars="none"
-                    android:visibility="gone">
-
-                    <LinearLayout
-                        android:id="@+id/pendingImageInputsContainer"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal" />
-                </HorizontalScrollView>
+                android:visibility="gone">
 
                 <LinearLayout
-                    android:id="@+id/activeAttachmentContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/createImageModeButton"
+                        style="@style/InputToolButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:paddingHorizontal="12dp"
+                        android:text="@string/image_tools"
+                        android:textSize="13sp"
+                        app:cornerRadius="17dp"
+                        app:icon="@drawable/ic_image_24"
+                        app:iconPadding="6dp"
+                        app:iconSize="16dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/imageModelChip"
+                        style="@style/InputToolButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="6dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:paddingHorizontal="12dp"
+                        android:textSize="13sp"
+                        android:visibility="gone"
+                        app:cornerRadius="17dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/refinePromptButton"
+                        style="@style/InputToolButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="6dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:paddingHorizontal="12dp"
+                        android:lineSpacingMultiplier="0.9"
+                        android:maxLines="2"
+                        android:paddingVertical="0dp"
+                        android:text="@string/image_mode_refine"
+                        android:textSize="11sp"
+                        android:visibility="gone"
+                        app:cornerRadius="17dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/imageModeStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:background="@drawable/bg_image_input_chip"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="10dp"
-                    android:paddingVertical="7dp"
-                    android:visibility="gone">
+                    android:paddingHorizontal="4dp"
+                    android:textColor="?attr/colorAssistantText"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
 
-                    <TextView
-                        android:id="@+id/activeAttachmentText"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:ellipsize="end"
-                        android:maxEms="16"
-                        android:maxLines="2"
-                        android:textColor="?attr/colorInputText"
-                        android:textSize="13sp" />
-
-                    <ProgressBar
-                        android:id="@+id/activeAttachmentProgress"
-                        style="?android:attr/progressBarStyleSmall"
-                        android:layout_width="22dp"
-                        android:layout_height="22dp"
-                        android:layout_marginStart="8dp"
-                        android:visibility="gone" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/activeAttachmentRetry"
-                        style="@style/InputToolButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="34dp"
-                        android:layout_marginStart="6dp"
-                        android:text="@string/retry"
-                        android:visibility="gone" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/activeAttachmentCancel"
-                        style="@style/InputToolButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="34dp"
-                        android:layout_marginStart="6dp"
-                        android:text="@android:string/cancel"
-                        android:visibility="gone" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/activeAttachmentDetach"
-                        style="@style/InputToolButton"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:layout_marginStart="6dp"
-                        android:contentDescription="@string/detach_attachment"
-                        android:text=""
-                        app:icon="@drawable/ic_close_18"
-                        app:iconGravity="textStart"
-                        app:iconPadding="0dp"
-                        app:iconSize="18dp"
-                        app:iconTint="?attr/colorAssistantText" />
-                </LinearLayout>
-
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
                 <LinearLayout
-                    android:id="@+id/inputActionRow"
+                    android:id="@+id/inputComposer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:gravity="bottom"
-                    android:orientation="horizontal">
+                    android:background="@drawable/bg_composer_mock"
+                    android:orientation="vertical"
+                    android:padding="5dp">
+
+                    <HorizontalScrollView
+                        android:id="@+id/pendingImageInputsScroll"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:clipToPadding="false"
+                        android:fillViewport="false"
+                        android:overScrollMode="never"
+                        android:scrollbars="none"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:id="@+id/pendingImageInputsContainer"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal" />
+                    </HorizontalScrollView>
 
                     <LinearLayout
-                        android:id="@+id/inputToolsRow"
-                        android:layout_width="0dp"
+                        android:id="@+id/activeAttachmentContainer"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="start|bottom"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_image_input_chip"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingHorizontal="10dp"
+                        android:paddingVertical="7dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/activeAttachmentText"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:ellipsize="end"
+                            android:maxEms="16"
+                            android:maxLines="2"
+                            android:textColor="?attr/colorInputText"
+                            android:textSize="13sp" />
+
+                        <ProgressBar
+                            android:id="@+id/activeAttachmentProgress"
+                            style="?android:attr/progressBarStyleSmall"
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_marginStart="8dp"
+                            android:visibility="gone" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/activeAttachmentRetry"
+                            style="@style/InputToolButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="34dp"
+                            android:layout_marginStart="6dp"
+                            android:text="@string/retry"
+                            android:visibility="gone" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/activeAttachmentCancel"
+                            style="@style/InputToolButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="34dp"
+                            android:layout_marginStart="6dp"
+                            android:text="@android:string/cancel"
+                            android:visibility="gone" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/activeAttachmentDetach"
+                            style="@style/InputToolButton"
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:layout_marginStart="6dp"
+                            android:contentDescription="@string/detach_attachment"
+                            android:text=""
+                            app:icon="@drawable/ic_close_18"
+                            app:iconGravity="textStart"
+                            app:iconPadding="0dp"
+                            app:iconSize="18dp"
+                            app:iconTint="?attr/colorAssistantText" />
+                    </LinearLayout>
+
+                    <EditText
+                        android:id="@+id/userInput"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@android:color/transparent"
+                        android:gravity="center_vertical|start"
+                        android:hint="@string/enter_your_prompt"
+                        android:imeOptions="actionSend"
+                        android:inputType="textMultiLine|textCapSentences"
+                        android:maxLines="6"
+                        android:minHeight="38dp"
+                        android:minLines="1"
+                        android:paddingHorizontal="12dp"
+                        android:paddingVertical="8dp"
+                        android:textColor="?attr/colorInputText"
+                        android:textColorHint="?attr/colorInputHint"
+                        android:textSize="16sp" />
+
+                    <LinearLayout
+                        android:id="@+id/inputActionRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
                         android:orientation="horizontal">
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/attachmentButton"
                             style="@style/InputToolButton"
-                            android:layout_width="34dp"
-                            android:layout_height="34dp"
-                            android:layout_gravity="bottom"
-                            android:contentDescription="@string/add_attachment"
+                            android:layout_width="36dp"
+                            android:layout_height="40dp"
+                            android:contentDescription="@string/plus_menu_open"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"
                             android:insetRight="0dp"
                             android:insetBottom="0dp"
                             android:text=""
-                            app:icon="@drawable/ic_attach_file_24"
+                            app:icon="@drawable/ic_plus_24"
                             app:iconGravity="textStart"
                             app:iconPadding="0dp"
-                            app:iconSize="18dp"
-                            app:iconTint="?attr/colorSendFill" />
+                            app:iconSize="20dp" />
+                        <CheckBox
+                            android:id="@+id/thinkingToggle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:layout_marginStart="4dp"
+                            android:background="@drawable/bg_chip_xs"
+                            android:button="@null"
+                            android:contentDescription="@string/chat_chip_think"
+                            android:drawableStart="@drawable/ic_tier_bulb"
+                            android:drawablePadding="6dp"
+                            android:drawableTint="@color/think_chip_content"
+                            android:foreground="?attr/selectableItemBackgroundBorderless"
+                            android:gravity="center"
+                            android:includeFontPadding="false"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="12dp"
+                            android:text="@string/chat_chip_think"
+                            android:textColor="@color/think_chip_content"
+                            android:textSize="13sp"
+                            android:visibility="gone" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/webSearchButton"
+                                        style="@style/InputToolButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:layout_marginStart="4dp"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:contentDescription="@string/chat_chip_web"
+                            android:paddingHorizontal="10dp"
+                            android:textSize="12.5sp"
+                            app:cornerRadius="8dp"
+                            app:icon="@drawable/ic_web_24"
+                            app:iconPadding="4dp"
+                            app:iconSize="20dp"
+                            app:strokeWidth="0dp" />
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/micInputButton"
                             style="@style/InputToolButton"
-                            android:layout_width="34dp"
-                            android:layout_height="34dp"
-                            android:layout_gravity="bottom"
-                            android:layout_marginStart="5dp"
+                            android:layout_width="36dp"
+                            android:layout_height="40dp"
                             android:contentDescription="@string/voice_input"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"
@@ -466,15 +580,14 @@
                             app:icon="@drawable/ic_mic_24"
                             app:iconGravity="textStart"
                             app:iconPadding="0dp"
-                            app:iconSize="18dp" />
+                            app:iconSize="20dp" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/galleryOcrButton"
+                            android:visibility="gone"
                             style="@style/InputToolButton"
-                            android:layout_width="34dp"
-                            android:layout_height="34dp"
-                            android:layout_gravity="bottom"
-                            android:layout_marginStart="5dp"
+                            android:layout_width="36dp"
+                            android:layout_height="40dp"
                             android:contentDescription="@string/gallery_ocr_input"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"
@@ -484,15 +597,14 @@
                             app:icon="@drawable/ic_image_24"
                             app:iconGravity="textStart"
                             app:iconPadding="0dp"
-                            app:iconSize="18dp" />
+                            app:iconSize="20dp" />
 
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/cameraOcrButton"
+                            android:visibility="gone"
                             style="@style/InputToolButton"
-                            android:layout_width="34dp"
-                            android:layout_height="34dp"
-                            android:layout_gravity="bottom"
-                            android:layout_marginStart="5dp"
+                            android:layout_width="36dp"
+                            android:layout_height="40dp"
                             android:contentDescription="@string/camera_ocr_input"
                             android:insetLeft="0dp"
                             android:insetTop="0dp"
@@ -502,56 +614,122 @@
                             app:icon="@drawable/ic_camera_24"
                             app:iconGravity="textStart"
                             app:iconPadding="0dp"
-                            app:iconSize="18dp" />
+                            app:iconSize="20dp" />
+
+                        <FrameLayout
+                            android:id="@+id/sendStopSwitcher"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/sendButton"
+                                style="@style/SendButton"
+                                android:layout_width="46dp"
+                                android:layout_height="46dp"
+                                android:contentDescription="@string/send"
+                                android:insetLeft="0dp"
+                                android:insetTop="0dp"
+                                android:insetRight="0dp"
+                                android:insetBottom="0dp"
+                                android:minWidth="46dp"
+                                android:padding="0dp"
+                                android:text=""
+                                app:cornerRadius="23dp"
+                                app:icon="@drawable/ic_arrow_up_24"
+                                app:iconTint="?attr/colorOnAccent"
+                                app:iconGravity="textStart"
+                                app:iconPadding="0dp"
+                                app:iconSize="24dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/stopButton"
+                                style="@style/StopButton"
+                                android:layout_width="46dp"
+                                android:layout_height="46dp"
+                                android:contentDescription="@string/stop"
+                                android:insetLeft="0dp"
+                                android:insetTop="0dp"
+                                android:insetRight="0dp"
+                                android:insetBottom="0dp"
+                                android:minWidth="46dp"
+                                android:padding="0dp"
+                                android:text=""
+                                android:visibility="gone"
+                                app:cornerRadius="23dp"
+                                app:icon="@drawable/ic_stop_24"
+                                app:iconGravity="textStart"
+                                app:iconPadding="0dp"
+                                app:iconSize="18dp" />
+                        </FrameLayout>
                     </LinearLayout>
-
-                    <FrameLayout
-                        android:id="@+id/sendStopSwitcher"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_gravity="bottom">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/sendButton"
-                            style="@style/SendButton"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:contentDescription="@string/send"
-                            android:insetLeft="0dp"
-                            android:insetTop="0dp"
-                            android:insetRight="0dp"
-                            android:insetBottom="0dp"
-                            android:minWidth="0dp"
-                            android:minHeight="0dp"
-                            android:padding="12dp"
-                            android:text=""
-                            app:icon="@drawable/ic_send_24"
-                            app:iconGravity="textStart"
-                            app:iconPadding="0dp"
-                            app:iconTint="@color/white" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/stopButton"
-                            style="@style/StopButton"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:contentDescription="@string/stop"
-                            android:insetLeft="0dp"
-                            android:insetTop="0dp"
-                            android:insetRight="0dp"
-                            android:insetBottom="0dp"
-                            android:minWidth="0dp"
-                            android:minHeight="0dp"
-                            android:padding="12dp"
-                            android:text=""
-                            android:visibility="gone"
-                            app:icon="@drawable/ic_stop_24"
-                            app:iconGravity="textStart"
-                            app:iconPadding="0dp"
-                            app:iconTint="@color/white" />
-                    </FrameLayout>
                 </LinearLayout>
+
+                <com.example.local_llm.AnswerLineView
+                    android:id="@+id/answerLine"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone" />
+            </FrameLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/settingsPage"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:background="?attr/colorAppBackground"
+            android:clickable="true"
+            android:elevation="6dp"
+            android:focusable="true"
+            android:orientation="vertical"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="6dp">
+
+                <ImageButton
+                    android:id="@+id/settingsPageBack"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/settings_back"
+                    android:src="@drawable/ic_arrow_back_24"
+                    app:tint="?attr/colorAssistantText" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/settings"
+                    android:textColor="?attr/colorAssistantText"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
             </LinearLayout>
+
+            <androidx.core.widget.NestedScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:overScrollMode="never">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="16dp"
+                    android:paddingBottom="24dp">
+
+<include layout="@layout/settings_sections" />
+                </LinearLayout>
+            </androidx.core.widget.NestedScrollView>
         </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -560,23 +738,69 @@
         android:layout_width="304dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
-        android:background="?attr/colorFrameBackground"
+        android:background="?attr/colorAppBackground"
         android:elevation="16dp"
         android:fitsSystemWindows="true"
-        android:orientation="vertical"
-        android:paddingTop="20dp"
-        android:paddingBottom="12dp">
+        android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/drawerTitle"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:paddingHorizontal="20dp"
-            android:text="@string/toolbar_app_title"
-            android:textColor="?attr/colorAssistantText"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+            android:layout_height="52dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingEnd="12dp">
+
+            <com.example.local_llm.NodeLogoView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/drawerTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="@string/toolbar_app_title"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/drawerTitlePro"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_pro_chip"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="2dp"
+                android:text="@string/pro_chip"
+                android:textColor="@color/pro_chip_on"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <FrameLayout
+                android:id="@+id/newChatButton"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:clickable="true"
+                android:contentDescription="@string/new_chat"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackgroundBorderless">
+
+                <ImageView
+                    android:layout_width="22dp"
+                    android:layout_height="22dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_new_chat_24"
+                    app:tint="?attr/colorAssistantText" />
+            </FrameLayout>
+        </LinearLayout>
 
         <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
@@ -589,41 +813,60 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:paddingHorizontal="16dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="18dp"
-                    android:layout_marginBottom="10dp"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="4dp"
+                    android:background="@drawable/bg_pill_line"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
-                    android:paddingHorizontal="20dp">
+                    android:paddingHorizontal="14dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:includeFontPadding="false"
-                        android:text="@string/previous_chats"
-                        android:textAllCaps="true"
-                        android:textColor="?attr/colorStatusText"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:contentDescription="@null"
+                        android:src="@drawable/ic_search_20"
+                        app:tint="@color/pocket_faint" />
 
-                    <View
+                    <EditText
+                        android:id="@+id/drawerSearchChats"
                         android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_marginStart="10dp"
+                        android:layout_height="match_parent"
+                        android:layout_marginStart="8dp"
                         android:layout_weight="1"
-                        android:alpha="0.22"
-                        android:background="?attr/colorStatusText" />
+                        android:background="@null"
+                        android:hint="@string/drawer_search_chats"
+                        android:imeOptions="actionSearch"
+                        android:importantForAutofill="no"
+                        android:inputType="text"
+                        android:maxLines="1"
+                        android:padding="0dp"
+                        android:textColor="?attr/colorAssistantText"
+                        android:textColorHint="@color/pocket_faint"
+                        android:textSize="14sp" />
                 </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="2dp"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginBottom="8dp"
+                    android:letterSpacing="0.02"
+                    android:text="@string/drawer_section_recent"
+                    android:textColor="?attr/colorStatusText"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/drawerChatsEmpty"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingHorizontal="20dp"
+                    android:paddingHorizontal="2dp"
                     android:paddingBottom="8dp"
                     android:text="@string/no_saved_chats"
                     android:textColor="?attr/colorStatusText"
@@ -634,206 +877,425 @@
                     android:id="@+id/drawerChatsRecyclerView"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:clipToPadding="false"
                     android:nestedScrollingEnabled="false"
-                    android:overScrollMode="never"
-                    android:paddingBottom="8dp"
-                    android:paddingHorizontal="12dp" />
+                    android:overScrollMode="never" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="2dp"
+                    android:layout_marginTop="18dp"
+                    android:layout_marginBottom="8dp"
+                    android:letterSpacing="0.02"
+                    android:text="@string/drawer_section_tools"
+                    android:textColor="?attr/colorStatusText"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/drawerImageToolsRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="2dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:minHeight="52dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="2dp"
+                    android:paddingVertical="4dp">
+
+                    <FrameLayout
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:background="@drawable/bg_drawer_tile"
+                        android:backgroundTint="?attr/colorTile2">
+
+                        <ImageView
+                            android:id="@+id/drawerImageToolsIcon"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_image_24"
+                            app:tint="?attr/colorTile2On" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/image_tools"
+                            android:textColor="?attr/colorAssistantText"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:id="@+id/drawerImageToolsStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="?attr/colorStatusText"
+                            android:textSize="12sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/drawerImageToolsProChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_pro_chip"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="1dp"
+                        android:text="@string/pro_chip"
+                        android:textColor="@color/pro_chip_on"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+
+                    <ImageView
+                        android:id="@+id/drawerImageToolsLock"
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_marginStart="6dp"
+                        android:contentDescription="@string/pro_locked_description"
+                        android:src="@drawable/ic_lock_16"
+                        android:visibility="gone"
+                        app:tint="@color/pocket_faint" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/drawerTranslatorRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="2dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:minHeight="52dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="2dp"
+                    android:paddingVertical="4dp">
+
+                    <FrameLayout
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:background="@drawable/bg_drawer_tile"
+                        android:backgroundTint="?attr/colorTile1">
+
+                        <ImageView
+                            android:id="@+id/drawerTranslatorIcon"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_translate_24"
+                            app:tint="?attr/colorTile1On" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/translator_menu"
+                            android:textColor="?attr/colorAssistantText"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:id="@+id/drawerTranslatorStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="?attr/colorStatusText"
+                            android:textSize="12sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/drawerTranslatorProChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_pro_chip"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="1dp"
+                        android:text="@string/pro_chip"
+                        android:textColor="@color/pro_chip_on"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+
+                    <ImageView
+                        android:id="@+id/drawerTranslatorLock"
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_marginStart="6dp"
+                        android:contentDescription="@string/pro_locked_description"
+                        android:src="@drawable/ic_lock_16"
+                        android:visibility="gone"
+                        app:tint="@color/pocket_faint" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/drawerLanServerRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="2dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:minHeight="52dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="2dp"
+                    android:paddingVertical="4dp">
+
+                    <FrameLayout
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:background="@drawable/bg_drawer_tile"
+                        android:backgroundTint="?attr/colorTile3">
+
+                        <ImageView
+                            android:id="@+id/drawerLanServerIcon"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_network_20"
+                            app:tint="?attr/colorTile3On" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/lan_server_menu"
+                            android:textColor="?attr/colorAssistantText"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:id="@+id/drawerLanServerStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="?attr/colorStatusText"
+                            android:textSize="12sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/drawerWebSearchRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="2dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:minHeight="52dp"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="2dp"
+                    android:paddingVertical="4dp">
+
+                    <FrameLayout
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:background="@drawable/bg_drawer_tile"
+                        android:backgroundTint="?attr/colorTile4">
+
+                        <ImageView
+                            android:id="@+id/drawerWebSearchIcon"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_gravity="center"
+                            android:contentDescription="@null"
+                            android:src="@drawable/ic_web_24"
+                            app:tint="?attr/colorTile4On" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/web_search_menu"
+                            android:textColor="?attr/colorAssistantText"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:id="@+id/drawerWebSearchStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="?attr/colorStatusText"
+                            android:textSize="12sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/drawerWebSearchProChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:background="@drawable/bg_pro_chip"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="1dp"
+                        android:text="@string/pro_chip"
+                        android:textColor="@color/pro_chip_on"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
+
+                    <ImageView
+                        android:id="@+id/drawerWebSearchLock"
+                        android:layout_width="16dp"
+                        android:layout_height="16dp"
+                        android:layout_marginStart="6dp"
+                        android:contentDescription="@string/pro_locked_description"
+                        android:src="@drawable/ic_lock_16"
+                        android:visibility="gone"
+                        app:tint="@color/pocket_faint" />
+                </LinearLayout>
 
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginHorizontal="20dp"
-            android:background="?attr/colorStatusText"
-            android:alpha="0.18" />
-
         <LinearLayout
-            android:id="@+id/drawerSettingsRow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:minHeight="52dp"
-            android:orientation="horizontal"
-            android:layout_marginTop="10dp"
-            android:paddingHorizontal="20dp">
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="8dp">
 
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:contentDescription="@null"
-                android:src="@drawable/ic_settings_20"
-                app:tint="?attr/colorStatusText" />
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="?attr/colorPocketOutline" />
 
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:id="@+id/drawerImagesRow"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
-                android:text="@string/settings"
-                android:textColor="?attr/colorAssistantText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:orientation="horizontal"
+                android:paddingHorizontal="2dp">
 
-        <LinearLayout
-            android:id="@+id/drawerLanServerRow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:minHeight="52dp"
-            android:orientation="horizontal"
-            android:paddingHorizontal="20dp">
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_image_24"
+                    app:tint="?attr/colorAssistantText" />
 
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:contentDescription="@null"
-                android:src="@drawable/ic_network_20"
-                app:tint="?attr/colorStatusText" />
-
-            <TextView
-                android:layout_width="wrap_content"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:text="@string/images_section_title"
+                    android:textColor="?attr/colorAssistantText"
+                    android:textSize="15sp" />
+            </LinearLayout>
+            <LinearLayout
+                android:id="@+id/drawerOpenSettingsRow"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
-                android:text="@string/lan_server_menu"
-                android:textColor="?attr/colorAssistantText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:orientation="horizontal"
+                android:paddingHorizontal="2dp">
 
-        <LinearLayout
-            android:id="@+id/drawerImagesRow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:minHeight="52dp"
-            android:orientation="horizontal"
-            android:paddingHorizontal="20dp">
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_settings_20"
+                    app:tint="?attr/colorAssistantText" />
 
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:contentDescription="@null"
-                android:src="@drawable/ic_image_24"
-                app:tint="?attr/colorStatusText" />
-
-            <TextView
-                android:layout_width="wrap_content"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:text="@string/settings"
+                    android:textColor="?attr/colorAssistantText"
+                    android:textSize="15sp" />
+            </LinearLayout>
+            <!-- Open-source build only: points to the Google Play version. -->
+            <LinearLayout
+                android:id="@+id/drawerGetPlayRow"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
-                android:text="@string/images_section_title"
-                android:textColor="?attr/colorAssistantText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:minHeight="52dp"
+                android:orientation="horizontal"
+                android:paddingHorizontal="2dp"
+                android:visibility="gone">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingStart="20dp"
-            android:paddingTop="10dp"
-            android:paddingBottom="2dp"
-            android:text="@string/models_section_title"
-            android:textColor="?attr/colorStatusText"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="@null"
+                    android:src="@drawable/ic_download_16"
+                    app:tint="?attr/colorAssistantText" />
 
-        <LinearLayout
-            android:id="@+id/drawerModelSettingsRow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:minHeight="52dp"
-            android:orientation="horizontal"
-            android:paddingHorizontal="20dp">
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:contentDescription="@null"
-                android:src="@drawable/ic_settings_20"
-                app:tint="?attr/colorStatusText" />
-
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:text="@string/drawer_get_play"
+                    android:textColor="?attr/colorAssistantText"
+                    android:textSize="15sp" />
+            </LinearLayout>
             <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
-                android:text="@string/model_settings"
-                android:textColor="?attr/colorAssistantText"
-                android:textSize="16sp"
+                android:id="@+id/drawerProStatus"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="4dp"
+                android:background="@drawable/bg_pro_gold"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:text="@string/pro_get"
+                android:textColor="@color/pro_on_gold"
+                android:textSize="15sp"
                 android:textStyle="bold" />
-        </LinearLayout>
 
-        <LinearLayout
-            android:id="@+id/drawerManageModelsRow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:minHeight="52dp"
-            android:orientation="horizontal"
-            android:paddingHorizontal="20dp">
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:contentDescription="@null"
-                android:src="@drawable/ic_settings_20"
-                app:tint="?attr/colorStatusText" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
-                android:text="@string/manage_models"
-                android:textColor="?attr/colorAssistantText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/drawerAboutRow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:gravity="center_vertical"
-            android:minHeight="52dp"
-            android:orientation="horizontal"
-            android:paddingHorizontal="20dp">
-
-            <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:contentDescription="@null"
-                android:src="@drawable/ic_about_20"
-                app:tint="?attr/colorStatusText" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="14dp"
-                android:text="@string/about"
-                android:textColor="?attr/colorAssistantText"
-                android:textSize="16sp"
-                android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 </androidx.drawerlayout.widget.DrawerLayout>

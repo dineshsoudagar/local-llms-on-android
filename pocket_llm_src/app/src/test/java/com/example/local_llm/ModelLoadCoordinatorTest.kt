@@ -22,6 +22,20 @@ class ModelLoadCoordinatorTest {
     }
 
     @Test
+    fun interruptedInitializationExplainsNativeCrashAndLowMemory() {
+        val crashed = ModelLoadCoordinator(
+            ModelLoadRecord("gemma", "attempt-1", ModelLoadPhase.INITIALIZING, 10L)
+        ).recoverInterrupted(20L, InterruptedLoadCause.NATIVE_CRASH)
+        assertEquals(ModelLoadPhase.FAILED, crashed?.phase)
+        assertTrue(crashed?.failureReason.orEmpty().contains("runtime crashed"))
+
+        val killed = ModelLoadCoordinator(
+            ModelLoadRecord("gemma", "attempt-2", ModelLoadPhase.INITIALIZING, 10L)
+        ).recoverInterrupted(20L, InterruptedLoadCause.LOW_MEMORY)
+        assertTrue(killed?.failureReason.orEmpty().contains("ran out of memory"))
+    }
+
+    @Test
     fun successClearsOnlyTheMatchingAttempt() {
         val coordinator = ModelLoadCoordinator()
         val first = coordinator.begin("qwen", 1L, "first")

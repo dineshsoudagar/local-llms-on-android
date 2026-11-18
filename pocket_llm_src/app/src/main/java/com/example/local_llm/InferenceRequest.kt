@@ -17,5 +17,8 @@ data class InferenceRequest(
     val outputTokenReserve: Int = 0,
     val tools: List<ExternalToolDefinition> = emptyList(),
     val toolChoice: ExternalToolChoice = ExternalToolChoice(),
-    val parallelToolCalls: Boolean = true
+    val parallelToolCalls: Boolean = true,
+    val allowWebTools: Boolean = false,
+    /** Extra variables for the GGUF chat template (PLaMo Translate reads source_lang and target_lang). */
+    val templateKwargs: Map<String, String> = emptyMap()
 )

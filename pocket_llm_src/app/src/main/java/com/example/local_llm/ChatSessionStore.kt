@@ -17,7 +17,8 @@ data class PersistedChatSession(
     val createdAtMillis: Long,
     val updatedAtMillis: Long,
     val turns: List<ChatTurn>,
-    val activeAttachmentId: String? = null
+    val activeAttachmentId: String? = null,
+    val compaction: ChatCompaction? = null
 )
 
 data class ChatSessionSummary(
@@ -87,6 +88,32 @@ class ChatSessionStore(context: Context) {
             ?: emptyList()
     }
 
+    /** The stored session file as is, for the JSON export. */
+    fun exportJson(sessionId: String): String? {
+        val file = fileFor(sessionId)
+        return if (file.exists()) runCatching { file.readText() }.getOrNull() else null
+    }
+
+    /** A readable copy of the conversation: a header, then each turn labelled You or the model name. */
+    fun exportText(sessionId: String): String? {
+        val session = load(sessionId) ?: return null
+        val format = java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT)
+        val out = StringBuilder()
+        out.append(buildChatSessionTitle(session.turns)).append('\n')
+        out.append(session.modelDisplayName).append(" - ").append(format.format(java.util.Date(session.updatedAtMillis))).append("\n\n")
+        session.turns.forEach { turn ->
+            val speaker = if (turn.role == ChatRole.USER) "You" else session.modelDisplayName.ifBlank { "Assistant" }
+            val body = when (turn.contentType) {
+                ChatTurnContentType.IMAGE -> "[image]"
+                ChatTurnContentType.ATTACHMENT -> "[attachment] " + (turn.displayText ?: turn.text)
+                ChatTurnContentType.IMAGE_PROMPT -> "[image prompt] " + (turn.displayText ?: turn.text)
+                else -> turn.displayText ?: turn.text
+            }
+            out.append(speaker).append(":\n").append(body.trim()).append("\n\n")
+        }
+        return out.toString().trimEnd() + "\n"
+    }
+
     private fun fileFor(sessionId: String): File {
         return File(sessionsDir, "$sessionId.json")
     }
@@ -100,6 +127,14 @@ class ChatSessionStore(context: Context) {
             put("createdAtMillis", session.createdAtMillis)
             put("updatedAtMillis", session.updatedAtMillis)
             session.activeAttachmentId?.let { put("activeAttachmentId", it) }
+            session.compaction?.let { compaction ->
+                put(
+                    "compaction",
+                    JSONObject()
+                        .put("summary", compaction.summary)
+                        .put("throughTurnId", compaction.throughTurnId)
+                )
+            }
             put(
                 "turns",
                 JSONArray().apply {
@@ -114,6 +149,7 @@ class ChatSessionStore(context: Context) {
                                 }
                                 turn.thinkingText?.let { put("thinkingText", it) }
                                 turn.thinkingDurationMillis?.let { put("thinkingDurationMillis", it) }
+                                turn.tokensPerSecond?.let { put("tokensPerSecond", it.toDouble()) }
                                 put("stopped", turn.stopped)
                                 put("renderAsMarkdown", turn.renderAsMarkdown)
                                 put("isStreaming", turn.isStreaming)
@@ -147,6 +183,9 @@ class ChatSessionStore(context: Context) {
                         thinkingText = turnJson.optString("thinkingText").takeIf { it.isNotBlank() },
                         thinkingDurationMillis = turnJson.optLong("thinkingDurationMillis")
                             .takeIf { turnJson.has("thinkingDurationMillis") },
+                        tokensPerSecond = turnJson.optDouble("tokensPerSecond")
+                            .takeIf { turnJson.has("tokensPerSecond") }
+                            ?.toFloat(),
                         stopped = turnJson.optBoolean("stopped"),
                         renderAsMarkdown = turnJson.optBoolean("renderAsMarkdown", true),
                         isStreaming = turnJson.optBoolean("isStreaming", false),
@@ -176,7 +215,12 @@ class ChatSessionStore(context: Context) {
             createdAtMillis = json.optLong("createdAtMillis"),
             updatedAtMillis = json.optLong("updatedAtMillis"),
             turns = turns,
-            activeAttachmentId = json.optString("activeAttachmentId").takeIf { it.isNotBlank() }
+            activeAttachmentId = json.optString("activeAttachmentId").takeIf { it.isNotBlank() },
+            compaction = json.optJSONObject("compaction")?.let { compactionJson ->
+                val summary = compactionJson.optString("summary")
+                val throughTurnId = compactionJson.optString("throughTurnId")
+                if (summary.isBlank() || throughTurnId.isBlank()) null else ChatCompaction(summary, throughTurnId)
+            }
         )
     }
 

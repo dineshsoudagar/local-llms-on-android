@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Violet glow background: a single accent glow from the top right. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="?attr/colorSurface" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:centerX="0.9"
+                android:centerY="0.0"
+                android:gradientRadius="85%p"
+                android:startColor="?attr/pocketGlowA"
+                android:endColor="@android:color/transparent" />
+        </shape>
+    </item>
+</layer-list>

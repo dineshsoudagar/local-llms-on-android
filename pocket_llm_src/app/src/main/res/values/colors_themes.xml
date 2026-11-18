@@ -1,0 +1,9 @@
+<resources>
+    <!-- Accent swatches shown in Settings (dark theme accent colours). -->
+    <color name="violet_dark_accent">#A994FF</color>
+    <color name="blue_dark_accent">#74ADFF</color>
+    <color name="mint_dark_accent">#5EE0D2</color>
+    <color name="rose_dark_accent">#FF8FB1</color>
+    <color name="amber_dark_accent">#FFC857</color>
+    <color name="coral_dark_accent">#FF8A7A</color>
+</resources>

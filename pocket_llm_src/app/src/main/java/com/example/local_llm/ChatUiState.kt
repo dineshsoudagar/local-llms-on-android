@@ -13,5 +13,19 @@ data class ChatUiState(
     val supportsThinking: Boolean = false,
     val supportsDirectImageInput: Boolean = false,
     val supportsNativeAudioInput: Boolean = false,
-    val activeAttachmentId: String? = null
+    val activeAttachmentId: String? = null,
+    /** Estimated tokens the chat already takes in the context window; 0 when unknown. */
+    val contextUsedTokens: Int = 0,
+    val contextWindowTokens: Int = 0,
+    /** How [contextUsedTokens] splits into its parts; parts add up to it. */
+    val contextBreakdown: ContextBreakdown = ContextBreakdown(),
+    /** Answers that finished normally (not stopped, not failed) since the model loaded. */
+    val finishedAnswers: Int = 0
+)
+
+data class ContextBreakdown(
+    val instructionTokens: Int = 0,
+    val summaryTokens: Int = 0,
+    val documentTokens: Int = 0,
+    val conversationTokens: Int = 0
 )

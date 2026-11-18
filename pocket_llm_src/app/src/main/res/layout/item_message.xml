@@ -14,19 +14,25 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="6dp"
-        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
         android:visibility="gone">
+
+        <com.example.local_llm.NodeOrbView
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_marginStart="4dp"
+            android:importantForAccessibility="no" />
 
         <TextView
             android:id="@+id/preResponseStatusView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_status_chip"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="7dp"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="4dp"
             android:textColor="?attr/colorStatusText"
             android:textSize="14sp"
-            android:textStyle="bold" />
+            android:textStyle="normal" />
     </LinearLayout>
 
     <LinearLayout
@@ -41,14 +47,13 @@
             android:id="@+id/thoughtHeaderView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_status_chip"
             android:clickable="true"
             android:focusable="true"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="7dp"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="4dp"
             android:textColor="?attr/colorStatusText"
             android:textSize="14sp"
-            android:textStyle="bold" />
+            android:textStyle="normal" />
 
         <TextView
             android:id="@+id/thoughtView"
@@ -119,5 +124,168 @@
             app:tint="?attr/colorStatusText"
             android:visibility="gone" />
     </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/replyActions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/replyCopy"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/copy_response"
+            android:padding="7dp"
+            android:src="@drawable/ic_copy_20"
+            app:tint="?attr/colorStatusText" />
+
+        <ImageButton
+            android:id="@+id/replyTranslate"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/reply_translate"
+            android:padding="7dp"
+            android:src="@drawable/ic_translate_24"
+            app:tint="?attr/colorStatusText" />
+
+        <ImageButton
+            android:id="@+id/replyShare"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/reply_share"
+            android:padding="7dp"
+            android:src="@drawable/ic_reply_share_20"
+            app:tint="?attr/colorStatusText" />
+
+        <ImageButton
+            android:id="@+id/replyRetry"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/reply_retry"
+            android:padding="7dp"
+            android:src="@drawable/ic_reply_refresh_20"
+            app:tint="?attr/colorStatusText" />
+
+        <ImageButton
+            android:id="@+id/replyReport"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/report_response"
+            android:padding="7dp"
+            android:src="@drawable/ic_flag_20"
+            app:tint="?attr/colorStatusText" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/magicActions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/magicCutout"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="12dp"
+                android:text="@string/magic_cutout"
+                android:letterSpacing="0"
+                android:textAllCaps="false"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="13sp"
+                app:backgroundTint="?attr/colorFrameBackground"
+                app:cornerRadius="18dp"
+                app:icon="@drawable/ic_cutout_20"
+                app:iconPadding="6dp"
+                app:iconSize="16dp"
+                app:iconTint="@color/pro_gold_dark"
+                app:rippleColor="@android:color/transparent"
+                app:strokeColor="@color/pro_gold"
+                app:strokeWidth="1dp" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/magicRestyle"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginEnd="8dp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="12dp"
+                android:text="@string/magic_restyle"
+                android:letterSpacing="0"
+                android:textAllCaps="false"
+                android:textColor="?attr/colorAssistantText"
+                android:textSize="13sp"
+                app:backgroundTint="?attr/colorFrameBackground"
+                app:cornerRadius="18dp"
+                app:icon="@drawable/ic_edit_20"
+                app:iconPadding="6dp"
+                app:iconSize="16dp"
+                app:iconTint="@color/pro_gold_dark"
+                app:rippleColor="@android:color/transparent"
+                app:strokeColor="@color/pro_gold"
+                app:strokeWidth="1dp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/magicProChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_pro_gold"
+                android:paddingHorizontal="7dp"
+                android:paddingVertical="1dp"
+                android:text="@string/pro_chip"
+                android:textColor="@color/pro_on_gold"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/magicNote"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="?attr/colorStatusText"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/messageSpeed"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:paddingHorizontal="8dp"
+        android:textColor="@color/pocket_faint"
+        android:textSize="12sp"
+        android:visibility="gone" />
 
 </LinearLayout>

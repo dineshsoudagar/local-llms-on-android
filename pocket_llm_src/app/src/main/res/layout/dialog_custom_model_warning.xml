@@ -12,8 +12,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/custom_model_warning_title"
-        android:textColor="?attr/colorStopStroke"
-        android:textSize="20sp"
+        android:textColor="?attr/colorStopFill"
+        android:textSize="22sp"
         android:textStyle="bold" />
 
     <TextView
@@ -30,7 +30,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:text="@string/custom_model_warning_risk"
-        android:textColor="?attr/colorStopStroke"
+        android:textColor="?attr/colorStopFill"
         android:textSize="13sp"
         android:textStyle="bold" />
 </LinearLayout>

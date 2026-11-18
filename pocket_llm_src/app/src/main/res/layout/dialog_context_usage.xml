@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="bottom"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/contextUsageUsed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="?attr/colorAssistantText"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            tools:text="3,412" />
+
+        <TextView
+            android:id="@+id/contextUsageTotal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_marginBottom="4dp"
+            android:layout_weight="1"
+            android:textColor="?attr/colorStatusText"
+            android:textSize="14sp"
+            tools:text="of 8,192 tokens" />
+
+        <TextView
+            android:id="@+id/contextUsagePercent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:textColor="?attr/colorSendFill"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            tools:text="42%" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/contextUsageBar"
+        android:layout_width="match_parent"
+        android:layout_height="10dp"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_context_bar"
+        android:orientation="horizontal" />
+
+    <LinearLayout
+        android:id="@+id/contextUsageRows"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:orientation="vertical" />
+
+    <TextView
+        android:id="@+id/contextUsageNote"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:lineSpacingExtra="2dp"
+        android:textColor="?attr/colorStatusText"
+        android:textSize="13sp"
+        tools:text="Above 75%, older messages are summarized to make room." />
+</LinearLayout>

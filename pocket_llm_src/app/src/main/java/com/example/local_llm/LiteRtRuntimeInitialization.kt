@@ -20,3 +20,15 @@ internal fun <T : AutoCloseable> createUsableLiteRtRuntime(
         Result.failure(error)
     }
 }
+
+/** Compares the runtime's KV-cache token count with the estimate so later estimates stay above it. */
+internal fun ChatBackend.observeTokenUsage(
+    calibration: TokenEstimateCalibration,
+    conversation: com.google.ai.edge.litertlm.Conversation,
+    request: InferenceRequest,
+    responseText: String
+) {
+    val measured = runCatching { conversation.getTokenCount() }.getOrNull() ?: return
+    val estimated = rawPromptTokenEstimate(request) + PromptTokenEstimator.estimate(responseText)
+    calibration.observe(estimated, measured)
+}

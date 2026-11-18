@@ -10,7 +10,9 @@ enum class ChatRole {
 enum class ChatTurnContentType {
     TEXT,
     IMAGE,
-    ATTACHMENT
+    ATTACHMENT,
+    /** The prompt of a generated image; shown in the chat but never sent to the chat model. */
+    IMAGE_PROMPT
 }
 
 data class ChatTurn(
@@ -21,6 +23,7 @@ data class ChatTurn(
     val preResponseStatusText: String? = null,
     val thinkingText: String? = null,
     val thinkingDurationMillis: Long? = null,
+    val tokensPerSecond: Float? = null,
     val stopped: Boolean = false,
     val renderAsMarkdown: Boolean = false,
     val isStreaming: Boolean = false,
@@ -44,12 +47,15 @@ data class ChatTurn(
     val isAttachment: Boolean
         get() = contentType == ChatTurnContentType.ATTACHMENT
 
+    val isImagePrompt: Boolean
+        get() = contentType == ChatTurnContentType.IMAGE_PROMPT
+
     val transcriptText: String
         get() = if (isImage || isAttachment) "" else displayText ?: text
 }
 
 fun ChatTurn.asModelMemoryTurn(): ChatTurn? {
-    if (isImage || isAttachment) {
+    if (isImage || isAttachment || isImagePrompt) {
         return null
     }
 
@@ -58,6 +64,7 @@ fun ChatTurn.asModelMemoryTurn(): ChatTurn? {
         preResponseStatusText = null,
         thinkingText = null,
         thinkingDurationMillis = null,
+        tokensPerSecond = null,
         stopped = false,
         renderAsMarkdown = false,
         isStreaming = false,

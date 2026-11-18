@@ -68,6 +68,9 @@ class ModelDownloadService : Service() {
             return START_NOT_STICKY
         }
 
+        // The process may have been restarted; added models are only known after loading them.
+        ModelRegistry.loadCustomModels(this)
+        ImageGenFeature.instance?.loadCustomModels(this)
         val descriptor = DownloadableModelRegistry.findById(intent?.getStringExtra(EXTRA_MODEL_ID))
         if (descriptor == null) {
             stopSelf(startId)

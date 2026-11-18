@@ -43,6 +43,9 @@ object ModelPreflightEvaluator {
         val backendOverhead = when (descriptor) {
             is OnnxQwenSpec -> 768L * MIB
             is GemmaLiteRtSpec, is QwenLiteRtSpec, is CustomLiteRtSpec -> 1024L * MIB
+            is ImageGenSpec -> 512L * MIB
+            // mmap'ed weights plus the KV cache and compute buffers.
+            is GgufSpec -> 512L * MIB
         }
         val estimatedWorkingSet = modelBytes + backendOverhead
         val risky = resources.lowMemory ||
@@ -188,4 +191,8 @@ object ModelArtifactInspector {
     }
 }
 
-data class BackendInitializationPolicy(val allowCpuFallback: Boolean = true)
+data class BackendInitializationPolicy(
+    val allowCpuFallback: Boolean = true,
+    /** Skip GPU attempts entirely, e.g. after the GPU path crashed the process for this model. */
+    val cpuOnly: Boolean = false
+)

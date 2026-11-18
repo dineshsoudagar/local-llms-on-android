@@ -19,14 +19,28 @@ class CustomLiteRtModelStore(private val context: Context) {
                 val metadata = JSONObject(File(directory, "custom_model.json").readText())
                 val file = File(directory, "model.litertlm")
                 val expectedBytes = metadata.getLong("bytes")
-                if (!file.isFile || expectedBytes <= 0L) return@runCatching null
+                val url = metadata.optString("url")
+                // Entries added from Hugging Face exist before their file is downloaded.
+                if ((!file.isFile && url.isEmpty()) || expectedBytes <= 0L) return@runCatching null
                 val inputs = metadata.optJSONObject("inputs")?.let {
                     CustomModelCapabilities(it.getBoolean("text"), it.getBoolean("vision"),
                         it.getBoolean("audio"), it.getBoolean("video"))
                 }
-                CustomLiteRtSpec(file.name, expectedBytes, directory.name, metadata.getString("name"), inputs)
+                CustomLiteRtSpec(file.name, expectedBytes, directory.name, metadata.getString("name"), inputs, url)
             }.getOrNull()
         }
+
+    /** Registers a .litertlm file from Hugging Face; the download service fetches it like any other model. */
+    fun addRemote(displayName: String, url: String, bytes: Long): CustomLiteRtSpec {
+        require(bytes > 0L) { "The file size is unknown." }
+        val id = "custom_hf_${UUID.randomUUID()}"
+        val directory = File(modelsDir, id)
+        check(directory.mkdirs()) { "Could not create model storage." }
+        File(directory, "custom_model.json").writeText(
+            JSONObject().put("name", displayName).put("bytes", bytes).put("url", url).toString()
+        )
+        return CustomLiteRtSpec("model.litertlm", bytes, id, displayName, null, url)
+    }
 
     fun import(uri: Uri): CustomLiteRtSpec {
         val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)

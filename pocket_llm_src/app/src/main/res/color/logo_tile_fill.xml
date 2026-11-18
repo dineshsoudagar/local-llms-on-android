@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A faint wash of the theme accent over the page, so the logo tile sits in the theme instead of on a solid block. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:alpha="0.14" android:color="?attr/colorPrimary" />
+</selector>

@@ -62,6 +62,9 @@ class ChatController(
                 modelRuntimeSettings
             )
             is CustomLiteRtSpec -> GemmaLiteRtBackend(appContext, modelDescriptor, modelFileResolver, modelRuntimeSettings)
+            is ImageGenSpec -> throw IllegalArgumentException("${modelDescriptor.displayName} is not a chat model.")
+            is GgufSpec -> LlamaFeature.instance?.createBackend(appContext, modelDescriptor, modelFileResolver, modelRuntimeSettings)
+                ?: throw IllegalArgumentException("${modelDescriptor.displayName} is not supported without the llama feature.")
         }
     }
 

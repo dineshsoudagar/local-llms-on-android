@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <attr name="pocketGradient1" format="color" />
+    <attr name="pocketGradient2" format="color" />
+    <attr name="pocketGradient3" format="color" />
     <attr name="colorAppBackground" format="color" />
+    <attr name="pocketPageBackground" format="color|reference" />
+    <attr name="pocketLogoGradient" format="boolean" />
+    <attr name="pocketGlowA" format="color" />
+    <attr name="pocketGlowB" format="color" />
     <attr name="colorFrameBackground" format="color" />
     <attr name="colorUserBubble" format="color" />
     <attr name="colorAssistantBubble" format="color" />
@@ -11,6 +18,7 @@
     <attr name="colorInputHint" format="color" />
     <attr name="colorStatusText" format="color" />
     <attr name="colorSendFill" format="color" />
+    <attr name="colorOnAccent" format="color" />
     <attr name="colorSendStroke" format="color" />
     <attr name="colorStopFill" format="color" />
     <attr name="colorStopStroke" format="color" />
@@ -18,4 +26,16 @@
     <attr name="colorAssistantGradientEnd" format="color" />
     <attr name="colorAccentGradientStart" format="color" />
     <attr name="colorAccentGradientEnd" format="color" />
+    <attr name="colorPocketOutline" format="color" />
+    <attr name="colorPocketRaised" format="color" />
+    <attr name="colorLogoTile" format="color" />
+    <attr name="colorToolActive" format="color" />
+    <attr name="colorTile1" format="color" />
+    <attr name="colorTile1On" format="color" />
+    <attr name="colorTile2" format="color" />
+    <attr name="colorTile2On" format="color" />
+    <attr name="colorTile3" format="color" />
+    <attr name="colorTile3On" format="color" />
+    <attr name="colorTile4" format="color" />
+    <attr name="colorTile4On" format="color" />
 </resources>

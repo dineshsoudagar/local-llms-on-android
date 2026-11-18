@@ -163,7 +163,7 @@ class WhisperAttachmentTranscriber(
                 whisper = OfflineWhisperModelConfig(
                     encoder = files.encoder.absolutePath,
                     decoder = files.decoder.absolutePath,
-                    language = "",
+                    language = SpeechLanguageStore(context).whisperCode(),
                     task = "transcribe",
                     enableTokenTimestamps = true,
                     enableSegmentTimestamps = true
@@ -186,14 +186,15 @@ class WhisperAttachmentTranscriber(
                     stream.acceptWaveform(samples, SAMPLE_RATE)
                     recognizer.decode(stream)
                     val result = recognizer.getResult(stream)
+                    val spokenText = RepeatedPhraseFilter.collapse(result.text)
                     val chunk = AttachmentChunk(
                         ordinal = index,
-                        text = result.text.trim(),
+                        text = spokenText,
                         source = AttachmentSourceRef(
                             startMillis = input.startMillis,
                             endMillis = input.endMillis
                         ),
-                        estimatedTokens = conservativeTokenEstimate(result.text)
+                        estimatedTokens = conservativeTokenEstimate(spokenText)
                     )
                     val text = merged.lastOrNull()?.let { deduplicateSegmentOverlap(it.text, chunk.text) }
                         ?: chunk.text

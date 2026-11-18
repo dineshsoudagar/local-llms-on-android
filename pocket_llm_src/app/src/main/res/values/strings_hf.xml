@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hf_add_button">Add from Hugging Face</string>
+    <string name="hf_added">%1$s was added. The download continues in Manage models.</string>
+    <string name="model_license_link">%1$s · Model card ›</string>
+    <string name="local_import_unsupported">Choose a .litertlm, .gguf or .safetensors model file.</string>
+    <string name="local_import_image_done">%1$s was imported. Pick it in Create image.</string>
+</resources>

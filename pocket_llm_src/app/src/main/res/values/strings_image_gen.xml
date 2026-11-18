@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="image_gen_title">Create image</string>
+    <string name="image_gen_drawer">Create image</string>
+    <string name="image_gen_generate">Generate</string>
+    <string name="image_gen_failed">Could not create the image: %1$s</string>
+    <string name="image_gen_menu_heading">Image generation</string>
+    <string name="image_gen_manage_heading">Image generation (Pro)</string>
+    <string name="image_gen_result_description">Generated image</string>
+    <string name="image_mode_create">Create image</string>
+    <string name="image_mode_refine">Refine\nprompt</string>
+    <string name="image_turn_attach">Attach to message</string>
+    <string name="image_turn_open">Open</string>
+    <string name="image_turn_report">Report image</string>
+    <string name="image_unsupported_checkpoint">This file cannot be used. It only contains the image model itself, without the text encoder and VAE, so it cannot create images on its own. Pick a complete single-file checkpoint instead (for example an SD 1.5, SD-Turbo or LCM model that includes the text encoder and VAE).</string>
+</resources>

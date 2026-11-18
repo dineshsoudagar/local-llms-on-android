@@ -16,8 +16,8 @@
         android:layout_height="wrap_content"
         android:gravity="center"
         android:text="@string/camera_photo_review_title"
-        android:textColor="?attr/colorAssistantText"
-        android:textSize="20sp"
+        android:textColor="?attr/colorSendFill"
+        android:textSize="22sp"
         android:textStyle="bold" />
 
     <ImageView

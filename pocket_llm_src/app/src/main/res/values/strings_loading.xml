@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="loading_title">Getting %1$s ready</string>
+    <string name="loading_line_1">Waking up the model</string>
+    <string name="loading_line_2">Loading it into memory</string>
+    <string name="loading_line_3">Warming up for the first answer</string>
+    <string name="loading_line_4">Almost there, big models take a little longer</string>
+    <string name="loading_line_done">Ready</string>
+    <string name="loading_input_hint">Getting ready…</string>
+</resources>

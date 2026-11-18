@@ -34,8 +34,27 @@ class QwenLiteRtBackend(
     private lateinit var engine: Engine
     private var conversation: Conversation? = null
 
+    private val tokenCalibration = TokenEstimateCalibration()
+
+    override val minimumOutputReserveTokens: Int
+        get() = liteRtMinimumOutputReserve(capabilities.contextWindowTokens)
+
+    override fun estimateSerializedPromptTokens(request: InferenceRequest): Int =
+        tokenCalibration.apply(rawPromptTokenEstimate(request))
+
     override suspend fun initialize() = withContext(Dispatchers.IO) {
         val modelFile = modelFileResolver.resolveModelFile(spec)
+
+        if (initializationPolicy.cpuOnly) {
+            // A previous GPU load crashed the process in native code; never retry the GPU path.
+            engine = createInitializedEngine(modelFile.absolutePath, Backend.CPU()).getOrElse { cpuError ->
+                throw IllegalStateException(
+                    "Failed to initialize LiteRT-LM on CPU (GPU is disabled after a previous crash): ${cpuError.message}",
+                    cpuError
+                )
+            }
+            return@withContext
+        }
 
         val gpuResult = createInitializedEngine(modelFile.absolutePath, Backend.GPU())
 
@@ -159,7 +178,31 @@ class QwenLiteRtBackend(
             rawOutput = rawOutputBuilder.toString(),
             channelThinking = channelThinkingBuilder.toString().takeIf { it.isNotBlank() }
         )
+        observeTokenUsage(
+            tokenCalibration,
+            activeConversation,
+            request.copy(history = boundedHistory),
+            rawOutputBuilder.toString() + channelThinkingBuilder.toString()
+        )
         finalResponse.copy(toolCalls = externalToolCalls)
+    }
+
+    override fun probeContextFill(fillerParts: List<String>, onFilled: (Int) -> Unit): Int {
+        closeConversation()
+        return engine.createConversation(
+            ConversationConfig(channels = emptyList(), automaticToolCalling = false)
+        ).use { probe ->
+            fillerParts.forEachIndexed { index, part ->
+                val outputTokens = if (index == fillerParts.lastIndex) {
+                    CONTEXT_PROBE_OUTPUT_TOKENS
+                } else {
+                    CONTEXT_PROBE_PART_OUTPUT_TOKENS
+                }
+                probe.sendMessage(Message.user(part), maxOutputToken = outputTokens)
+                onFilled(probe.getTokenCount())
+            }
+            probe.getTokenCount()
+        }
     }
 
     override fun cancelGeneration() {

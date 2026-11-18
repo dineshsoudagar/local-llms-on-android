@@ -3,46 +3,63 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingHorizontal="24dp"
-    android:paddingVertical="16dp">
+    android:paddingHorizontal="20dp"
+    android:paddingTop="12dp"
+    android:paddingBottom="16dp">
 
-    <TextView
-        android:layout_width="match_parent"
+    <LinearLayout
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/dictation_recording_subtitle"
-        android:textColor="?attr/colorStatusText"
-        android:textSize="13sp" />
+        android:layout_gravity="center_horizontal"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <View
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:background="@drawable/bg_status_dot"
+            android:backgroundTint="?attr/colorStopFill" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/dictation_recording_subtitle"
+            android:textColor="?attr/colorStatusText"
+            android:textSize="13sp" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/audioRecordingTimer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="8dp"
+        android:fontFeatureSettings="tnum"
         android:gravity="center"
-        android:textColor="?attr/colorStopFill"
-        android:textSize="32sp"
-        android:textStyle="bold" />
+        android:textColor="?attr/colorAssistantText"
+        android:textSize="48sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="28dp"
-        android:gravity="end"
+        android:layout_marginTop="24dp"
         android:orientation="horizontal">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/discardAudioRecordingButton"
             style="@style/DialogSecondaryButton"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="48dp"
+            android:layout_weight="1"
             android:text="@string/discard_recording" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/useAudioRecordingButton"
             style="@style/DialogPrimaryButton"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="48dp"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
             android:text="@string/transcribe_recording" />
     </LinearLayout>
 </LinearLayout>
