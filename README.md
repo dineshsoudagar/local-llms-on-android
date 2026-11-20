@@ -12,7 +12,7 @@ Turn your Android phone into a **local LLM server for your home network**, or ch
 
 **More apps from me**
 
-<p><img src="data/smart_todo_icon.png" alt="" width="44" align="left">&nbsp;<b>Smart To Do</b> · <a href="https://play.google.com/store/apps/details?id=dev.paths100.smarttodo"><b>⬇️ Get it on Google Play</b></a><br>&nbsp;A to-do list that understands what you type. Completely free, no ads.</p>
+<p><img src="data/smart_todo_icon.png" alt="" width="44" align="left">&nbsp;<b>Smart To Do</b> · <a href="https://play.google.com/store/apps/details?id=dev.paths100.smarttodo"><b>⬇️ Get it on Google Play</b></a><br>&nbsp; Speak, snap or type a reminder. Smart To-Do sets the date, time and repeat. Completely free, no ads.</p>
 
 <p><img src="data/cloud_tidy_icon.png" alt="" width="44" align="left">&nbsp;<b>Cloud Tidy</b> · ⏳ Coming next week<br>&nbsp;Clean up your cloud storage in minutes.</p>
 
