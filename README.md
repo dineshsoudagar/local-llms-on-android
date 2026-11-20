@@ -60,7 +60,7 @@ Turn your Android phone into a **local LLM server for your home network**, or ch
 | 🌍 Offline translator | ❌ | ⭐ |
 | 🔜 Agent mode: tools, skills like deep research | ❌ | ⭐ soon |
 
-**Pro costs €2.99, once.** Free users of the Google Play version get 3 tries of the image tools. Thank you for supporting an indie developer!
+**Pro costs €2.99, once.** Free users of the Google Play version get 3 tries of the pro tools. Thank you for supporting an indie developer!
 
 Feedback or ideas? Email me at [dinesh@100paths.de](mailto:dinesh@100paths.de).
 
