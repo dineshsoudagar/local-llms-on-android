@@ -3,10 +3,10 @@
 Turn your Android phone into a **local LLM server for your home network**, or chat privately on-device with text, images, PDFs, audio, and offline speech-to-text.
 
 <p>
-  <a href="https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.7.0/pocket_llm_v1.7.0.apk"><img src="https://img.shields.io/badge/GitHub_APK-v1.7.0-2ea44f?style=for-the-badge&logo=github&logoColor=white&labelColor=24292f" alt="GitHub APK v1.7.0"></a>&nbsp;<a href="https://github.com/dineshsoudagar/local-llms-on-android/releases"><img src="https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/total?style=for-the-badge&label=&color=0969da&labelColor=555&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggZD0iTTEyIDN2MTIiLz48cGF0aCBkPSJNNyAxMGw1IDUgNS01Ii8%2BPHBhdGggZD0iTTQgMTd2M2gxNnYtMyIvPjwvc3ZnPg%3D%3D" alt="Total APK downloads"></a>&nbsp;&nbsp;<a href="https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.7.0/pocket_llm_v1.7.0.apk"><b>⬇️ Download APK</b></a>
+  <a href="https://play.google.com/store/apps/details?id=io.github.dineshsoudagar.pocketllm"><img src="https://img.shields.io/badge/Google_Play-v1.7.6-34A853?style=for-the-badge&logo=googleplay&logoColor=white&labelColor=1A73E8" alt="Google Play v1.7.6"></a>&nbsp;<a href="https://play.google.com/store/apps/details?id=io.github.dineshsoudagar.pocketllm"><img src="https://img.shields.io/badge/-222-34A853?style=for-the-badge&labelColor=555&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggZD0iTTEyIDN2MTIiLz48cGF0aCBkPSJNNyAxMGw1IDUgNS01Ii8%2BPHBhdGggZD0iTTQgMTd2M2gxNnYtMyIvPjwvc3ZnPg%3D%3D" alt="222 Google Play installs"></a>&nbsp;&nbsp;<a href="https://play.google.com/store/apps/details?id=io.github.dineshsoudagar.pocketllm"><b>⬇️ Get it on Google Play</b></a>
 </p>
 <p>
-  <a href="https://play.google.com/store/apps/details?id=io.github.dineshsoudagar.pocketllm"><img src="https://img.shields.io/badge/Google_Play-v1.7.5-34A853?style=for-the-badge&logo=googleplay&logoColor=white&labelColor=1A73E8" alt="Google Play v1.7.5"></a>&nbsp;<img src="https://img.shields.io/badge/-new_release-f28c28?style=for-the-badge&labelColor=555&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggZD0iTTEyIDN2MTIiLz48cGF0aCBkPSJNNyAxMGw1IDUgNS01Ii8%2BPHBhdGggZD0iTTQgMTd2M2gxNnYtMyIvPjwvc3ZnPg%3D%3D" alt="New release on Google Play">&nbsp;&nbsp;<a href="https://play.google.com/store/apps/details?id=io.github.dineshsoudagar.pocketllm"><b>⬇️ Get it on Google Play</b></a>
+  <a href="https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.7.0/pocket_llm_v1.7.0.apk"><img src="https://img.shields.io/badge/GitHub_APK-v1.7.0-2ea44f?style=for-the-badge&logo=github&logoColor=white&labelColor=24292f" alt="GitHub APK v1.7.0"></a>&nbsp;<a href="https://github.com/dineshsoudagar/local-llms-on-android/releases"><img src="https://img.shields.io/github/downloads/dineshsoudagar/local-llms-on-android/total?style=for-the-badge&label=&color=0969da&labelColor=555&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggZD0iTTEyIDN2MTIiLz48cGF0aCBkPSJNNyAxMGw1IDUgNS01Ii8%2BPHBhdGggZD0iTTQgMTd2M2gxNnYtMyIvPjwvc3ZnPg%3D%3D" alt="Total APK downloads"></a>&nbsp;&nbsp;<a href="https://github.com/dineshsoudagar/local-llms-on-android/releases/download/v1.7.0/pocket_llm_v1.7.0.apk"><b>⬇️ Download APK</b></a>
 </p>
 
 
@@ -45,14 +45,14 @@ Turn your Android phone into a **local LLM server for your home network**, or ch
 
 ## 🆚 GitHub vs Google Play
 
-| | GitHub (v1.7.0) | Google Play (v1.7.5) |
+| | GitHub (v1.7.0) | Google Play (v1.7.6) |
 |---|:---:|:---:|
 | 💬 Offline chat with history | ✅ | ✅ |
 | 🧠 Gemma 4, Qwen3, DeepSeek R1, own `.litertlm` | ✅ | ✅ |
 | 📄 Documents, PDFs and images, with OCR and camera | ✅ | ✅ |
 | 🎙️ Offline dictation and audio files | ✅ | ✅ |
 | 📝 Context fitted to your phone, auto-compact | ✅ | ✅ |
-| 🌐 LAN server, Web UI, OpenAI API | ✅ | ⭐ now, free in the next update |
+| 🌐 LAN server, Web UI, OpenAI API | ✅ | ✅ free |
 | 🦙 GGUF models and Hugging Face import | ❌ | ✅ free |
 | **⭐ Pro, €2.99 once** | | |
 | 🔎 Web search | ❌ | ⭐ |
@@ -63,6 +63,15 @@ Turn your Android phone into a **local LLM server for your home network**, or ch
 **Pro costs €2.99, once.** Free users of the Google Play version get 3 tries of the pro tools. Thank you for supporting an indie developer!
 
 Feedback or ideas? Email me at [dinesh@100paths.de](mailto:dinesh@100paths.de).
+
+---
+
+## 🆕 New in v1.7.6 (Google Play)
+
+- 🌍 **Translator:** Speak into the From language, stop and translate, Sorani Kurdish, and use your own models (file or Hugging Face, LiteRT or GGUF). Any chat model can translate; untested models are marked.
+- 📊 **Context:** Change the length from the usage view; warnings only appear above what your phone can hold.
+- 🧭 **Fewer dead ends:** The app explains and offers a way forward instead of blocking.
+- ⚙️ **Cleaner Settings and Model settings,** plus stability fixes.
 
 ---
 
