@@ -1,6 +1,6 @@
 # 🤖 Pocket LLM for Android (Local LLM Server, Offline & Private)
 
-Turn your Android phone into a **local LLM server for your home network**, or chat privately on-device with text, images, PDFs, audio, and offline speech-to-text.
+Turn your Android phone into a **local LLM server for your home network**, or chat privately on-device with text, images, PDFs, audio, and offline speech-to-text. On Google Play it also **translates 27+ languages offline** and **creates images on the phone**, no internet needed.
 
 <p>
   <a href="https://play.google.com/store/apps/details?id=io.github.dineshsoudagar.pocketllm"><img src="https://img.shields.io/badge/Google_Play-v1.7.6-34A853?style=for-the-badge&logo=googleplay&logoColor=white&labelColor=1A73E8" alt="Google Play v1.7.6"></a>&nbsp;<a href="https://play.google.com/store/apps/details?id=io.github.dineshsoudagar.pocketllm"><img src="https://img.shields.io/badge/-Newly_released-34A853?style=for-the-badge&labelColor=555" alt="Newly released on Google Play"></a>&nbsp;&nbsp;<a href="https://play.google.com/store/apps/details?id=io.github.dineshsoudagar.pocketllm"><b>⬇️ Get it on Google Play</b></a>
@@ -19,6 +19,23 @@ Turn your Android phone into a **local LLM server for your home network**, or ch
 ---
 
 ## 📸 Preview
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="data/pocket_llm_v1.7_offline_translator.gif" alt="Translating a German photo to English in airplane mode" width="260"/><br/>
+      <sub><b>🌍 Offline translator, 27+ languages</b></sub>
+    </td>
+    <td align="center">
+      <img src="data/pocket_llm_v1.7_image_create.gif" alt="Creating an oil-painting fox image on the phone in airplane mode" width="260"/><br/>
+      <sub><b>🪄 Create images offline</b></sub>
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <em>Pro tools on <a href="https://play.google.com/store/apps/details?id=io.github.dineshsoudagar.pocketllm">Google Play</a>, recorded in airplane mode.</em>
+</p>
 
 <table align="center">
   <tr>
